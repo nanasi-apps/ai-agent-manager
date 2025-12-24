@@ -1,6 +1,6 @@
 # Agent Manager - 決定事項まとめ
 
-*最終更新: 2025-12-24*
+*最終更新: 2025-12-25*
 
 ---
 
@@ -12,6 +12,7 @@
 5. [アーキテクチャ：Electron + ブラウザ共有](#アーキテクチャelectron--ブラウザ共有)
 6. [スコープアウト（MVPでは除外）](#スコープアウトmvpでは除外)
 7. [開発フェーズ](#開発フェーズ)
+8. [実装進捗](#実装進捗)
 
 ---
 
@@ -84,18 +85,38 @@
 | **対象OS** | Windows, macOS, Linux |
 | **言語** | TypeScript |
 | **パッケージマネージャー** | pnpm |
+| **UIコンポーネント** | Shadcn Vue |
+| **IPC通信** | oRPC Electron Adapter |
+| **Linting/Formatting** | Biome |
 | **DB**（将来） | Cloudflare D1 |
 | **バックエンド**（将来） | Cloudflare Workers |
 
-### プロジェクト構成（推奨）
+### プロジェクト構成（現在）
 ```
 agent-manager/
 ├── packages/
-│   ├── shared/          # 共有ロジック・型定義・ユーティリティ
-│   ├── ui/              # Vue.js コンポーネント（Electron/ブラウザ共通）
+│   ├── shared/          # 共有型定義・oRPCルーター
 │   ├── electron/        # Electron メインプロセス
-│   └── web/             # ブラウザ版エントリーポイント
+│   └── web/             # Vue.js アプリケーション
+│       ├── src/
+│       │   ├── components/
+│       │   │   ├── ui/          # Shadcn UIコンポーネント
+│       │   │   ├── AppSidebar.vue
+│       │   │   └── AppHeader.vue
+│       │   ├── pages/           # ページコンポーネント
+│       │   │   ├── index.vue    # Dashboard
+│       │   │   ├── inbox.vue
+│       │   │   ├── agents.vue
+│       │   │   ├── settings.vue
+│       │   │   ├── projects/
+│       │   │   └── conversions/
+│       │   ├── layouts/
+│       │   ├── router/
+│       │   ├── services/
+│       │   └── styles/
+│       └── ...
 ├── pnpm-workspace.yaml
+├── biome.json
 └── package.json
 ```
 
@@ -147,70 +168,35 @@ agent-manager/
 ┌─────────────────────────────────────────────────────────────┐
 │                      packages/shared/                        │
 │  ・型定義 (TypeScript types)                                 │
-│  ・ビジネスロジック                                          │
+│  ・oRPC ルーター定義                                         │
 │  ・ユーティリティ関数                                        │
-│  ・API クライアント                                          │
 └─────────────────────────────────────────────────────────────┘
                               ▲
               ┌───────────────┴───────────────┐
               │                               │
 ┌─────────────┴─────────────┐   ┌─────────────┴─────────────┐
-│      packages/ui/         │   │                           │
-│  ・Vue.js コンポーネント   │   │                           │
-│  ・CSS/スタイル            │   │                           │
-│  ・Pinia ストア            │   │                           │
-└───────────────────────────┘   │                           │
-              ▲                 │                           │
-   ┌──────────┴──────────┐      │                           │
-   │                     │      │                           │
-┌──┴───────────┐  ┌──────┴──────┴──┐
-│ Electron App │  │   Browser App   │
-│              │  │                 │
-│ main process │  │  packages/web/  │
-│  (Node.js)   │  │    (Vite)       │
-│              │  │                 │
-│ ・プロセス管理 │  │ ・Workers API   │
-│ ・ファイルI/O  │  │   経由で通信    │
-│ ・Git操作     │  │                 │
-└──────────────┘  └─────────────────┘
+│    packages/electron/     │   │      packages/web/        │
+│  ・Electron メインプロセス │   │  ・Vue.js コンポーネント   │
+│  ・oRPC サーバー           │   │  ・oRPC クライアント       │
+│  ・preload スクリプト      │   │  ・Shadcn UI              │
+└───────────────────────────┘   └───────────────────────────┘
 ```
 
-### IPC通信設計
+### IPC通信設計（oRPC使用）
 ```typescript
-// Electron: preload.ts で API を expose
-contextBridge.exposeInMainWorld('electronAPI', {
-  // エージェント管理
-  startAgent: (config: AgentConfig) => ipcRenderer.invoke('agent:start', config),
-  stopAgent: (id: string) => ipcRenderer.invoke('agent:stop', id),
-  
-  // Git Worktree
-  createWorktree: (path: string) => ipcRenderer.invoke('git:worktree:create', path),
-  
-  // プロセス stdout/stderr ストリーミング
-  onAgentOutput: (callback: (data: string) => void) => {
-    ipcRenderer.on('agent:output', (_, data) => callback(data));
-  }
-});
+// packages/shared/src/router.ts
+import { os } from '@orpc/server'
 
-// ブラウザ版: Workers API 経由で同等の操作
-// （ローカルエージェントとは WebSocket で通信）
-```
+export const router = os.router({
+  ping: os.handler(() => 'pong'),
+  // 追加のエンドポイントをここに定義
+})
 
-### プラットフォーム差分の抽象化
-```typescript
-// packages/shared/src/platform.ts
-export interface PlatformAdapter {
-  startAgent(config: AgentConfig): Promise<AgentHandle>;
-  stopAgent(id: string): Promise<void>;
-  getAgentOutput(id: string): AsyncIterable<string>;
-  // ...
-}
+// packages/electron/src/main.ts
+// oRPC Electron Adapter でサーバー起動
 
-// Electron実装
-export class ElectronPlatformAdapter implements PlatformAdapter { ... }
-
-// ブラウザ実装（WebSocket経由でローカルエージェントと通信）
-export class BrowserPlatformAdapter implements PlatformAdapter { ... }
+// packages/web/src/services/orpc.ts
+// oRPC クライアントでRenderer→Main通信
 ```
 
 ---
@@ -234,43 +220,69 @@ export class BrowserPlatformAdapter implements PlatformAdapter { ... }
 
 ## 開発フェーズ
 
-### Phase 1: Electronアプリケーション基盤
-1. pnpm workspace セットアップ（monorepo構成）
-2. Vue.js + Vite + Electron 統合（ゼロから構築）
-3. 基本UIレイアウト（ダッシュボード、サイドバー）
-4. エージェント一覧表示のモック
+### Phase 1: Electronアプリケーション基盤 ✅ 完了
+1. ✅ pnpm workspace セットアップ（monorepo構成）
+2. ✅ Vue.js + Vite + Electron 統合（ゼロから構築）
+3. ✅ 基本UIレイアウト（ダッシュボード、サイドバー）
+4. ✅ Shadcn UI コンポーネント導入
+5. ✅ oRPC Electron Adapter 統合
+6. ✅ Biome 導入（リンティング・フォーマット）
+7. ✅ ダークモード同期（OSテーマ連携）
 
-### Phase 2: エージェント管理機能
-1. `child_process.spawn` によるCLIツール起動
-2. stdio パース（ANSI対応）→ リアルタイム表示
-3. エージェント起動・停止制御
-4. モデルホットスワップUI
+### Phase 2: エージェント管理機能 🚧 進行中
+1. ⬜ `child_process.spawn` によるCLIツール起動
+2. ⬜ stdio パース（ANSI対応）→ リアルタイム表示
+3. ⬜ エージェント起動・停止制御
+4. ⬜ モデルホットスワップUI
 
 ### Phase 3: Git Worktree 管理
-1. Git Worktree 作成・削除機能
-2. マイクロコミット・ログ表示
-3. 自動Rebase実装
-4. コンフリクトシミュレーター（Dependency Cruiser連携）
+1. ⬜ Git Worktree 作成・削除機能
+2. ⬜ マイクロコミット・ログ表示
+3. ⬜ 自動Rebase実装
+4. ⬜ コンフリクトシミュレーター（Dependency Cruiser連携）
 
 ### Phase 4: バックエンド開発
-1. Cloudflare Workers API 設計
-2. D1 データベーススキーマ
-3. Electron ↔ Workers 通信
+1. ⬜ Cloudflare Workers API 設計
+2. ⬜ D1 データベーススキーマ
+3. ⬜ Electron ↔ Workers 通信
 
 ### Phase 5: 結合・ブラウザ版
-1. Electron と Workers の結合
-2. ブラウザ版 UI（packages/web/）
-3. WebSocket によるリアルタイム同期
+1. ⬜ Electron と Workers の結合
+2. ⬜ ブラウザ版 UI（packages/web/）
+3. ⬜ WebSocket によるリアルタイム同期
 
 ### Phase 6: 通知・オーケストレーション
-1. Discord/Slack Webhook 連携
-2. 意思決定チャットUI
-3. インパクト・アナライザー
+1. ⬜ Discord/Slack Webhook 連携
+2. ⬜ 意思決定チャットUI
+3. ⬜ インパクト・アナライザー
 
 ---
 
-## 次のアクション
+## 実装進捗
 
-1. **pnpm workspace + Electron + Vue.js + Vite** のセットアップ
-2. **packages/shared, packages/ui, packages/electron** の作成
-3. 基本的なウィンドウ表示とホットリロード環境の構築
+### ✅ 完了した実装（2025-12-25現在）
+
+| カテゴリ | 実装内容 |
+|----------|----------|
+| **プロジェクト構成** | pnpm monorepo (packages/shared, electron, web) |
+| **UIフレームワーク** | Shadcn Vue コンポーネント群 |
+| **サイドバー** | リサイズ可能、自動折りたたみ、ネスト構造対応 |
+| **ナビゲーション** | Dashboard, Inbox, Search, Agents, Settings |
+| **ページ** | index, inbox, agents, settings, projects/[id], conversions/[id] |
+| **IPC通信** | oRPC Electron Adapter による型安全な通信 |
+| **テーマ** | ダークモード（OS設定と同期） |
+| **コード品質** | Biome によるリンティング・フォーマット |
+
+### 🎯 次のアクション
+
+1. **エージェント起動・停止機能の実装**
+   - `child_process.spawn` でCLIツールを起動
+   - oRPC経由でRenderer→Mainの制御
+
+2. **stdio パース機能の実装**
+   - ANSI対応のパーサー選定・導入
+   - リアルタイムストリーミング表示
+
+3. **エージェント一覧画面の実装**
+   - 稼働状況の表示
+   - 起動・停止ボタン
