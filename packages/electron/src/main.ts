@@ -1,6 +1,6 @@
 import { appRouter } from "@agent-manager/shared";
 import { RPCHandler } from "@orpc/server/message-port";
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, ipcMain, nativeTheme } from "electron";
 import path from "path";
 
 function createWindow() {
@@ -20,6 +20,11 @@ function createWindow() {
 	});
 
 	win.webContents.openDevTools();
+
+	// Send initial theme
+	win.webContents.on("did-finish-load", () => {
+		win.webContents.send("theme-changed", nativeTheme.shouldUseDarkColors);
+	});
 }
 
 app.whenReady().then(() => {
@@ -41,6 +46,25 @@ app.whenReady().then(() => {
 			handler.upgrade(serverPort);
 			serverPort.start();
 		}
+	});
+
+	// Support theme updates
+	nativeTheme.on("updated", () => {
+		const isDark = nativeTheme.shouldUseDarkColors;
+		BrowserWindow.getAllWindows().forEach((win) => {
+			win.webContents.send("theme-changed", isDark);
+		});
+	});
+
+	ipcMain.handle("get-theme", () => {
+		return nativeTheme.shouldUseDarkColors;
+	});
+
+	ipcMain.handle("dark-mode:set", (_, mode: "system" | "light" | "dark") => {
+		if (["system", "light", "dark"].includes(mode)) {
+			nativeTheme.themeSource = mode;
+		}
+		return nativeTheme.shouldUseDarkColors;
 	});
 });
 

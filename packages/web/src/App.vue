@@ -1,27 +1,34 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
-import DashboardLayout from "./layouts/DashboardLayout.vue";
-import { orpc } from "./services/orpc";
-
-const ping = ref("no Api Answer");
-
-console.log('App initialization started');
+import { onMounted } from "vue";
+import DashboardLayout from "@/layouts/DashboardLayout.vue";
 
 onMounted(async () => {
-    console.log('tests - onMounted fired');
-	try {
-		const response = await orpc.ping();
-		console.log("ORPC Ping Response:", response);
-		ping.value = response;
-	} catch (e) {
-		console.error("ORPC Ping Failed:", e);
-	}
+  const electronAPI = window.electronAPI;
+  if (!electronAPI) {
+    // Falls back to browser matchMedia if not in Electron
+    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    const applyTheme = (isDark: boolean) => {
+      document.documentElement.classList.toggle("dark", isDark);
+    };
+    applyTheme(mediaQuery.matches);
+    mediaQuery.addEventListener("change", (e) => applyTheme(e.matches));
+    return;
+  }
+
+  // Get initial theme
+  const initialTheme = await electronAPI.getTheme();
+  document.documentElement.classList.toggle("dark", initialTheme);
+
+  // Listen for changes
+  electronAPI.onThemeChanged((isDark) => {
+    document.documentElement.classList.toggle("dark", isDark);
+  });
 });
 </script>
 
 <template>
   <DashboardLayout>
-    <p>Welcome to Agent Manager</p>
-    {{ping}}
+    <router-view />
   </DashboardLayout>
 </template>
+ 
