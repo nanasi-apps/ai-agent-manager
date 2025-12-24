@@ -1,0 +1,24 @@
+{
+	"name": "@agent-manager/shared",
+	"version": "0.0.0",
+	"private": true,
+	"main": "dist/index.js",
+	"types": "dist/index.d.ts",
+	"files": [
+		"dist"
+	],
+	"scripts": {
+		"build": "tsc",
+		"dev": "tsc -w"
+	},
+	"devDependencies": {
+		"@opentelemetry/api": "^1.9.0",
+		"typescript": "^5.9.3"
+	},
+	"dependencies": {
+		"@orpc/client": "^1.13.0",
+		"@orpc/contract": "^1.13.0",
+		"@orpc/server": "^1.13.0",
+		"zod": "^4.2.1"
+	}
+}

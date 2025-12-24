@@ -1,0 +1,21 @@
+{
+	"name": "@agent-manager/electron",
+	"version": "0.0.0",
+	"private": true,
+	"main": "dist/main.js",
+	"scripts": {
+		"dev": "concurrently -k \"tsc -w\" \"wait-on dist/main.js tcp:5173 && ELECTRON_DISABLE_SECURITY_WARNINGS=true electron .\"",
+		"build": "tsc",
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@agent-manager/shared": "workspace:*",
+		"@orpc/server": "^1.13.0"
+	},
+	"devDependencies": {
+		"concurrently": "^9.2.1",
+		"electron": "latest",
+		"typescript": "latest",
+		"wait-on": "^9.0.3"
+	}
+}
