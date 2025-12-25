@@ -229,10 +229,10 @@ export const router = os.router({
 6. ✅ Biome 導入（リンティング・フォーマット）
 7. ✅ ダークモード同期（OSテーマ連携）
 
-### Phase 2: エージェント管理機能 🚧 進行中
-1. ⬜ `child_process.spawn` によるCLIツール起動
-2. ⬜ stdio パース（ANSI対応）→ リアルタイム表示
-3. ⬜ エージェント起動・停止制御
+### Phase 2: エージェント管理機能 ✅ 完了
+1. ✅ `child_process.spawn` によるCLIツール起動
+2. ✅ stdio パース（ANSI対応）→ リアルタイム表示
+3. ✅ エージェント起動・停止制御
 4. ⬜ モデルホットスワップUI
 
 ### Phase 3: Git Worktree 管理
@@ -265,24 +265,27 @@ export const router = os.router({
 | カテゴリ | 実装内容 |
 |----------|----------|
 | **プロジェクト構成** | pnpm monorepo (packages/shared, electron, web) |
-| **UIフレームワーク** | Shadcn Vue コンポーネント群 |
-| **サイドバー** | リサイズ可能、自動折りたたみ、ネスト構造対応 |
+| **UIフレームワーク** | Shadcn Vue コンポーネント群 (Dialog, Card, Badge, etc.) |
+| **サイドバー** | リサイズ可能、自動折りたたみ、動的プロジェクト/会話リスト表示 |
 | **ナビゲーション** | Dashboard, Inbox, Search, Agents, Settings |
 | **ページ** | index, inbox, agents, settings, projects/[id], conversions/[id] |
 | **IPC通信** | oRPC Electron Adapter による型安全な通信 |
 | **テーマ** | ダークモード（OS設定と同期） |
 | **コード品質** | Biome によるリンティング・フォーマット |
+| **CLIエージェント** | Gemini CLI, Claude Code, OpenAI Codex のstdio統合 |
+| **リアルタイム表示** | stream-json形式のパース、ANSI対応、ログタイプ別スタイリング |
+| **プロジェクトAPI** | listProjects, getProject, listConversations, createConversation |
 
 ### 🎯 次のアクション
 
-1. **エージェント起動・停止機能の実装**
-   - `child_process.spawn` でCLIツールを起動
-   - oRPC経由でRenderer→Mainの制御
+1. **oRPC WebSocket対応**
+   - リアルタイムストリーミングをWebSocket経由に移行
+   - ブラウザ版でも動作可能に
 
-2. **stdio パース機能の実装**
-   - ANSI対応のパーサー選定・導入
-   - リアルタイムストリーミング表示
+2. **会話履歴の永続化**
+   - メッセージ履歴のストア保存
+   - 会話の再開機能
 
-3. **エージェント一覧画面の実装**
-   - 稼働状況の表示
-   - 起動・停止ボタン
+3. **モデルホットスワップUI**
+   - 実行中にモデルを切り替えるUI
+

@@ -1,11 +1,21 @@
 import { contextBridge, ipcRenderer } from "electron";
 
+interface AgentLogPayload {
+    sessionId: string;
+    data: string;
+    type?: 'text' | 'tool_call' | 'tool_result' | 'thinking' | 'error' | 'system';
+    raw?: unknown;
+}
+
 contextBridge.exposeInMainWorld("electronAPI", {
     ping: () => ipcRenderer.invoke("ping"),
     getTheme: () => ipcRenderer.invoke("get-theme"),
     setThemeSource: (mode: "system" | "light" | "dark") => ipcRenderer.invoke("dark-mode:set", mode),
     onThemeChanged: (callback: (isDark: boolean) => void) => {
         ipcRenderer.on("theme-changed", (_event, isDark) => callback(isDark));
+    },
+    onAgentLog: (callback: (payload: AgentLogPayload) => void) => {
+        ipcRenderer.on("agent-log", (_event, payload) => callback(payload));
     },
 });
 

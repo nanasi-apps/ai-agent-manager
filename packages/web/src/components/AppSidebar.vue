@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref } from "vue"
-import { Home, Settings, Bot, Inbox, Search, PanelLeft } from "lucide-vue-next"
+import { ref, onMounted, onUnmounted, watch } from "vue"
+import { useRoute } from "vue-router"
+import { Home, Settings, Bot, Inbox, Search, PanelLeft, Plus, Folder, MessageSquare } from "lucide-vue-next"
 import {
   Sidebar,
   SidebarContent,
@@ -13,8 +14,19 @@ import {
   SidebarMenuSubItem,
   SidebarMenuSubButton,
   SidebarFooter,
+  SidebarGroupLabel,
+  SidebarGroupAction,
+  SidebarMenuAction,
   useSidebar,
 } from "@/components/ui/sidebar"
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible"
+import { orpc } from "@/services/orpc"
+import NewProjectDialog from "@/components/NewProjectDialog.vue"
+import { useNewConversionDialog } from "@/composables/useNewConversionDialog"
 
 // Main navigation items.
 const navItems = [
@@ -35,36 +47,76 @@ const navItems = [
   },
 ]
 
-// Mock projects data
-const projects = [
-  {
-    id: "p1",
-    name: "Project 1",
-    conversations: [
-      { id: "1-1", title: "conversation 1" },
-      { id: "1-2", title: "conversation 2" },
-      { id: "1-3", title: "conversation 3" },
-    ]
-  },
-  {
-    id: "p2",
-    name: "Project 2",
-    conversations: [
-      { id: "2-1", title: "conversation 1" },
-      { id: "2-2", title: "conversation 2" },
-      { id: "2-3", title: "conversation 3" },
-    ]
-  },
-  {
-    id: "p3",
-    name: "Project 3",
-    conversations: [
-      { id: "3-1", title: "conversation 1" },
-      { id: "3-2", title: "conversation 2 mettyanagai namae dayo" },
-      { id: "3-3", title: "conversation 3" },
-    ]
+// Projects data
+interface ProjectWithConversations {
+  id: string;
+  name: string;
+  conversations: {
+    id: string;
+    title: string;
+  }[];
+}
+
+const route = useRoute()
+const projects = ref<ProjectWithConversations[]>([]);
+const activeItem = ref("Dashboard")
+const isProjectDialogOpen = ref(false)
+
+const { open: openNewConversion } = useNewConversionDialog()
+
+const refreshData = async () => {
+  try {
+    const [fetchedProjects, fetchedConversations] = await Promise.all([
+      orpc.listProjects(),
+      orpc.listConversations({})
+    ]);
+
+    projects.value = fetchedProjects.map((p: { id: string; name: string }) => ({
+      id: p.id,
+      name: p.name,
+      conversations: fetchedConversations
+        .filter((c: { projectId: string }) => c.projectId === p.id)
+        .map((c: { id: string; title: string }) => ({
+          id: c.id,
+          title: c.title
+        }))
+    }));
+  } catch (e) {
+    console.error("Failed to fetch sidebar data", e);
   }
-]
+}
+
+onMounted(() => {
+  refreshData()
+  window.addEventListener('agent-manager:data-change', refreshData)
+});
+
+onUnmounted(() => {
+  window.removeEventListener('agent-manager:data-change', refreshData)
+});
+
+// Update active item based on route
+watch(() => route.path, (path) => {
+  if (path === '/') {
+    activeItem.value = 'Dashboard'
+  } else if (path === '/inbox') {
+    activeItem.value = 'Inbox'
+  } else if (path.startsWith('/projects/')) {
+    const id = path.split('/')[2] || ''
+    // We might want to highlight the project name, but for now we don't have a direct "active" state for project headers unless we change the logic.
+    // However, let's try to match it if possible, strictly referencing the project ID might not work with current navItems logic unless we add projects to navItems or handle it separately.
+    // The current template iterates projects separately.
+    // Let's iterate projects and see if we match.
+    activeItem.value = id
+  } else if (path.startsWith('/conversions/')) {
+    const id = path.split('/')[2] || ''
+    activeItem.value = id
+  } else if (path === '/agents') {
+    activeItem.value = 'Agents'
+  } else if (path === '/settings') {
+    activeItem.value = 'Settings'
+  }
+}, { immediate: true })
 
 // Bottom navigation items.
 const bottomItems = [
@@ -81,7 +133,6 @@ const bottomItems = [
 ]
 
 const { setSidebarWidth, setOpen, isResizing, state, toggleSidebar } = useSidebar()
-const activeItem = ref("Dashboard")
 
 function handleItemClick(title: string) {
   activeItem.value = title
@@ -126,7 +177,7 @@ function handleMouseUp() {
 <template>
   <Sidebar collapsible="icon" class="border-r relative select-none">
     <div 
-      class="absolute -right-[2px] top-0 bottom-0 w-1 cursor-col-resize z-50 transition-colors border-r-2 border-transparent hover:border-primary hover:bg-primary/40"
+      class="absolute -right-1 top-0 bottom-0 w-1 cursor-col-resize z-50 transition-colors hover:bg-accent/20"
       @mousedown="handleMouseDown"
     ></div>
 
@@ -140,39 +191,77 @@ function handleMouseUp() {
                 :tooltip="item.title"
                 :isActive="activeItem === item.title"
                 @click="handleItemClick(item.title)"
-                class="transition-all duration-200 border border-solid border-transparent hover:border-primary/50 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:border-primary data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
+                class="transition-all duration-200 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground data-[active=true]:border data-[active=true]:border-sidebar-border data-[active=true]:shadow-sm"
               >
                 <router-link :to="item.url" class="flex items-center gap-2 !text-inherit">
                   <component :is="item.icon" class="size-4" />
                   <span class="font-medium">{{ item.title }}</span>
                 </router-link>
               </SidebarMenuButton>
-
-              <template v-if="item.title === 'Search'">
-                <div v-for="project in projects" :key="project.name" class="mt-2 group-data-[collapsible=icon]:hidden">
-                  <router-link 
-                    :to="`/projects/${project.id}`"
-                    class="px-4 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-widest block hover:text-foreground transition-colors"
-                  >
-                    {{ project.name }}
-                  </router-link>
-                  <SidebarMenuSub class="ml-4 border-sidebar-border">
-                    <SidebarMenuSubItem v-for="conv in project.conversations" :key="conv.id">
-                      <SidebarMenuSubButton 
-                        as-child
-                        :isActive="activeItem === conv.id"
-                        @click="handleItemClick(conv.id)"
-                        class="transition-all duration-200 border border-solid border-transparent hover:border-primary/50 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:border-primary data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
-                      >
-                        <router-link :to="`/conversions/${conv.id}`" class="flex items-center gap-2 overflow-x-auto whitespace-nowrap no-scrollbar !text-inherit" :title="conv.title">
-                          <span class="block min-w-max text-xs">{{ conv.title }}</span>
-                        </router-link>
-                      </SidebarMenuSubButton>
-                    </SidebarMenuSubItem>
-                  </SidebarMenuSub>
-                </div>
-              </template>
             </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarGroupContent>
+      </SidebarGroup>
+
+      <SidebarGroup class="group-data-[collapsible=icon]:hidden">
+        <SidebarGroupLabel>
+          Projects
+        </SidebarGroupLabel>
+        <SidebarGroupAction title="Add Project" @click="isProjectDialogOpen = true">
+          <Plus /> <span class="sr-only">Add Project</span>
+        </SidebarGroupAction>
+        <SidebarGroupContent>
+          <SidebarMenu>
+             <Collapsible 
+               v-for="project in projects" 
+               :key="project.id" 
+               as-child 
+               :default-open="true" 
+               class="group/collapsible"
+             >
+               <SidebarMenuItem>
+                 <div class="flex items-center w-full relative">
+                   <SidebarMenuButton 
+                      as-child 
+                      :tooltip="project.name"
+                      class="font-medium grow"
+                   >
+                     <div class="flex items-center gap-2">
+                       <CollapsibleTrigger as-child>
+                          <Folder class="size-4 shrink-0 cursor-pointer hover:text-foreground/80" />
+                       </CollapsibleTrigger>
+                       <router-link :to="`/projects/${project.id}`" class="flex-1 truncate">
+                          {{ project.name }}
+                       </router-link>
+                     </div>
+                   </SidebarMenuButton>
+                   <SidebarMenuAction @click.stop="openNewConversion(project.id)">
+                      <Plus /> <span class="sr-only">New Conversion</span>
+                   </SidebarMenuAction>
+                 </div>
+
+                 <CollapsibleContent>
+                   <SidebarMenuSub v-if="project.conversations.length">
+                     <SidebarMenuSubItem v-for="conv in project.conversations" :key="conv.id">
+                       <SidebarMenuSubButton 
+                         as-child 
+                         :isActive="activeItem === conv.id"
+                         @click="handleItemClick(conv.id)"
+                       >
+                         <router-link :to="`/conversions/${conv.id}`">
+                           <span>{{ conv.title }}</span>
+                         </router-link>
+                       </SidebarMenuSubButton>
+                     </SidebarMenuSubItem>
+                   </SidebarMenuSub>
+                   <SidebarMenuSub v-else>
+                      <SidebarMenuSubItem>
+                         <span class="text-xs text-muted-foreground px-2 py-1">No conversations</span>
+                      </SidebarMenuSubItem>
+                   </SidebarMenuSub>
+                 </CollapsibleContent>
+               </SidebarMenuItem>
+             </Collapsible>
           </SidebarMenu>
         </SidebarGroupContent>
       </SidebarGroup>
@@ -186,7 +275,7 @@ function handleMouseUp() {
                 :tooltip="item.title"
                 :isActive="activeItem === item.title"
                 @click="handleItemClick(item.title)"
-                class="transition-all duration-200 border border-solid border-transparent hover:border-primary/50 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:border-primary data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
+                class="transition-all duration-200 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground data-[active=true]:border data-[active=true]:border-sidebar-border data-[active=true]:shadow-sm"
               >
                 <router-link :to="item.url" class="flex items-center gap-2 !text-inherit">
                   <component :is="item.icon" class="size-4" />
@@ -205,7 +294,7 @@ function handleMouseUp() {
           <SidebarMenuButton 
             @click="toggleSidebar"
             tooltip="サイドバーを閉じる"
-            class="w-full justify-start gap-2 border border-solid border-transparent hover:border-primary/50 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+            class="w-full justify-start gap-2 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
           >
             <PanelLeft class="size-4" />
             <span class="truncate group-data-[collapsible=icon]:hidden">
@@ -216,6 +305,11 @@ function handleMouseUp() {
       </SidebarMenu>
     </SidebarFooter>
   </Sidebar>
+  <NewProjectDialog 
+    :open="isProjectDialogOpen" 
+    @update:open="isProjectDialogOpen = $event"
+    @created="refreshData"
+  />
 </template>
 
 <style scoped>

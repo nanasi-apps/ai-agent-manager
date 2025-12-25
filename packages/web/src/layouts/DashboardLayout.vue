@@ -1,16 +1,17 @@
 <script setup lang="ts">
 import AppSidebar from "../components/AppSidebar.vue";
+import NewConversionDialog from "../components/NewConversionDialog.vue";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
 </script>
 
 <template>
   <SidebarProvider>
     <AppSidebar />
-    <SidebarInset>
-
-      <div class="flex flex-1 flex-col gap-4 p-4">
+    <SidebarInset class="h-screen overflow-hidden">
+      <div class="flex flex-1 flex-col h-full overflow-hidden">
         <slot></slot>
       </div>
     </SidebarInset>
+    <NewConversionDialog />
   </SidebarProvider>
 </template>

@@ -1,7 +1,12 @@
-import { appRouter } from "@agent-manager/shared";
+import { appRouter, setAgentManager, store } from "@agent-manager/shared";
 import { RPCHandler } from "@orpc/server/message-port";
 import { app, BrowserWindow, ipcMain, nativeTheme } from "electron";
 import path from "path";
+import { oneShotAgentManager } from "./oneshot-agent-manager";
+
+// Use the one-shot agent manager for clean JSON output
+// This spawns a new process per message using -p mode with --resume
+setAgentManager(oneShotAgentManager);
 
 function createWindow() {
 	const win = new BrowserWindow({
@@ -28,6 +33,11 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+	// Initialize the persistent store with Electron's userData path
+	const userDataPath = app.getPath("userData");
+	store.setDataPath(userDataPath);
+	console.log(`[Main] Store initialized with path: ${userDataPath}`);
+
 	createWindow();
 
 	app.on("activate", () => {
@@ -36,7 +46,6 @@ app.whenReady().then(() => {
 		}
 	});
 
-	// Setup ORPC handler
 	// Setup ORPC handler
 	ipcMain.on("start-orpc-server", (event) => {
 		const [serverPort] = event.ports;
@@ -65,6 +74,24 @@ app.whenReady().then(() => {
 			nativeTheme.themeSource = mode;
 		}
 		return nativeTheme.shouldUseDarkColors;
+	});
+
+	// Agent Log Setup - use one-shot agent manager
+	oneShotAgentManager.on("log", (data) => {
+		// Save agent message to store for persistence
+		if (data.data) {
+			store.addMessage(data.sessionId, {
+				id: crypto.randomUUID(),
+				role: data.type === 'system' ? 'system' : 'agent',
+				content: data.data,
+				timestamp: Date.now(),
+				logType: data.type,
+			});
+		}
+
+		BrowserWindow.getAllWindows().forEach((win) => {
+			win.webContents.send("agent-log", data);
+		});
 	});
 });
 

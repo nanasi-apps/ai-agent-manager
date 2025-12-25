@@ -1,7 +1,7 @@
-import type {AppRouter} from "@agent-manager/shared";
-import {createORPCClient} from "@orpc/client";
-import {RPCLink} from "@orpc/client/message-port";
-import type {ContractRouterClient} from "@orpc/contract";
+import type { AppRouter } from "@agent-manager/shared";
+import { createORPCClient } from "@orpc/client";
+import { RPCLink } from "@orpc/client/message-port";
+import type { ContractRouterClient } from "@orpc/contract";
 
 // Initialize the ORPC client
 export const createClient = () => {
@@ -12,9 +12,6 @@ export const createClient = () => {
     const port2 = channel.port2;
 
     // Send port2 to Electron via window.postMessage (handled in preload)
-    // Check if we are in Electron by checking for window.electronAPI or similar indicator if needed,
-    // or just try posting the message. Preload will ignore if it's not set up?
-    // Actually preload is always there in Electron.
     if (window.electronAPI) {
         console.log("Web: Connecting to Electron via ORPC (window.postMessage)...");
         window.postMessage("start-orpc-client", "*", [port2]);
@@ -28,7 +25,7 @@ export const createClient = () => {
         port: port1,
     });
 
-	return createORPCClient<ContractRouterClient<AppRouter>>(link);
+    return createORPCClient<ContractRouterClient<AppRouter>>(link);
 };
 
 export const orpc = createClient();
