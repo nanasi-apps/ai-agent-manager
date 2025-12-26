@@ -57,12 +57,15 @@ export const availableAgents: ProjectConfig[] = [
         name: 'OpenAI Codex',
         agent: {
             type: 'codex',
-            // Codex doesn't have stream-json yet
-            command: 'codex',
-            streamJson: false,
-            oneShotMode: false,
+            // Codex exec with JSON streaming output for non-interactive use
+            // First message: codex exec --json --full-auto "message"
+            // Subsequent: codex exec resume --json <session_id> "message"
+            command: 'codex exec --json --full-auto',
+            streamJson: true,
+            oneShotMode: true,
         }
     },
+
 ];
 
 export function getAgentTemplate(id: string): ProjectConfig | undefined {

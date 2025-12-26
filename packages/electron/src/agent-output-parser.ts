@@ -16,6 +16,7 @@ export interface ParsedLog {
 
 interface parentMetadata {
     geminiSessionId?: string;
+    codexThreadId?: string;
 }
 
 export class AgentOutputParser {
@@ -32,6 +33,8 @@ export class AgentOutputParser {
             this.processGeminiJson(obj, results);
         } else if (agentType === 'claude') {
             this.processClaudeJson(obj, results);
+        } else if (agentType === 'codex') {
+            this.processCodexJson(obj, results);
         } else {
             // Generic JSON output
             if (obj.content || obj.text || obj.message) {
@@ -244,6 +247,124 @@ export class AgentOutputParser {
                 if (json.content) {
                     results.push({ data: String(json.content), type: 'text', raw: json });
                 } else if (json.text) {
+                    results.push({ data: String(json.text), type: 'text', raw: json });
+                } else if (json.message && typeof json.message === 'string') {
+                    results.push({ data: json.message + '\n', type: 'text', raw: json });
+                }
+        }
+    }
+
+    private processCodexJson(json: Record<string, unknown>, results: ParsedLog[]) {
+        const type = json.type as string | undefined;
+
+        switch (type) {
+            case 'thread.started': {
+                // Thread initialization - extract thread ID for resume
+                const threadId = json.thread_id as string | undefined;
+
+                const log: ParsedLog = {
+                    data: `[Session started]\n`,
+                    type: 'system',
+                    raw: json
+                };
+
+                if (threadId) {
+                    log.metadata = { codexThreadId: threadId };
+                }
+
+                results.push(log);
+                break;
+            }
+            case 'turn.started': {
+                // Turn started - optional, can be silent
+                break;
+            }
+            case 'turn.completed': {
+                // Turn completed with usage stats
+                const usage = json.usage as Record<string, unknown> | undefined;
+                if (usage) {
+                    // Optionally log usage stats
+                    // results.push({ data: `[Usage: ${JSON.stringify(usage)}]\n`, type: 'system', raw: json });
+                }
+                break;
+            }
+            case 'turn.failed': {
+                const error = json.error || 'Unknown error';
+                results.push({ data: `[Error] ${error}\n`, type: 'error', raw: json });
+                break;
+            }
+            case 'item.started': {
+                const item = json.item as Record<string, unknown> | undefined;
+                if (item) {
+                    const itemType = item.type as string | undefined;
+                    if (itemType === 'command_execution') {
+                        const command = item.command as string | undefined;
+                        if (command) {
+                            results.push({ data: `\n[Executing: ${command}]\n`, type: 'tool_call', raw: json });
+                        }
+                    }
+                }
+                break;
+            }
+            case 'item.completed': {
+                const item = json.item as Record<string, unknown> | undefined;
+                if (item) {
+                    const itemType = item.type as string | undefined;
+                    switch (itemType) {
+                        case 'agent_message': {
+                            const text = item.text as string | undefined;
+                            if (text) {
+                                results.push({ data: text, type: 'text', raw: json });
+                            }
+                            break;
+                        }
+                        case 'reasoning': {
+                            const text = item.text as string | undefined;
+                            if (text) {
+                                results.push({ data: `[Thinking] ${text}\n`, type: 'thinking', raw: json });
+                            }
+                            break;
+                        }
+                        case 'command_execution': {
+                            const command = item.command as string | undefined;
+                            const exitCode = item.exit_code as number | null | undefined;
+                            const output = item.aggregated_output as string | undefined;
+
+                            let text = '';
+                            if (output) {
+                                text = `[Output]\n${output}\n`;
+                            }
+                            if (exitCode !== null && exitCode !== undefined) {
+                                text += `[Exit code: ${exitCode}]\n`;
+                            }
+                            if (text) {
+                                results.push({ data: text, type: 'tool_result', raw: json });
+                            }
+                            break;
+                        }
+                        case 'file_change': {
+                            const filePath = item.file_path as string | undefined;
+                            const changeType = item.change_type as string | undefined;
+                            if (filePath) {
+                                results.push({ data: `[File ${changeType || 'changed'}: ${filePath}]\n`, type: 'tool_result', raw: json });
+                            }
+                            break;
+                        }
+                        default:
+                            // Handle other item types if needed
+                            break;
+                    }
+                }
+                break;
+            }
+            case 'error': {
+                const message = json.message || json.error || 'Unknown error';
+                results.push({ data: `[Error] ${message}\n`, type: 'error', raw: json });
+                break;
+            }
+            default:
+                // For unknown types, check for common fields
+                if (json.text) {
                     results.push({ data: String(json.text), type: 'text', raw: json });
                 } else if (json.message && typeof json.message === 'string') {
                     results.push({ data: json.message + '\n', type: 'text', raw: json });

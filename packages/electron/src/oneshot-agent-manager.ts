@@ -12,6 +12,8 @@ interface SessionInfo {
     isProcessing: boolean;
     // Gemini CLI session ID (UUID) for --resume
     geminiSessionId?: string;
+    // Codex CLI thread ID for resume
+    codexThreadId?: string;
     // Current running process (for stopping)
     currentProcess?: ChildProcess;
 }
@@ -93,6 +95,22 @@ export class OneShotAgentManager extends EventEmitter {
             // Claude: use -p for print mode with stream-json
             command = 'claude';
             args = ['-p', '--output-format', 'stream-json', message];
+        } else if (agentType === 'codex') {
+            // Codex: use exec with JSON output
+            // First message: codex exec --json --full-auto "message"
+            // Subsequent: codex exec resume --json <thread_id> "message"
+            command = 'codex';
+            if (session.messageCount === 0) {
+                // First message: start a new session
+                args = ['exec', '--json', '--full-auto', message];
+            } else if (session.codexThreadId) {
+                // Subsequent messages: resume specific thread by ID
+                args = ['exec', 'resume', '--json', session.codexThreadId, message];
+            } else {
+                // Fallback: try to resume last (not ideal for multi-session)
+                console.warn('[OneShotAgentManager] No codexThreadId stored, using --last fallback');
+                args = ['exec', 'resume', '--json', '--last', message];
+            }
         } else {
             // Generic: just run the command with the message as argument
             const parts = session.config.command.split(' ');
@@ -176,6 +194,12 @@ export class OneShotAgentManager extends EventEmitter {
                     if (log.metadata?.geminiSessionId) {
                         session.geminiSessionId = log.metadata.geminiSessionId;
                         console.log(`[OneShotAgentManager] Captured Gemini session ID: ${session.geminiSessionId}`);
+                    }
+
+                    // Handle thread ID capture for Codex
+                    if (log.metadata?.codexThreadId) {
+                        session.codexThreadId = log.metadata.codexThreadId;
+                        console.log(`[OneShotAgentManager] Captured Codex thread ID: ${session.codexThreadId}`);
                     }
 
                     this.emitLog(sessionId, log.data, log.type, log.raw);
