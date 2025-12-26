@@ -1,12 +1,13 @@
-import { appRouter, setAgentManager, store } from "@agent-manager/shared";
+import { appRouter, setAgentManager, setStore } from "@agent-manager/shared";
 import { RPCHandler } from "@orpc/server/message-port";
 import { app, BrowserWindow, ipcMain, nativeTheme } from "electron";
 import path from "path";
-import { oneShotAgentManager } from "./oneshot-agent-manager";
+import { oneShotAgentManager } from "./agents";
+import { store } from "./store";
 
-// Use the one-shot agent manager for clean JSON output
-// This spawns a new process per message using -p mode with --resume
+// Set up dependencies for the router
 setAgentManager(oneShotAgentManager);
+setStore(store);
 
 function createWindow() {
 	const win = new BrowserWindow({
@@ -76,7 +77,7 @@ app.whenReady().then(() => {
 		return nativeTheme.shouldUseDarkColors;
 	});
 
-	// Agent Log Setup - use one-shot agent manager
+	// Agent Log Setup - forward logs to renderer
 	oneShotAgentManager.on("log", (data) => {
 		// Save agent message to store for persistence
 		if (data.data) {

@@ -1,20 +1,19 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { EventEmitter } from 'node:events';
-import type { AgentConfig, AgentType } from '@agent-manager/shared';
-import { AgentOutputParser, type AgentLogPayload } from './agent-output-parser';
-
-
+import type { AgentConfig, AgentLogPayload } from '@agent-manager/shared';
+import { AgentOutputParser } from './output-parser';
+import type { IAgentManager } from './agent-manager';
 
 interface SessionInfo {
     config: AgentConfig;
     messageCount: number;
     buffer: string;
     isProcessing: boolean;
-    // Gemini CLI session ID (UUID) for --resume
+    /** Gemini CLI session ID (UUID) for --resume */
     geminiSessionId?: string;
-    // Codex CLI thread ID for resume
+    /** Codex CLI thread ID for resume */
     codexThreadId?: string;
-    // Current running process (for stopping)
+    /** Current running process (for stopping) */
     currentProcess?: ChildProcess;
 }
 
@@ -22,7 +21,7 @@ interface SessionInfo {
  * One-shot agent manager for CLIs that work best in non-interactive mode
  * Uses --resume for maintaining conversation context between messages
  */
-export class OneShotAgentManager extends EventEmitter {
+export class OneShotAgentManager extends EventEmitter implements IAgentManager {
     private sessions: Map<string, SessionInfo> = new Map();
     private parser = new AgentOutputParser();
 
@@ -77,42 +76,29 @@ export class OneShotAgentManager extends EventEmitter {
         let args: string[];
 
         if (agentType === 'gemini') {
-            // Gemini: use positional prompt (not -p which is deprecated)
-            // -p flag cannot be used with --resume, so we use positional argument
             command = 'gemini';
             if (session.messageCount === 0) {
-                // First message: start a new session with positional prompt
                 args = ['-y', '--output-format', 'stream-json', message];
             } else if (session.geminiSessionId) {
-                // Subsequent messages: resume specific session by UUID with positional prompt
                 args = ['--resume', session.geminiSessionId, '-y', '--output-format', 'stream-json', message];
             } else {
-                // Fallback: try to resume latest (not ideal for multi-session)
                 console.warn('[OneShotAgentManager] No geminiSessionId stored, using fallback');
                 args = ['--resume', 'latest', '-y', '--output-format', 'stream-json', message];
             }
         } else if (agentType === 'claude') {
-            // Claude: use -p for print mode with stream-json
             command = 'claude';
             args = ['-p', '--output-format', 'stream-json', message];
         } else if (agentType === 'codex') {
-            // Codex: use exec with JSON output
-            // First message: codex exec --json --full-auto "message"
-            // Subsequent: codex exec resume --json <thread_id> "message"
             command = 'codex';
             if (session.messageCount === 0) {
-                // First message: start a new session
                 args = ['exec', '--json', '--full-auto', message];
             } else if (session.codexThreadId) {
-                // Subsequent messages: resume specific thread by ID
                 args = ['exec', 'resume', '--json', session.codexThreadId, message];
             } else {
-                // Fallback: try to resume last (not ideal for multi-session)
                 console.warn('[OneShotAgentManager] No codexThreadId stored, using --last fallback');
                 args = ['exec', 'resume', '--json', '--last', message];
             }
         } else {
-            // Generic: just run the command with the message as argument
             const parts = session.config.command.split(' ');
             command = parts[0];
             args = [...parts.slice(1), message];
@@ -123,7 +109,7 @@ export class OneShotAgentManager extends EventEmitter {
         const env = {
             ...process.env,
             ...session.config.env,
-            TERM: 'dumb', // Disable TUI
+            TERM: 'dumb',
             NO_COLOR: '1',
         };
 
@@ -133,15 +119,11 @@ export class OneShotAgentManager extends EventEmitter {
             shell: true,
         });
 
-        // Store the process so we can kill it later
         session.currentProcess = child;
-
-        let buffer = '';
 
         child.stdout?.on('data', (data: Buffer) => {
             const str = data.toString();
             console.log(`[OneShotAgentManager ${sessionId}] stdout:`, str);
-            buffer += str;
 
             if (session.config.streamJson) {
                 this.parseStreamJson(sessionId, str, session);
@@ -153,7 +135,6 @@ export class OneShotAgentManager extends EventEmitter {
         child.stderr?.on('data', (data: Buffer) => {
             const str = data.toString();
             console.log(`[OneShotAgentManager ${sessionId}] stderr:`, str);
-            // Don't emit stderr as error for now, some CLIs use it for progress
         });
 
         child.on('close', (code) => {
@@ -161,7 +142,6 @@ export class OneShotAgentManager extends EventEmitter {
             session.isProcessing = false;
             session.messageCount++;
 
-            // Process any remaining buffer
             if (session.buffer) {
                 this.parseStreamJson(sessionId, '\n', session);
             }
@@ -190,13 +170,11 @@ export class OneShotAgentManager extends EventEmitter {
                 const logs = this.parser.processJsonEvent(json, session.config.type);
 
                 for (const log of logs) {
-                    // Handle session ID capture for Gemini
                     if (log.metadata?.geminiSessionId) {
                         session.geminiSessionId = log.metadata.geminiSessionId;
                         console.log(`[OneShotAgentManager] Captured Gemini session ID: ${session.geminiSessionId}`);
                     }
 
-                    // Handle thread ID capture for Codex
                     if (log.metadata?.codexThreadId) {
                         session.codexThreadId = log.metadata.codexThreadId;
                         console.log(`[OneShotAgentManager] Captured Codex thread ID: ${session.codexThreadId}`);
@@ -209,8 +187,6 @@ export class OneShotAgentManager extends EventEmitter {
             }
         }
     }
-
-
 
     private emitLog(
         sessionId: string,
@@ -230,14 +206,10 @@ export class OneShotAgentManager extends EventEmitter {
     stopSession(sessionId: string): boolean {
         const session = this.sessions.get(sessionId);
         if (session) {
-            // Kill the current running process if any
             if (session.currentProcess) {
                 session.currentProcess.kill();
                 session.isProcessing = false;
             }
-            // Note: We don't delete the session here because we want to preserve the geminiSessionId
-            // for future interactions. Just stop the current processing.
-
             this.emitLog(sessionId, '\n[Generation stopped by user]\n', 'system');
             return true;
         }

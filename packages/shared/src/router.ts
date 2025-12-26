@@ -1,12 +1,72 @@
 import { os } from "@orpc/server";
 import { z } from "zod";
-import { randomUUID } from "node:crypto";
-import { agentManager } from "./agent-manager";
-import { availableAgents, getAgentTemplate, type AgentType } from "./projects";
-import { store } from "./store";
+import type { AgentConfig, AgentLogPayload } from "./types/agent";
+import type { IStore } from "./types/store";
+import { availableAgents, getAgentTemplate } from "./types/project";
+import type { AgentType } from "./types/agent";
+
+// Cross-platform UUID generation
+function generateUUID(): string {
+	// Use crypto.randomUUID if available (Node 19+, modern browsers)
+	if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+		return crypto.randomUUID();
+	}
+	// Fallback for older environments
+	return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+		const r = Math.random() * 16 | 0;
+		const v = c === 'x' ? r : (r & 0x3 | 0x8);
+		return v.toString(16);
+	});
+}
+
+/**
+ * Interface for AgentManager - allows different implementations
+ */
+export interface IAgentManager {
+	startSession(sessionId: string, command: string, config?: Partial<AgentConfig>): void;
+	stopSession(sessionId: string): boolean;
+	sendToSession(sessionId: string, message: string): void;
+	isRunning(sessionId: string): boolean;
+	listSessions(): string[];
+	on(event: 'log', listener: (payload: AgentLogPayload) => void): void;
+}
+
+// Dependencies to be injected
+let agentManager: IAgentManager | null = null;
+let store: IStore | null = null;
+
+/**
+ * Set the agent manager implementation
+ */
+export function setAgentManager(manager: IAgentManager): void {
+	agentManager = manager;
+	console.log('[Router] Agent manager set');
+}
+
+/**
+ * Set the store implementation
+ */
+export function setStore(storeImpl: IStore): void {
+	store = storeImpl;
+	console.log('[Router] Store set');
+}
+
+function getAgentManagerOrThrow(): IAgentManager {
+	if (!agentManager) {
+		throw new Error('Agent manager not initialized. Call setAgentManager first.');
+	}
+	return agentManager;
+}
+
+function getStoreOrThrow(): IStore {
+	if (!store) {
+		throw new Error('Store not initialized. Call setStore first.');
+	}
+	return store;
+}
 
 // Zod schema for agent type
-const agentTypeSchema = z.string(); // Simplify to string to allow extensibility
+const agentTypeSchema = z.string();
 
 export const appRouter = os.router({
 	ping: os
@@ -31,7 +91,7 @@ export const appRouter = os.router({
 			updatedAt: z.number(),
 		})))
 		.handler(async () => {
-			return store.listProjects();
+			return getStoreOrThrow().listProjects();
 		}),
 
 	// Create a new project
@@ -44,9 +104,9 @@ export const appRouter = os.router({
 			id: z.string(),
 		}))
 		.handler(async ({ input }) => {
-			const id = randomUUID();
+			const id = generateUUID();
 			const now = Date.now();
-			store.addProject({
+			getStoreOrThrow().addProject({
 				id,
 				name: input.name,
 				description: input.description,
@@ -79,7 +139,7 @@ export const appRouter = os.router({
 			createdAt: z.number(),
 		}).nullable())
 		.handler(async ({ input }) => {
-			const project = store.getProject(input.projectId);
+			const project = getStoreOrThrow().getProject(input.projectId);
 			if (!project) return null;
 			return {
 				id: project.id,
@@ -103,7 +163,7 @@ export const appRouter = os.router({
 		}))
 		.handler(async ({ input }) => {
 			try {
-				agentManager.startSession(input.sessionId, input.command, {
+				getAgentManagerOrThrow().startSession(input.sessionId, input.command, {
 					type: (input.agentType as AgentType) || 'custom',
 					command: input.command,
 					streamJson: input.streamJson,
@@ -125,7 +185,7 @@ export const appRouter = os.router({
 			message: z.string()
 		}))
 		.handler(async ({ input }) => {
-			agentManager.stopSession(input.sessionId);
+			getAgentManagerOrThrow().stopSession(input.sessionId);
 			return { success: true, message: "Agent stopped" };
 		}),
 
@@ -134,14 +194,14 @@ export const appRouter = os.router({
 		.input(z.object({ sessionId: z.string() }))
 		.output(z.boolean())
 		.handler(async ({ input }) => {
-			return agentManager.isRunning(input.sessionId);
+			return getAgentManagerOrThrow().isRunning(input.sessionId);
 		}),
 
 	// List all active sessions
 	listActiveSessions: os
 		.output(z.array(z.string()))
 		.handler(async () => {
-			return agentManager.listSessions();
+			return getAgentManagerOrThrow().listSessions();
 		}),
 
 	createConversation: os
@@ -154,11 +214,13 @@ export const appRouter = os.router({
 			sessionId: z.string(),
 		}))
 		.handler(async ({ input }) => {
-			const sessionId = randomUUID();
+			const sessionId = generateUUID();
 			const now = Date.now();
+			const storeInstance = getStoreOrThrow();
+			const agentManagerInstance = getAgentManagerOrThrow();
 
 			// Verify project exists
-			const project = store.getProject(input.projectId);
+			const project = storeInstance.getProject(input.projectId);
 			if (!project) {
 				throw new Error(`Project not found: ${input.projectId}`);
 			}
@@ -170,7 +232,7 @@ export const appRouter = os.router({
 			}
 
 			// Save to store with initialMessage and messages array
-			store.addConversation({
+			storeInstance.addConversation({
 				id: sessionId,
 				projectId: input.projectId,
 				title: input.initialMessage.slice(0, 30) || "New Conversation",
@@ -179,20 +241,20 @@ export const appRouter = os.router({
 				updatedAt: now,
 				agentType: input.agentType,
 				messages: [{
-					id: randomUUID(),
+					id: generateUUID(),
 					role: 'user',
 					content: input.initialMessage,
 					timestamp: now,
 				}]
 			});
 
-			if (!agentManager.isRunning(sessionId)) {
+			if (!agentManagerInstance.isRunning(sessionId)) {
 				console.log(`Starting agent for project ${input.projectId} (Session: ${sessionId})`);
 				console.log(`Command: ${agentTemplate.agent.command}`);
-				agentManager.startSession(sessionId, agentTemplate.agent.command, agentTemplate.agent);
+				agentManagerInstance.startSession(sessionId, agentTemplate.agent.command, agentTemplate.agent);
 			}
 
-			agentManager.sendToSession(sessionId, input.initialMessage);
+			agentManagerInstance.sendToSession(sessionId, input.initialMessage);
 
 			return { sessionId };
 		}),
@@ -210,7 +272,7 @@ export const appRouter = os.router({
 			agentType: z.string().optional(),
 		}).nullable())
 		.handler(async ({ input }) => {
-			const conv = store.getConversation(input.sessionId);
+			const conv = getStoreOrThrow().getConversation(input.sessionId);
 			if (!conv) return null;
 			return conv;
 		}),
@@ -224,32 +286,34 @@ export const appRouter = os.router({
 			success: z.boolean(),
 		}))
 		.handler(async ({ input }) => {
-			if (!agentManager.isRunning(input.sessionId)) {
-				// If we have the conversation in store, we know which project it belongs to
-				const conv = store.getConversation(input.sessionId);
+			const storeInstance = getStoreOrThrow();
+			const agentManagerInstance = getAgentManagerOrThrow();
+
+			if (!agentManagerInstance.isRunning(input.sessionId)) {
+				const conv = storeInstance.getConversation(input.sessionId);
 				if (!conv) {
 					return { success: false };
 				}
 
-				const agentTemplate = getAgentTemplate(conv.agentType || 'gemini'); // Default fallback
+				const agentTemplate = getAgentTemplate(conv.agentType || 'gemini');
 				if (!agentTemplate) {
 					console.error("Agent template not found for legacy/missing type");
 					return { success: false };
 				}
 
 				console.warn(`Session ${input.sessionId} not found, restarting with command: ${agentTemplate.agent.command}`);
-				agentManager.startSession(input.sessionId, agentTemplate.agent.command, agentTemplate.agent);
+				agentManagerInstance.startSession(input.sessionId, agentTemplate.agent.command, agentTemplate.agent);
 			}
 
 			// Save the user message to store
-			store.addMessage(input.sessionId, {
-				id: randomUUID(),
+			storeInstance.addMessage(input.sessionId, {
+				id: generateUUID(),
 				role: 'user',
 				content: input.message,
 				timestamp: Date.now(),
 			});
 
-			agentManager.sendToSession(input.sessionId, input.message);
+			agentManagerInstance.sendToSession(input.sessionId, input.message);
 
 			return { success: true };
 		}),
@@ -259,10 +323,11 @@ export const appRouter = os.router({
 		.input(z.object({ sessionId: z.string() }))
 		.output(z.object({ success: z.boolean() }))
 		.handler(async ({ input }) => {
-			const success = agentManager.stopSession(input.sessionId);
+			const storeInstance = getStoreOrThrow();
+			const success = getAgentManagerOrThrow().stopSession(input.sessionId);
 			if (success) {
-				store.addMessage(input.sessionId, {
-					id: randomUUID(),
+				storeInstance.addMessage(input.sessionId, {
+					id: generateUUID(),
 					role: 'system',
 					content: 'Generation stopped by user.',
 					timestamp: Date.now(),
@@ -283,7 +348,7 @@ export const appRouter = os.router({
 			logType: z.enum(['text', 'tool_call', 'tool_result', 'thinking', 'error', 'system']).optional(),
 		})))
 		.handler(async ({ input }) => {
-			return store.getMessages(input.sessionId);
+			return getStoreOrThrow().getMessages(input.sessionId);
 		}),
 
 	// Add a message to a conversation (used for agent responses)
@@ -296,8 +361,8 @@ export const appRouter = os.router({
 		}))
 		.output(z.object({ success: z.boolean() }))
 		.handler(async ({ input }) => {
-			store.addMessage(input.sessionId, {
-				id: randomUUID(),
+			getStoreOrThrow().addMessage(input.sessionId, {
+				id: generateUUID(),
 				role: input.role,
 				content: input.content,
 				timestamp: Date.now(),
@@ -319,7 +384,7 @@ export const appRouter = os.router({
 			agentType: z.string().optional(),
 		})))
 		.handler(async ({ input }) => {
-			return store.listConversations(input.projectId);
+			return getStoreOrThrow().listConversations(input.projectId);
 		})
 });
 

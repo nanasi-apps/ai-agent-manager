@@ -1,11 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
-
-interface AgentLogPayload {
-    sessionId: string;
-    data: string;
-    type?: 'text' | 'tool_call' | 'tool_result' | 'thinking' | 'error' | 'system';
-    raw?: unknown;
-}
+import type { AgentLogPayload } from "@agent-manager/shared";
 
 contextBridge.exposeInMainWorld("electronAPI", {
     ping: () => ipcRenderer.invoke("ping"),

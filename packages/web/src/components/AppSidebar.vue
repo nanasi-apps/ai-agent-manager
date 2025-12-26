@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch } from "vue"
 import { useRoute } from "vue-router"
-import { Home, Settings, Bot, Inbox, Search, PanelLeft, Plus, Folder, MessageSquare } from "lucide-vue-next"
+import { Home, Settings, Bot, Inbox, Search, PanelLeft, Plus, Folder } from "lucide-vue-next"
 import {
   Sidebar,
   SidebarContent,

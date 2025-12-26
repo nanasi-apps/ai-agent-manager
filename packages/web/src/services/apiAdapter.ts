@@ -1,14 +1,23 @@
-import type { AgentConfig, IAgentManagerAPI } from "@agent-manager/shared";
+import type { AgentConfig } from "@agent-manager/shared";
 
-// Electron実装（IPC通信）
-class ElectronAdapter implements IAgentManagerAPI {
+/**
+ * Legacy API Adapter interface
+ * This is kept for compatibility but prefer using ORPC directly
+ */
+interface IApiAdapter {
+	getPlatform(): Promise<"electron" | "web">;
+	startAgent(config: AgentConfig): Promise<void>;
+	stopAgent(id: string): Promise<void>;
+}
+
+// Electron implementation (IPC communication)
+class ElectronAdapter implements IApiAdapter {
 	async getPlatform(): Promise<"electron" | "web"> {
 		return "electron";
 	}
 
 	async startAgent(config: AgentConfig): Promise<void> {
 		console.log("[Electron] Starting agent via IPC:", config);
-		// await window.electronAPI.invoke('startAgent', config);
 	}
 
 	async stopAgent(id: string): Promise<void> {
@@ -16,15 +25,14 @@ class ElectronAdapter implements IAgentManagerAPI {
 	}
 }
 
-// Web実装（API通信 / Mock）
-class WebAdapter implements IAgentManagerAPI {
+// Web implementation (API communication / Mock)
+class WebAdapter implements IApiAdapter {
 	async getPlatform(): Promise<"electron" | "web"> {
 		return "web";
 	}
 
 	async startAgent(config: AgentConfig): Promise<void> {
 		console.log("[Web] Starting agent via HTTP:", config);
-		// await fetch('/api/agents', { ... });
 	}
 
 	async stopAgent(id: string): Promise<void> {
@@ -32,8 +40,8 @@ class WebAdapter implements IAgentManagerAPI {
 	}
 }
 
-// ファクトリ: 環境に応じて適切な実装を返す
-export function createApiAdapter(): IAgentManagerAPI {
+// Factory: Return appropriate implementation based on environment
+export function createApiAdapter(): IApiAdapter {
 	if (window.electronAPI) {
 		console.log("Detected Electron Environment");
 		return new ElectronAdapter();

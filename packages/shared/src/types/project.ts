@@ -1,24 +1,17 @@
-export type AgentType = 'gemini' | 'claude' | 'codex' | 'cat' | 'custom';
+import type { AgentConfig } from './agent';
 
-export interface AgentConfig {
-    type: AgentType;
-    command: string;
-    // Working directory for the agent
-    cwd?: string;
-    // Environment variables to pass
-    env?: Record<string, string>;
-    // Whether to use stream-json output format (for clean message extraction)
-    streamJson?: boolean;
-    // Whether this agent uses one-shot mode (new process per message)
-    oneShotMode?: boolean;
-}
-
+/**
+ * Project configuration template
+ */
 export interface ProjectConfig {
     id: string;
     name: string;
     agent: AgentConfig;
 }
 
+/**
+ * Available agent templates
+ */
 export const availableAgents: ProjectConfig[] = [
     {
         id: 'default',
@@ -65,9 +58,11 @@ export const availableAgents: ProjectConfig[] = [
             oneShotMode: true,
         }
     },
-
 ];
 
+/**
+ * Get agent template by ID
+ */
 export function getAgentTemplate(id: string): ProjectConfig | undefined {
     return availableAgents.find(p => p.id === id);
 }

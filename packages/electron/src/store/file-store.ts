@@ -1,50 +1,22 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-
-export interface Message {
-    id: string;
-    role: 'user' | 'agent' | 'system';
-    content: string;
-    timestamp: number;
-    logType?: 'text' | 'tool_call' | 'tool_result' | 'thinking' | 'error' | 'system';
-}
-
-export interface Conversation {
-    id: string;
-    projectId: string;
-    title: string;
-    initialMessage: string;
-    createdAt: number;
-    updatedAt: number;
-    // Gemini session name for --resume
-    geminiSessionName?: string;
-    // Message history
-    messages: Message[];
-    // Agent Type (Model) used for this conversation
-    agentType?: string;
-}
-
-export interface Project {
-    id: string;
-    name: string;
-    description?: string;
-    createdAt: number;
-    updatedAt: number;
-}
+import type { Conversation, Message, Project, IStore } from '@agent-manager/shared';
 
 interface StoreData {
     conversations: Conversation[];
     projects: Project[];
 }
 
-// File-based persistent store
-export class Store {
+/**
+ * File-based persistent store
+ * Uses Electron's userData path for persistence
+ */
+export class FileStore implements IStore {
     private conversations: Map<string, Conversation> = new Map();
     private projects: Map<string, Project> = new Map();
     private dataPath: string | null = null;
     private saveTimeout: ReturnType<typeof setTimeout> | null = null;
 
-    // Set the data directory (should be called during app initialization)
     setDataPath(dirPath: string) {
         this.dataPath = path.join(dirPath, 'conversations.json');
         this.load();
@@ -60,7 +32,6 @@ export class Store {
                 this.conversations.clear();
 
                 for (const conv of data.conversations) {
-                    // Ensure messages array exists
                     if (!conv.messages) {
                         conv.messages = [];
                     } else {
@@ -69,7 +40,6 @@ export class Store {
 
                         for (const msg of conv.messages) {
                             const content = msg.content;
-                            // Skip empty content
                             if (!content && msg.logType === 'text') continue;
 
                             const role = msg.role;
@@ -81,16 +51,12 @@ export class Store {
                             if (lastMsg) {
                                 const lastType = lastMsg.logType || 'text';
 
-                                // Strict role match is required
                                 if (lastMsg.role === role) {
-                                    // If both are text, merge
                                     if (type === 'text' && lastType === 'text') {
                                         lastMsg.content += content;
-                                        lastMsg.timestamp = msg.timestamp; // Update timestamp
+                                        lastMsg.timestamp = msg.timestamp;
                                         wasMerged = true;
-                                    }
-                                    // If same non-text type (e.g. streaming tool output), merge
-                                    else if (type !== 'text' && type === lastType) {
+                                    } else if (type !== 'text' && type === lastType) {
                                         lastMsg.content += content;
                                         lastMsg.timestamp = msg.timestamp;
                                         wasMerged = true;
@@ -103,7 +69,6 @@ export class Store {
                             }
                         }
 
-                        // Replace with normalize messages
                         conv.messages = mergedMessages;
                     }
 
@@ -117,20 +82,17 @@ export class Store {
                     }
                 }
 
-                console.log(`[Store] Loaded ${this.conversations.size} conversations and ${this.projects.size} projects from ${this.dataPath}`);
-
-                // Trigger a save to clean up the disk file with normalized data
+                console.log(`[FileStore] Loaded ${this.conversations.size} conversations and ${this.projects.size} projects from ${this.dataPath}`);
                 this.scheduleSave();
             }
         } catch (err) {
-            console.error('[Store] Failed to load data:', err);
+            console.error('[FileStore] Failed to load data:', err);
         }
     }
 
     private scheduleSave() {
         if (!this.dataPath) return;
 
-        // Debounce saves to avoid excessive disk writes
         if (this.saveTimeout) {
             clearTimeout(this.saveTimeout);
         }
@@ -143,7 +105,6 @@ export class Store {
         if (!this.dataPath) return;
 
         try {
-            // Ensure directory exists
             const dir = path.dirname(this.dataPath);
             if (!fs.existsSync(dir)) {
                 fs.mkdirSync(dir, { recursive: true });
@@ -154,9 +115,9 @@ export class Store {
                 projects: Array.from(this.projects.values())
             };
             fs.writeFileSync(this.dataPath, JSON.stringify(data, null, 2), 'utf-8');
-            console.log(`[Store] Saved ${this.conversations.size} conversations to ${this.dataPath}`);
+            console.log(`[FileStore] Saved ${this.conversations.size} conversations to ${this.dataPath}`);
         } catch (err) {
-            console.error('[Store] Failed to save data:', err);
+            console.error('[FileStore] Failed to save data:', err);
         }
     }
 
@@ -199,16 +160,12 @@ export class Store {
                 const lastType = lastMsg.logType || 'text';
                 const incomingType = message.logType || 'text';
 
-                // Strict role match is required
                 if (lastMsg.role === message.role) {
-                    // If both are text, merge
                     if (incomingType === 'text' && lastType === 'text') {
                         lastMsg.content += message.content;
-                        lastMsg.timestamp = message.timestamp; // Update to latest timestamp
+                        lastMsg.timestamp = message.timestamp;
                         merged = true;
-                    }
-                    // If same non-text type (e.g. streaming tool output), merge
-                    else if (incomingType !== 'text' && incomingType === lastType) {
+                    } else if (incomingType !== 'text' && incomingType === lastType) {
                         lastMsg.content += message.content;
                         lastMsg.timestamp = message.timestamp;
                         merged = true;
@@ -235,7 +192,6 @@ export class Store {
         this.scheduleSave();
     }
 
-    // Project Methods
     addProject(project: Project) {
         this.projects.set(project.id, project);
         this.scheduleSave();
@@ -251,9 +207,8 @@ export class Store {
 
     deleteProject(id: string) {
         this.projects.delete(id);
-        // delete associated conversations? maybe later
         this.scheduleSave();
     }
 }
 
-export const store = new Store();
+export const store = new FileStore();

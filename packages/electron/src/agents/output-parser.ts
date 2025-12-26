@@ -1,24 +1,27 @@
 import type { AgentType } from '@agent-manager/shared';
 
-export interface AgentLogPayload {
-    sessionId: string;
-    data: string;
-    type?: 'text' | 'tool_call' | 'tool_result' | 'thinking' | 'error' | 'system';
-    raw?: unknown;
-}
-
+/**
+ * Parsed log entry from agent output
+ */
 export interface ParsedLog {
     data: string;
     type: 'text' | 'tool_call' | 'tool_result' | 'thinking' | 'error' | 'system';
     raw?: unknown;
-    metadata?: parentMetadata;
+    metadata?: ParsedLogMetadata;
 }
 
-interface parentMetadata {
+/**
+ * Metadata extracted from agent output (e.g., session IDs for resume)
+ */
+export interface ParsedLogMetadata {
     geminiSessionId?: string;
     codexThreadId?: string;
 }
 
+/**
+ * Parser for agent CLI JSON output
+ * Handles Gemini, Claude, and Codex output formats
+ */
 export class AgentOutputParser {
 
     processJsonEvent(json: unknown, agentType: AgentType): ParsedLog[] {
@@ -112,9 +115,9 @@ export class AgentOutputParser {
                 break;
             }
             case 'tool_result': {
-                const status = json.status as string | undefined; // oneshot
-                const output = json.output as string | undefined; // oneshot
-                const result = json.result as string | undefined; // pty
+                const status = json.status as string | undefined;
+                const output = json.output as string | undefined;
+                const result = json.result as string | undefined;
 
                 let text = '';
                 if (output) {
@@ -122,7 +125,6 @@ export class AgentOutputParser {
                 } else if (result) {
                     text = `[Result]\n${result}\n`;
                 } else {
-                    // Fallback
                     text = `[Result]\n${JSON.stringify(json, null, 2)}\n`;
                 }
 
@@ -152,18 +154,7 @@ export class AgentOutputParser {
                 break;
             }
             case 'result': {
-                // Final result with stats
-                // PTY doesn't have this, OneShot logs it to console.
-                // We can return a system log or text log if needed, or better yet, return it so the caller can decide?
-                // OneShot code: console.log(`[Gemini] Stats: ${JSON.stringify(stats)}`);
-                // Let's treat it as system log maybe? Or just skip logic in parser?
-                // The user said "output parsing logic".
-                // Let's add it effectively.
-                const stats = json.stats;
-                if (stats) {
-                    // Maybe not emit to user stream?
-                    // OneShot code only logged to console.
-                }
+                // Final result with stats - logged to console only
                 break;
             }
             default:
@@ -171,9 +162,6 @@ export class AgentOutputParser {
                     results.push({ data: String(json.content), type: 'text', raw: json });
                 } else if (json.text) {
                     results.push({ data: String(json.text), type: 'text', raw: json });
-                } else {
-                    // For Gemini, we might want to be careful not to spam generic JSON if it's an unhandled type.
-                    // usage metadata, prompts etc.
                 }
         }
     }
@@ -209,7 +197,6 @@ export class AgentOutputParser {
                 if (delta?.type === 'text_delta') {
                     results.push({ data: String(delta.text || ''), type: 'text', raw: json });
                 } else if (delta?.type === 'input_json_delta') {
-                    // PTY handled this
                     results.push({ data: String(delta.partial_json || ''), type: 'tool_call', raw: json });
                 }
                 break;
@@ -276,16 +263,11 @@ export class AgentOutputParser {
                 break;
             }
             case 'turn.started': {
-                // Turn started - optional, can be silent
+                // Turn started - silent
                 break;
             }
             case 'turn.completed': {
-                // Turn completed with usage stats
-                const usage = json.usage as Record<string, unknown> | undefined;
-                if (usage) {
-                    // Optionally log usage stats
-                    // results.push({ data: `[Usage: ${JSON.stringify(usage)}]\n`, type: 'system', raw: json });
-                }
+                // Turn completed with usage stats - silent
                 break;
             }
             case 'turn.failed': {
@@ -326,7 +308,6 @@ export class AgentOutputParser {
                             break;
                         }
                         case 'command_execution': {
-                            const command = item.command as string | undefined;
                             const exitCode = item.exit_code as number | null | undefined;
                             const output = item.aggregated_output as string | undefined;
 
@@ -351,7 +332,6 @@ export class AgentOutputParser {
                             break;
                         }
                         default:
-                            // Handle other item types if needed
                             break;
                     }
                 }
@@ -363,7 +343,6 @@ export class AgentOutputParser {
                 break;
             }
             default:
-                // For unknown types, check for common fields
                 if (json.text) {
                     results.push({ data: String(json.text), type: 'text', raw: json });
                 } else if (json.message && typeof json.message === 'string') {
