@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
+import { MIN_LOAD_TIME } from '@/lib/constants'
 
 // Project from API - user-created projects
 interface UserProject {
@@ -77,6 +78,7 @@ const agentColors: Record<string, string> = {
 
 const loadData = async () => {
   isLoading.value = true
+  const minLoadTime = new Promise(resolve => setTimeout(resolve, MIN_LOAD_TIME))
   try {
     const [projectsData, conversationsData, templatesData] = await Promise.all([
       orpc.listProjects({}),
@@ -92,6 +94,7 @@ const loadData = async () => {
   } catch (err) {
     console.error('Failed to load data:', err)
   } finally {
+    await minLoadTime
     isLoading.value = false
   }
 }
@@ -156,69 +159,72 @@ onMounted(() => {
     </div>
     
     <!-- Loading State -->
-    <div v-if="isLoading" class="flex items-center justify-center py-20">
-      <Loader2 class="size-8 animate-spin text-muted-foreground" />
-    </div>
+    <Transition name="fade" mode="out-in">
+      <!-- Loading State -->
+      <div v-if="isLoading" class="flex items-center justify-center py-20">
+        <Loader2 class="size-8 animate-spin text-muted-foreground" />
+      </div>
 
-    <template v-else>
-      <!-- Agent Selection -->
-      <section class="space-y-4">
-        <div class="flex items-center justify-between">
-          <h2 class="text-xl font-semibold">New Conversation</h2>
-        </div>
-        
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card 
-            v-for="agent in agentTemplates" 
-            :key="agent.id"
-            class="cursor-pointer transition-all hover:shadow-lg hover:scale-[1.02] hover:border-primary/50"
-            @click="openNewAgentConversation(agent)"
-          >
-            <CardHeader class="pb-3">
-              <div class="flex items-center gap-3">
-                <div 
-                  class="p-2 rounded-lg border"
-                  :class="agentColors[agent.id] || agentColors.custom"
-                >
-                  <component 
-                    :is="agentIcons[agent.id] || agentIcons.custom" 
-                    class="size-5"
-                  />
+      <div v-else>
+        <!-- Agent Selection -->
+        <section class="space-y-4">
+          <div class="flex items-center justify-between">
+            <h2 class="text-xl font-semibold">New Conversation</h2>
+          </div>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Card 
+              v-for="agent in agentTemplates" 
+              :key="agent.id"
+              class="cursor-pointer transition-all hover:shadow-lg hover:scale-[1.02] hover:border-primary/50"
+              @click="openNewAgentConversation(agent)"
+            >
+              <CardHeader class="pb-3">
+                <div class="flex items-center gap-3">
+                  <div 
+                    class="p-2 rounded-lg border"
+                    :class="agentColors[agent.id] || agentColors.custom"
+                  >
+                    <component 
+                      :is="agentIcons[agent.id] || agentIcons.custom" 
+                      class="size-5"
+                    />
+                  </div>
+                  <div>
+                    <CardTitle class="text-base">{{ agent.name }}</CardTitle>
+                    <Badge variant="outline" class="mt-1 text-xs">
+                      {{ agent.id }}
+                    </Badge>
+                  </div>
                 </div>
-                <div>
-                  <CardTitle class="text-base">{{ agent.name }}</CardTitle>
-                  <Badge variant="outline" class="mt-1 text-xs">
-                    {{ agent.id }}
-                  </Badge>
-                </div>
-              </div>
-            </CardHeader>
-          </Card>
-        </div>
-      </section>
+              </CardHeader>
+            </Card>
+          </div>
+        </section>
 
-      <!-- Recent Conversations -->
-      <section v-if="recentConversations.length > 0" class="space-y-4">
-        <h2 class="text-xl font-semibold">Recent Conversations</h2>
-        
-        <div class="space-y-2">
-          <ConversionCard
-            v-for="conv in recentConversations"
-            :key="conv.id"
-            :title="conv.title"
-            :project-name="getProjectName(conv.projectId)"
-            :updated-at="conv.updatedAt"
-            @click="openConversation(conv.id)"
-          />
-        </div>
-      </section>
+        <!-- Recent Conversations -->
+        <section v-if="recentConversations.length > 0" class="space-y-4 mt-8">
+          <h2 class="text-xl font-semibold">Recent Conversations</h2>
+          
+          <div class="space-y-2">
+            <ConversionCard
+              v-for="conv in recentConversations"
+              :key="conv.id"
+              :title="conv.title"
+              :project-name="getProjectName(conv.projectId)"
+              :updated-at="conv.updatedAt"
+              @click="openConversation(conv.id)"
+            />
+          </div>
+        </section>
 
-      <!-- Empty State for Recent -->
-      <section v-else class="text-center py-12 text-muted-foreground">
-        <MessageSquare class="size-12 mx-auto mb-4 opacity-20" />
-        <p>No recent conversations. Start one above!</p>
-      </section>
-    </template>
+        <!-- Empty State for Recent -->
+        <section v-else class="text-center py-12 text-muted-foreground mt-8">
+          <MessageSquare class="size-12 mx-auto mb-4 opacity-20" />
+          <p>No recent conversations. Start one above!</p>
+        </section>
+      </div>
+    </Transition>
 
     <!-- New Conversation Dialog -->
     <Dialog v-model:open="dialogOpen">

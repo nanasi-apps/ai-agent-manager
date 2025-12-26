@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { ref, onMounted, nextTick, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, onBeforeRouteLeave } from 'vue-router'
 import { orpc } from '@/services/orpc'
 import { useMarkdown } from '@/composables/useMarkdown'
+import { MIN_LOAD_TIME } from '@/lib/constants'
 import { 
   Send, 
   Loader2, 
@@ -44,6 +45,7 @@ const titleDraft = ref('')
 const isSavingTitle = ref(false)
 const copiedId = ref<string | null>(null)
 const expandedMessageIds = ref(new Set<string>())
+const isPageLoading = ref(true)
 
 const scrollAreaRef = ref<InstanceType<typeof ScrollArea> | null>(null)
 const messagesEndRef = ref<HTMLElement | null>(null)
@@ -56,6 +58,41 @@ const toggleMessage = (id: string) => {
   }
 }
 
+const getScrollViewport = () => {
+  if (!scrollAreaRef.value) return null
+  const el = scrollAreaRef.value.$el as HTMLElement
+  // Scope strictly to this component's scroll area
+  return el.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement
+}
+
+const saveScrollPosition = (id: string) => {
+  if (!id) return
+  
+  const viewport = getScrollViewport()
+  if (viewport) {
+    sessionStorage.setItem(`scroll-pos-${id}`, viewport.scrollTop.toString())
+  }
+}
+
+
+
+const restoreScrollPosition = async () => {
+  await nextTick()
+  const key = `scroll-pos-${sessionId.value}`
+  const saved = sessionStorage.getItem(key)
+  
+  if (saved !== null) {
+    const viewport = getScrollViewport()
+    if (viewport) {
+      viewport.scrollTop = parseInt(saved, 10)
+      return
+    }
+  }
+  
+  // Fallback to bottom if no saved position
+  await scrollToBottom(false)
+}
+
 const scrollToBottom = async (smooth = true) => {
   await nextTick()
   
@@ -66,9 +103,7 @@ const scrollToBottom = async (smooth = true) => {
   }
   
   // Method 2: Fallback to viewport scroll
-  const el = scrollAreaRef.value?.$el as HTMLElement | undefined
-  const viewport = el?.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement || 
-                   document.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement
+  const viewport = getScrollViewport()
   
   if (viewport) {
     if (smooth) {
@@ -229,19 +264,39 @@ const handleKeydown = (e: KeyboardEvent) => {
     }
 }
 
+// Unified initialization logic with minimum load time
+async function initSession(id: string) {
+  isPageLoading.value = true
+  const minLoadTime = new Promise(resolve => setTimeout(resolve, MIN_LOAD_TIME))
+
+  sessionId.value = id
+  messages.value = []
+  // Don't clear title here to prevent flickering - let loadConversation update it
+  // conversationTitle.value = ''
+  // titleDraft.value = ''
+
+  try {
+    await loadConversation(id)
+  } finally {
+    await minLoadTime
+    isPageLoading.value = false
+    // Wait for 'out-in' transition (approx 100ms) to complete so ScrollArea is in DOM
+    setTimeout(async () => {
+      await restoreScrollPosition()
+    }, 200)
+  }
+}
+
 // Watch for route param changes
-watch(() => (route.params as { id: string }).id, (newId) => {
+watch(() => (route.params as { id: string }).id, (newId, oldId) => {
+  if (oldId) {
+    saveScrollPosition(oldId)
+  }
   if (newId) {
-    sessionId.value = newId
-    messages.value = []
-    conversationTitle.value = ''
-    titleDraft.value = ''
-    loadConversationMeta(newId)
-    loadConversation(newId)
+    initSession(newId)
   }
 })
 
-// Load conversation data and saved messages
 // Load conversation data and saved messages
 async function loadConversation(id: string) {
   try {
@@ -256,8 +311,7 @@ async function loadConversation(id: string) {
         timestamp: m.timestamp,
         logType: m.logType,
       }))
-      // Use instant scroll for initial load
-      scrollToBottom(false)
+      // Scroll restoration handling moved to initSession finally block
     }
   } catch (err) {
     console.error('Failed to load conversation:', err)
@@ -270,8 +324,8 @@ const stopGeneration = () => {
 }
 
 onMounted(async () => {
-  // Load conversation data first to show initial message
-  await loadConversation(sessionId.value)
+  // Initialize current session
+  await initSession(sessionId.value)
 
   if (window.electronAPI) {
     isConnected.value = true
@@ -293,6 +347,14 @@ onMounted(async () => {
       timestamp: Date.now(),
       logType: 'system',
     })
+  }
+})
+
+
+
+onBeforeRouteLeave(() => {
+  if (sessionId.value) {
+    saveScrollPosition(sessionId.value)
   }
 })
 
@@ -324,179 +386,187 @@ const formatTime = (timestamp: number) => {
       </div>
     </div>
 
-    <!-- Messages Area -->
-    <ScrollArea class="flex-1 min-h-0" ref="scrollAreaRef">
-      <div class="flex flex-col gap-2 p-4 max-w-3xl mx-auto">
-        <div v-if="messages.length === 0" class="flex flex-col items-center justify-center py-20 text-center">
-          <div class="size-12 rounded-full bg-muted flex items-center justify-center mb-4">
-            <Sparkles class="size-6 text-muted-foreground" />
-          </div>
-          <h3 class="font-semibold text-lg mb-2">Start a conversation</h3>
-          <p class="text-sm text-muted-foreground max-w-sm">
-            Send a message to start working with your agent.
-          </p>
-        </div>
-
-        <div v-for="msg in messages" :key="msg.id">
-          <!-- Type 1: Standard Chat Balloon (User or Agent 'text') -->
-          <div 
-            v-if="msg.role === 'user' || (msg.role === 'agent' && (!msg.logType || msg.logType === 'text'))"
-            class="group flex gap-4 my-4" 
-            :class="{ 'flex-row-reverse': msg.role === 'user' }"
-          >
-            <!-- Avatar -->
-            <Avatar class="size-8 shrink-0 border" :class="msg.role === 'agent' ? 'bg-primary/10' : 'bg-muted'">
-              <div v-if="msg.role === 'agent'" class="flex items-center justify-center size-full text-primary font-semibold text-xs">AI</div>
-              <div v-else class="flex items-center justify-center size-full text-muted-foreground font-semibold text-xs">You</div>
-            </Avatar>
-
-            <!-- Message Content -->
-            <div class="flex flex-col gap-1 min-w-0 max-w-[85%]" :class="{ 'items-end': msg.role === 'user' }">
-              <div class="flex items-center gap-2 px-1">
-                <span class="text-xs font-medium text-muted-foreground">
-                  {{ msg.role === 'agent' ? 'Agent' : 'You' }}
-                </span>
-                <span class="text-[10px] text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
-                  {{ formatTime(msg.timestamp) }}
-                </span>
+    <Transition name="fade" mode="out-in">
+      <div v-if="isPageLoading" class="flex-1 flex items-center justify-center">
+        <Loader2 class="size-8 animate-spin text-muted-foreground" />
+      </div>
+      
+      <div v-else class="flex-1 flex flex-col min-h-0">
+        <!-- Messages Area -->
+        <ScrollArea class="flex-1 min-h-0" ref="scrollAreaRef">
+          <div class="flex flex-col gap-2 p-4 max-w-3xl mx-auto">
+            <div v-if="messages.length === 0" class="flex flex-col items-center justify-center py-20 text-center">
+              <div class="size-12 rounded-full bg-muted flex items-center justify-center mb-4">
+                <Sparkles class="size-6 text-muted-foreground" />
               </div>
+              <h3 class="font-semibold text-lg mb-2">Start a conversation</h3>
+              <p class="text-sm text-muted-foreground max-w-sm">
+                Send a message to start working with your agent.
+              </p>
+            </div>
+
+            <div v-for="msg in messages" :key="msg.id">
+              <!-- Type 1: Standard Chat Balloon (User or Agent 'text') -->
               <div 
-                class="relative bg-card border rounded-2xl px-4 py-3 shadow-sm markdown-content"
-                :class="{
-                  'rounded-tr-md': msg.role === 'user',
-                  'rounded-tl-md': msg.role === 'agent',
-                }"
+                v-if="msg.role === 'user' || (msg.role === 'agent' && (!msg.logType || msg.logType === 'text'))"
+                class="group flex gap-4 my-4" 
+                :class="{ 'flex-row-reverse': msg.role === 'user' }"
               >
-                <div v-html="renderMarkdown(msg.content)" />
-                
-                <!-- Copy Button -->
-                <button 
-                  @click.stop="copyMessage(msg.content, msg.id)"
-                  class="absolute top-2 right-2 size-7 rounded-lg bg-background/80 border opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center hover:bg-muted"
+                <!-- Avatar -->
+                <Avatar class="size-8 shrink-0 border" :class="msg.role === 'agent' ? 'bg-primary/10' : 'bg-muted'">
+                  <div v-if="msg.role === 'agent'" class="flex items-center justify-center size-full text-primary font-semibold text-xs">AI</div>
+                  <div v-else class="flex items-center justify-center size-full text-muted-foreground font-semibold text-xs">You</div>
+                </Avatar>
+
+                <!-- Message Content -->
+                <div class="flex flex-col gap-1 min-w-0 max-w-[85%]" :class="{ 'items-end': msg.role === 'user' }">
+                  <div class="flex items-center gap-2 px-1">
+                    <span class="text-xs font-medium text-muted-foreground">
+                      {{ msg.role === 'agent' ? 'Agent' : 'You' }}
+                    </span>
+                    <span class="text-[10px] text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
+                      {{ formatTime(msg.timestamp) }}
+                    </span>
+                  </div>
+                  <div 
+                    class="relative bg-card border rounded-2xl px-4 py-3 shadow-sm markdown-content"
+                    :class="{
+                      'rounded-tr-md': msg.role === 'user',
+                      'rounded-tl-md': msg.role === 'agent',
+                    }"
+                  >
+                    <div v-html="renderMarkdown(msg.content)" />
+                    
+                    <!-- Copy Button -->
+                    <button 
+                      @click.stop="copyMessage(msg.content, msg.id)"
+                      class="absolute top-2 right-2 size-7 rounded-lg bg-background/80 border opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center hover:bg-muted"
+                    >
+                      <Check v-if="copiedId === msg.id" class="size-3.5 text-green-500" />
+                      <Copy v-else class="size-3.5 text-muted-foreground" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Type 2: System / Tool / Thinking Log (Minimal Timeline Style) -->
+              <div v-else class="flex flex-col gap-0.5 py-0.5 px-4 group">
+                 <!-- Collapsible Header -->
+                <div 
+                  @click="toggleMessage(msg.id)"
+                  class="flex items-center gap-2 cursor-pointer select-none px-2 py-1.5 rounded-md hover:bg-black/5 dark:hover:bg-white/5 transition-colors opacity-80 hover:opacity-100"
                 >
-                  <Check v-if="copiedId === msg.id" class="size-3.5 text-green-500" />
-                  <Copy v-else class="size-3.5 text-muted-foreground" />
-                </button>
+                  <component 
+                    :is="expandedMessageIds.has(msg.id) ? ChevronDown : ChevronRight" 
+                    class="size-3.5 opacity-50 shrink-0"
+                  />
+                  
+                  <!-- Icon based on type -->
+                  <Terminal v-if="msg.logType === 'tool_call' || msg.logType === 'tool_result'" class="size-3.5 text-blue-500 shrink-0" />
+                  <AlertCircle v-else-if="msg.logType === 'error'" class="size-3.5 text-red-500 shrink-0" />
+                  <Sparkles v-else-if="msg.logType === 'thinking'" class="size-3.5 text-purple-500 shrink-0" />
+                  <AlertCircle v-else class="size-3.5 text-yellow-500 shrink-0" />
+
+                  <span class="text-xs font-medium font-mono uppercase text-muted-foreground">
+                    {{ msg.logType?.replace('_', ' ') }}
+                  </span>
+                  
+                  <!-- Preview of content if collapsed -->
+                  <span v-if="!expandedMessageIds.has(msg.id)" class="text-xs text-muted-foreground/60 truncate flex-1 font-mono">
+                     - {{ msg.content.slice(0, 60).replace(/\n/g, ' ') }}
+                  </span>
+                  
+                   <!-- Timestamp (faint) -->
+                   <span class="ml-auto text-[10px] text-muted-foreground/40">{{ formatTime(msg.timestamp) }}</span>
+                </div>
+
+                <!-- Expanded Content -->
+                <div 
+                  v-show="expandedMessageIds.has(msg.id)"
+                  class="pl-8 pr-2 pb-2"
+                >
+                  <div class="relative bg-muted/30 border rounded-md px-3 py-2 text-xs font-mono whitespace-pre-wrap break-words overflow-x-auto text-muted-foreground">
+                    {{ msg.content }}
+                    
+                     <!-- Copy Button (Small) -->
+                    <button 
+                      @click.stop="copyMessage(msg.content, msg.id)"
+                      class="absolute top-2 right-2 size-6 rounded bg-background/50 border opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center hover:bg-background"
+                    >
+                      <Check v-if="copiedId === msg.id" class="size-3 text-green-500" />
+                      <Copy v-else class="size-3 text-muted-foreground" />
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
 
-          <!-- Type 2: System / Tool / Thinking Log (Minimal Timeline Style) -->
-          <div v-else class="flex flex-col gap-0.5 py-0.5 px-4 group">
-             <!-- Collapsible Header -->
-            <div 
-              @click="toggleMessage(msg.id)"
-              class="flex items-center gap-2 cursor-pointer select-none px-2 py-1.5 rounded-md hover:bg-black/5 dark:hover:bg-white/5 transition-colors opacity-80 hover:opacity-100"
-            >
-              <component 
-                :is="expandedMessageIds.has(msg.id) ? ChevronDown : ChevronRight" 
-                class="size-3.5 opacity-50 shrink-0"
-              />
-              
-              <!-- Icon based on type -->
-              <Terminal v-if="msg.logType === 'tool_call' || msg.logType === 'tool_result'" class="size-3.5 text-blue-500 shrink-0" />
-              <AlertCircle v-else-if="msg.logType === 'error'" class="size-3.5 text-red-500 shrink-0" />
-              <Sparkles v-else-if="msg.logType === 'thinking'" class="size-3.5 text-purple-500 shrink-0" />
-              <AlertCircle v-else class="size-3.5 text-yellow-500 shrink-0" />
-
-              <span class="text-xs font-medium font-mono uppercase text-muted-foreground">
-                {{ msg.logType?.replace('_', ' ') }}
-              </span>
-              
-              <!-- Preview of content if collapsed -->
-              <span v-if="!expandedMessageIds.has(msg.id)" class="text-xs text-muted-foreground/60 truncate flex-1 font-mono">
-                 - {{ msg.content.slice(0, 60).replace(/\n/g, ' ') }}
-              </span>
-              
-               <!-- Timestamp (faint) -->
-               <span class="ml-auto text-[10px] text-muted-foreground/40">{{ formatTime(msg.timestamp) }}</span>
-            </div>
-
-            <!-- Expanded Content -->
-            <div 
-              v-show="expandedMessageIds.has(msg.id)"
-              class="pl-8 pr-2 pb-2"
-            >
-              <div class="relative bg-muted/30 border rounded-md px-3 py-2 text-xs font-mono whitespace-pre-wrap break-words overflow-x-auto text-muted-foreground">
-                {{ msg.content }}
-                
-                 <!-- Copy Button (Small) -->
-                <button 
-                  @click.stop="copyMessage(msg.content, msg.id)"
-                  class="absolute top-2 right-2 size-6 rounded bg-background/50 border opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center hover:bg-background"
-                >
-                  <Check v-if="copiedId === msg.id" class="size-3 text-green-500" />
-                  <Copy v-else class="size-3 text-muted-foreground" />
-                </button>
+            <!-- Typing Indicator (shown when waiting for response) -->
+            <div v-if="isGenerating" class="flex gap-4">
+              <Avatar class="size-8 shrink-0 border bg-primary/10">
+                <div class="flex items-center justify-center size-full text-primary font-semibold text-xs">AI</div>
+              </Avatar>
+              <div class="bg-card border rounded-2xl rounded-tl-md px-4 py-3 shadow-sm">
+                <div class="flex items-center gap-1">
+                  <span class="size-2 bg-muted-foreground/40 rounded-full animate-bounce" style="animation-delay: 0ms" />
+                  <span class="size-2 bg-muted-foreground/40 rounded-full animate-bounce" style="animation-delay: 150ms" />
+                  <span class="size-2 bg-muted-foreground/40 rounded-full animate-bounce" style="animation-delay: 300ms" />
+                </div>
               </div>
             </div>
+
+            <!-- Scroll target -->
+            <div ref="messagesEndRef" class="h-px" />
+          </div>
+        </ScrollArea>
+        
+        <!-- Input Area -->
+        <div class="border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shrink-0">
+          <div class="max-w-3xl mx-auto p-4">
+            <form @submit.prevent="sendMessage">
+              <div class="flex items-end gap-2">
+                <div class="flex-1 bg-card rounded-2xl border shadow-sm focus-within:ring-2 focus-within:ring-ring focus-within:border-transparent transition-all">
+                  <Textarea 
+                    v-model="input" 
+                    placeholder="Send a message..." 
+                    class="min-h-[56px] max-h-[200px] py-3 px-4 bg-transparent border-0 focus-visible:ring-0 resize-none shadow-none text-sm"
+                    :disabled="isLoading"
+                    @keydown="handleKeydown"
+                    autofocus
+                  />
+                </div>
+                
+                <!-- Stop Button (shown when generating) -->
+                <Button 
+                  v-if="isGenerating"
+                  type="button"
+                  size="icon"
+                  @click="stopGeneration"
+                  class="h-11 w-11 shrink-0 rounded-xl bg-red-600 hover:bg-red-700 shadow-lg shadow-red-600/20 transition-all text-white border-0"
+                >
+                  <Square class="size-5 fill-current" />
+                </Button>
+                
+                <!-- Send Button (shown when not generating) -->
+                <Button 
+                  v-else
+                  type="submit" 
+                  size="icon"
+                  class="h-11 w-11 shrink-0 rounded-xl bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-600/20 transition-all text-white border-0"
+                  :class="{ 'opacity-50 cursor-not-allowed': !input.trim() || isLoading }"
+                  :disabled="!input.trim() || isLoading"
+                >
+                  <Loader2 v-if="isLoading" class="size-5 animate-spin" />
+                  <Send v-else class="size-5" />
+                </Button>
+              </div>
+              <p class="text-center text-[10px] text-muted-foreground mt-2">
+                Press <kbd class="px-1 py-0.5 rounded bg-muted text-[9px] font-mono">⌘</kbd> + <kbd class="px-1 py-0.5 rounded bg-muted text-[9px] font-mono">Enter</kbd> to send
+              </p>
+            </form>
           </div>
         </div>
-
-        <!-- Typing Indicator (shown when waiting for response) -->
-        <div v-if="isGenerating" class="flex gap-4">
-          <Avatar class="size-8 shrink-0 border bg-primary/10">
-            <div class="flex items-center justify-center size-full text-primary font-semibold text-xs">AI</div>
-          </Avatar>
-          <div class="bg-card border rounded-2xl rounded-tl-md px-4 py-3 shadow-sm">
-            <div class="flex items-center gap-1">
-              <span class="size-2 bg-muted-foreground/40 rounded-full animate-bounce" style="animation-delay: 0ms" />
-              <span class="size-2 bg-muted-foreground/40 rounded-full animate-bounce" style="animation-delay: 150ms" />
-              <span class="size-2 bg-muted-foreground/40 rounded-full animate-bounce" style="animation-delay: 300ms" />
-            </div>
-          </div>
-        </div>
-
-        <!-- Scroll target -->
-        <div ref="messagesEndRef" class="h-px" />
       </div>
-    </ScrollArea>
-    
-    <!-- Input Area -->
-    <div class="border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shrink-0">
-      <div class="max-w-3xl mx-auto p-4">
-        <form @submit.prevent="sendMessage">
-          <div class="flex items-end gap-2">
-            <div class="flex-1 bg-card rounded-2xl border shadow-sm focus-within:ring-2 focus-within:ring-ring focus-within:border-transparent transition-all">
-              <Textarea 
-                v-model="input" 
-                placeholder="Send a message..." 
-                class="min-h-[56px] max-h-[200px] py-3 px-4 bg-transparent border-0 focus-visible:ring-0 resize-none shadow-none text-sm"
-                :disabled="isLoading"
-                @keydown="handleKeydown"
-                autofocus
-              />
-            </div>
-            
-            <!-- Stop Button (shown when generating) -->
-            <Button 
-              v-if="isGenerating"
-              type="button"
-              size="icon"
-              @click="stopGeneration"
-              class="h-11 w-11 shrink-0 rounded-xl bg-red-600 hover:bg-red-700 shadow-lg shadow-red-600/20 transition-all text-white border-0"
-            >
-              <Square class="size-5 fill-current" />
-            </Button>
-            
-            <!-- Send Button (shown when not generating) -->
-            <Button 
-              v-else
-              type="submit" 
-              size="icon"
-              class="h-11 w-11 shrink-0 rounded-xl bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-600/20 transition-all text-white border-0"
-              :class="{ 'opacity-50 cursor-not-allowed': !input.trim() || isLoading }"
-              :disabled="!input.trim() || isLoading"
-            >
-              <Loader2 v-if="isLoading" class="size-5 animate-spin" />
-              <Send v-else class="size-5" />
-            </Button>
-          </div>
-          <p class="text-center text-[10px] text-muted-foreground mt-2">
-            Press <kbd class="px-1 py-0.5 rounded bg-muted text-[9px] font-mono">⌘</kbd> + <kbd class="px-1 py-0.5 rounded bg-muted text-[9px] font-mono">Enter</kbd> to send
-          </p>
-        </form>
-      </div>
-    </div>
+    </Transition>
   </div>
 </template>

@@ -196,6 +196,20 @@
 }
 
 /* ============================================
+   Transitions
+   ============================================ */
+/* Fade Transition */
+.fade-enter-active,
+.fade-leave-active {
+    transition: opacity 0.1s ease-out;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+    opacity: 0;
+}
+
+/* ============================================
    Markdown Content Styles
    ============================================ */
 .markdown-content {
@@ -262,7 +276,7 @@
 
 .markdown-content th,
 .markdown-content td {
-    @apply border border-border px-3 py-2 text-left;
+    @apply border-border px-3 py-2 text-left border;
 }
 
 .markdown-content th {
