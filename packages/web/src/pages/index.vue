@@ -148,7 +148,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="p-6 space-y-8 max-w-6xl mx-auto">
+  <div class="p-6 space-y-8">
     <!-- Header -->
     <div class="space-y-2">
       <h1 class="text-3xl font-bold tracking-tight">Dashboard</h1>

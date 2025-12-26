@@ -25,7 +25,7 @@ const formattedTime = computed(() => {
   <Card 
     class="cursor-pointer transition-all hover:shadow-md hover:border-primary/50"
   >
-    <CardContent class="p-4 flex items-center justify-between">
+    <CardContent class=" flex items-center justify-between">
       <div class="flex items-center gap-3 min-w-0">
         <MessageSquare class="size-5 text-muted-foreground shrink-0" />
         <div class="min-w-0">
