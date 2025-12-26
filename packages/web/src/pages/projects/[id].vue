@@ -2,8 +2,8 @@
 import { ref, watch, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Button } from '@/components/ui/button'
-import { Plus, MessageSquare, Clock, ExternalLink } from 'lucide-vue-next'
-import { Card, CardContent } from '@/components/ui/card'
+import { Plus, MessageSquare } from 'lucide-vue-next'
+import ConversionCard from '@/components/ConversionCard.vue'
 import { useNewConversionDialog } from '@/composables/useNewConversionDialog'
 import { orpc } from '@/services/orpc'
 
@@ -35,17 +35,6 @@ const openConversation = (id: string) => {
   router.push(`/conversions/${id}`)
 }
 
-const formatTime = (timestamp: number) => {
-  const date = new Date(timestamp)
-  const now = new Date()
-  const diff = now.getTime() - date.getTime()
-  
-  if (diff < 60000) return 'Just now'
-  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`
-  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`
-  return date.toLocaleDateString()
-}
-
 watch(projectId, loadData, { immediate: true })
 </script>
 
@@ -69,29 +58,14 @@ watch(projectId, loadData, { immediate: true })
       <h2 class="text-xl font-semibold">Conversations</h2>
       
       <div v-if="conversations.length > 0" class="space-y-2">
-        <Card 
-          v-for="conv in conversations" 
+        <ConversionCard
+          v-for="conv in conversations"
           :key="conv.id"
-          class="cursor-pointer transition-all hover:shadow-md hover:border-primary/50"
+          :title="conv.title"
+          :project-name="project?.name"
+          :updated-at="conv.updatedAt"
           @click="openConversation(conv.id)"
-        >
-          <CardContent class="p-4 flex items-center justify-between">
-            <div class="flex items-center gap-3 min-w-0">
-              <MessageSquare class="size-5 text-muted-foreground shrink-0" />
-              <div class="min-w-0">
-                <p class="font-medium truncate">{{ conv.title }}</p>
-                <p class="text-xs text-muted-foreground">{{ project?.name }}</p>
-              </div>
-            </div>
-            <div class="flex items-center gap-2 shrink-0">
-              <div class="flex items-center gap-1 text-xs text-muted-foreground">
-                <Clock class="size-3" />
-                {{ formatTime(conv.updatedAt) }}
-              </div>
-              <ExternalLink class="size-4 text-muted-foreground" />
-            </div>
-          </CardContent>
-        </Card>
+        />
       </div>
 
       <div v-else class="text-center py-12 text-muted-foreground border rounded-lg border-dashed">

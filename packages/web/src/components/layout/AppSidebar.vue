@@ -25,7 +25,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
 import { orpc } from "@/services/orpc"
-import NewProjectDialog from "@/components/NewProjectDialog.vue"
+import NewProjectDialog from "@/components/dialogs/NewProjectDialog.vue"
 import { useNewConversionDialog } from "@/composables/useNewConversionDialog"
 
 // Main navigation items.

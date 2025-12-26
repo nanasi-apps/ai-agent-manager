@@ -1,11 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { Conversation, Message, Project, IStore } from '@agent-manager/shared';
-
-interface StoreData {
-    conversations: Conversation[];
-    projects: Project[];
-}
+import { normalizeMessages, StoreData, tryMergeMessage } from './serialization';
 
 /**
  * File-based persistent store
@@ -32,44 +28,11 @@ export class FileStore implements IStore {
                 this.conversations.clear();
 
                 for (const conv of data.conversations) {
-                    if (!conv.messages) {
-                        conv.messages = [];
+                    // Normalize existing messages by merging fragments
+                    if (conv.messages) {
+                        conv.messages = normalizeMessages(conv.messages);
                     } else {
-                        // Normalize existing messages by merging fragments
-                        const mergedMessages: Message[] = [];
-
-                        for (const msg of conv.messages) {
-                            const content = msg.content;
-                            if (!content && msg.logType === 'text') continue;
-
-                            const role = msg.role;
-                            const type = msg.logType || 'text';
-
-                            const lastMsg = mergedMessages[mergedMessages.length - 1];
-                            let wasMerged = false;
-
-                            if (lastMsg) {
-                                const lastType = lastMsg.logType || 'text';
-
-                                if (lastMsg.role === role) {
-                                    if (type === 'text' && lastType === 'text') {
-                                        lastMsg.content += content;
-                                        lastMsg.timestamp = msg.timestamp;
-                                        wasMerged = true;
-                                    } else if (type !== 'text' && type === lastType) {
-                                        lastMsg.content += content;
-                                        lastMsg.timestamp = msg.timestamp;
-                                        wasMerged = true;
-                                    }
-                                }
-                            }
-
-                            if (!wasMerged) {
-                                mergedMessages.push(msg);
-                            }
-                        }
-
-                        conv.messages = mergedMessages;
+                        conv.messages = [];
                     }
 
                     this.conversations.set(conv.id, conv);
@@ -154,24 +117,9 @@ export class FileStore implements IStore {
         const conv = this.conversations.get(conversationId);
         if (conv) {
             const lastMsg = conv.messages[conv.messages.length - 1];
-            let merged = false;
 
-            if (lastMsg) {
-                const lastType = lastMsg.logType || 'text';
-                const incomingType = message.logType || 'text';
-
-                if (lastMsg.role === message.role) {
-                    if (incomingType === 'text' && lastType === 'text') {
-                        lastMsg.content += message.content;
-                        lastMsg.timestamp = message.timestamp;
-                        merged = true;
-                    } else if (incomingType !== 'text' && incomingType === lastType) {
-                        lastMsg.content += message.content;
-                        lastMsg.timestamp = message.timestamp;
-                        merged = true;
-                    }
-                }
-            }
+            // Try to merge with the last message if compatible
+            const merged = tryMergeMessage(lastMsg, message);
 
             if (!merged) {
                 conv.messages.push(message);

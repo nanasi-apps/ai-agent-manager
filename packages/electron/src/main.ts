@@ -1,8 +1,10 @@
-import { appRouter, setAgentManager, setStore } from "@agent-manager/shared";
-import { RPCHandler } from "@orpc/server/message-port";
-import { app, BrowserWindow, ipcMain, nativeTheme } from "electron";
+import { setAgentManager, setStore } from "@agent-manager/shared";
+import { app, BrowserWindow } from "electron";
 import path from "path";
 import { oneShotAgentManager } from "./agents";
+import { setupAgentLogs } from "./main/agent-logs";
+import { setupIpc } from "./main/ipc";
+import { initializeWindowTheme, setupGlobalThemeHandlers } from "./main/theme";
 import { store } from "./store";
 
 // Set up dependencies for the router
@@ -27,10 +29,7 @@ function createWindow() {
 
 	win.webContents.openDevTools();
 
-	// Send initial theme
-	win.webContents.on("did-finish-load", () => {
-		win.webContents.send("theme-changed", nativeTheme.shouldUseDarkColors);
-	});
+	initializeWindowTheme(win);
 }
 
 app.whenReady().then(() => {
@@ -47,53 +46,9 @@ app.whenReady().then(() => {
 		}
 	});
 
-	// Setup ORPC handler
-	ipcMain.on("start-orpc-server", (event) => {
-		const [serverPort] = event.ports;
-		if (serverPort) {
-			console.log("Main: Received ORPC port");
-			const handler = new RPCHandler(appRouter);
-			handler.upgrade(serverPort);
-			serverPort.start();
-		}
-	});
-
-	// Support theme updates
-	nativeTheme.on("updated", () => {
-		const isDark = nativeTheme.shouldUseDarkColors;
-		BrowserWindow.getAllWindows().forEach((win) => {
-			win.webContents.send("theme-changed", isDark);
-		});
-	});
-
-	ipcMain.handle("get-theme", () => {
-		return nativeTheme.shouldUseDarkColors;
-	});
-
-	ipcMain.handle("dark-mode:set", (_, mode: "system" | "light" | "dark") => {
-		if (["system", "light", "dark"].includes(mode)) {
-			nativeTheme.themeSource = mode;
-		}
-		return nativeTheme.shouldUseDarkColors;
-	});
-
-	// Agent Log Setup - forward logs to renderer
-	oneShotAgentManager.on("log", (data) => {
-		// Save agent message to store for persistence
-		if (data.data) {
-			store.addMessage(data.sessionId, {
-				id: crypto.randomUUID(),
-				role: data.type === 'system' ? 'system' : 'agent',
-				content: data.data,
-				timestamp: Date.now(),
-				logType: data.type,
-			});
-		}
-
-		BrowserWindow.getAllWindows().forEach((win) => {
-			win.webContents.send("agent-log", data);
-		});
-	});
+	setupIpc();
+	setupGlobalThemeHandlers();
+	setupAgentLogs();
 });
 
 app.on("window-all-closed", () => {

@@ -3,17 +3,19 @@ import { EventEmitter } from 'node:events';
 import type { AgentConfig, AgentLogPayload } from '@agent-manager/shared';
 import { AgentOutputParser } from './output-parser';
 import type { IAgentManager } from './agent-manager';
+import {
+    AgentDriver,
+    AgentDriverContext,
+    GeminiDriver,
+    ClaudeDriver,
+    CodexDriver,
+    CustomDriver
+} from './drivers';
 
-interface SessionInfo {
-    config: AgentConfig;
-    messageCount: number;
+interface SessionInfo extends AgentDriverContext {
+    config: AgentConfig; // Keep config accessible
     buffer: string;
     isProcessing: boolean;
-    /** Gemini CLI session ID (UUID) for --resume */
-    geminiSessionId?: string;
-    /** Codex CLI thread ID for resume */
-    codexThreadId?: string;
-    /** Current running process (for stopping) */
     currentProcess?: ChildProcess;
 }
 
@@ -47,9 +49,10 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
             messageCount: 0,
             buffer: '',
             isProcessing: false,
+            sessionId, // From AgentDriverContext
         });
 
-        this.emitLog(sessionId, '[Session started]\n', 'system');
+        // this.emitLog(sessionId, '[Session started]\n', 'system');
     }
 
     sendToSession(sessionId: string, message: string) {
@@ -70,39 +73,22 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
         this.runCommand(sessionId, session, message);
     }
 
-    private runCommand(sessionId: string, session: SessionInfo, message: string) {
-        const agentType = session.config.type;
-        let command: string;
-        let args: string[];
-
-        if (agentType === 'gemini') {
-            command = 'gemini';
-            if (session.messageCount === 0) {
-                args = ['-y', '--output-format', 'stream-json', message];
-            } else if (session.geminiSessionId) {
-                args = ['--resume', session.geminiSessionId, '-y', '--output-format', 'stream-json', message];
-            } else {
-                console.warn('[OneShotAgentManager] No geminiSessionId stored, using fallback');
-                args = ['--resume', 'latest', '-y', '--output-format', 'stream-json', message];
-            }
-        } else if (agentType === 'claude') {
-            command = 'claude';
-            args = ['-p', '--output-format', 'stream-json', message];
-        } else if (agentType === 'codex') {
-            command = 'codex';
-            if (session.messageCount === 0) {
-                args = ['exec', '--json', '--full-auto', message];
-            } else if (session.codexThreadId) {
-                args = ['exec', 'resume', '--json', session.codexThreadId, message];
-            } else {
-                console.warn('[OneShotAgentManager] No codexThreadId stored, using --last fallback');
-                args = ['exec', 'resume', '--json', '--last', message];
-            }
-        } else {
-            const parts = session.config.command.split(' ');
-            command = parts[0];
-            args = [...parts.slice(1), message];
+    private getDriver(config: AgentConfig): AgentDriver {
+        switch (config.type) {
+            case 'gemini':
+                return new GeminiDriver();
+            case 'claude':
+                return new ClaudeDriver();
+            case 'codex':
+                return new CodexDriver();
+            default:
+                return new CustomDriver(config);
         }
+    }
+
+    private runCommand(sessionId: string, session: SessionInfo, message: string) {
+        const driver = this.getDriver(session.config);
+        const { command, args } = driver.getCommand(session, message);
 
         console.log(`[OneShotAgentManager] Running: ${command} ${args.join(' ')}`);
 
@@ -123,7 +109,7 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
 
         child.stdout?.on('data', (data: Buffer) => {
             const str = data.toString();
-            console.log(`[OneShotAgentManager ${sessionId}] stdout:`, str);
+            // console.log(`[OneShotAgentManager ${sessionId}] stdout:`, str);
 
             if (session.config.streamJson) {
                 this.parseStreamJson(sessionId, str, session);

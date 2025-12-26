@@ -19,7 +19,7 @@ import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import type { AgentLogPayload } from '@/types/electron'
+import type { AgentLogPayload } from '@agent-manager/shared'
 
 type LogType = 'text' | 'tool_call' | 'tool_result' | 'thinking' | 'error' | 'system'
 
@@ -39,9 +39,11 @@ const messages = ref<Message[]>([])
 const isLoading = ref(false)
 const isGenerating = ref(false)
 const isConnected = ref(false)
+const conversationTitle = ref('')
+const titleDraft = ref('')
+const isSavingTitle = ref(false)
 const copiedId = ref<string | null>(null)
 const expandedMessageIds = ref(new Set<string>())
-const modelName = ref<string | null>(null)
 
 const scrollAreaRef = ref<InstanceType<typeof ScrollArea> | null>(null)
 const messagesEndRef = ref<HTMLElement | null>(null)
@@ -94,14 +96,6 @@ const copyMessage = async (content: string, id: string) => {
 const appendAgentLog = (payload: AgentLogPayload) => {
   const content = payload.data
   if (!content.trim()) return
-
-  // Extract model name from init event
-  if (payload.raw && typeof payload.raw === 'object') {
-    const raw = payload.raw as Record<string, unknown>
-    if (raw.type === 'init' && typeof raw.model === 'string') {
-      modelName.value = raw.model
-    }
-  }
 
   // Determine effective type and role for the INCOMING chunk
   const incomingType = payload.type || 'text'
@@ -181,6 +175,52 @@ const sendMessage = async () => {
   }
 }
 
+const normalizeTitle = (value: string) => {
+  const trimmed = value.trim()
+  return trimmed.length ? trimmed : 'Untitled Session'
+}
+
+const saveTitle = async () => {
+  const nextTitle = normalizeTitle(titleDraft.value)
+  if (nextTitle === conversationTitle.value || isSavingTitle.value) {
+    titleDraft.value = conversationTitle.value
+    return
+  }
+
+  isSavingTitle.value = true
+  try {
+    const result = await orpc.updateConversationTitle({
+      sessionId: sessionId.value,
+      title: nextTitle,
+    })
+    if (result.success) {
+      conversationTitle.value = nextTitle
+      titleDraft.value = nextTitle
+      window.dispatchEvent(new Event('agent-manager:data-change'))
+    }
+  } catch (err) {
+    console.error('Failed to update conversation title:', err)
+    titleDraft.value = conversationTitle.value
+  } finally {
+    isSavingTitle.value = false
+  }
+}
+
+const loadConversationMeta = async (id: string) => {
+  try {
+    const conv = await orpc.getConversation({ sessionId: id })
+    if (conv) {
+      conversationTitle.value = conv.title
+      titleDraft.value = conv.title
+    } else {
+      conversationTitle.value = 'Untitled Session'
+      titleDraft.value = conversationTitle.value
+    }
+  } catch (err) {
+    console.error('Failed to load conversation metadata:', err)
+  }
+}
+
 // Handle CMD+Enter to submit
 const handleKeydown = (e: KeyboardEvent) => {
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
@@ -194,6 +234,9 @@ watch(() => (route.params as { id: string }).id, (newId) => {
   if (newId) {
     sessionId.value = newId
     messages.value = []
+    conversationTitle.value = ''
+    titleDraft.value = ''
+    loadConversationMeta(newId)
     loadConversation(newId)
   }
 })
@@ -202,6 +245,7 @@ watch(() => (route.params as { id: string }).id, (newId) => {
 // Load conversation data and saved messages
 async function loadConversation(id: string) {
   try {
+    await loadConversationMeta(id)
     // Load saved messages from store
     const savedMessages = await orpc.getMessages({ sessionId: id })
     if (savedMessages && savedMessages.length > 0) {
@@ -262,13 +306,16 @@ const formatTime = (timestamp: number) => {
     <!-- Header -->
     <div class="border-b px-6 py-3 flex items-center justify-between bg-card/80 backdrop-blur-xl sticky top-0 z-10 shrink-0">
       <div class="flex items-center gap-3">
-        <div class="size-9 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg shadow-violet-500/20">
-          <Sparkles class="size-5 text-white" />
-        </div>
+
         <div>
-          <h1 class="text-base font-semibold">Chat Session</h1>
-          <p class="text-[10px] text-muted-foreground font-mono truncate max-w-[200px]">{{ sessionId }}</p>
-          <h2 class="font-semibold text-sm">{{ modelName || 'Agent Session' }}</h2>
+          <input
+            v-model="titleDraft"
+            class="text-base font-semibold bg-transparent border border-transparent hover:border-input focus:border-input rounded-md px-2 -ml-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring focus:bg-accent/50 transition-all max-w-[320px] truncate"
+            placeholder="Session name"
+            :disabled="isSavingTitle"
+            @blur="saveTitle"
+            @keydown.enter.prevent="saveTitle"
+          />
           <div class="flex items-center gap-1.5">
             <span class="size-1.5 rounded-full" :class="isConnected ? 'bg-green-500' : 'bg-red-500'" />
             <span class="text-xs text-muted-foreground">{{ isConnected ? 'Connected' : 'Disconnected' }}</span>

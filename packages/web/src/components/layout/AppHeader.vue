@@ -12,7 +12,6 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
-import { api } from "../services/apiAdapter";
 
 defineProps<{
 	title: string;
@@ -20,7 +19,11 @@ defineProps<{
 
 const platform = ref<string>("loading...");
 
-onMounted(async () => {
-	platform.value = await api.getPlatform();
+onMounted(() => {
+    if (window.electronAPI) {
+        platform.value = 'electron';
+    } else {
+        platform.value = 'web';
+    }
 });
 </script>

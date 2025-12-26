@@ -3,7 +3,20 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ============================================
+   Base Styles
+   ============================================ */
 :root {
+    /* Typography */
+    font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+    line-height: 1.5;
+    font-weight: 400;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+
+    /* Light theme colors */
     --background: oklch(1 0 0);
     --foreground: oklch(0.145 0 0);
     --card: oklch(1 0 0);
@@ -157,10 +170,34 @@
 
     body {
         @apply bg-background text-foreground;
+        margin: 0;
+        min-width: 320px;
+        min-height: 100vh;
+    }
+
+    a {
+        font-weight: 500;
+        color: inherit;
+        text-decoration: inherit;
+    }
+
+    a:hover {
+        opacity: 0.8;
+    }
+
+    #app {
+        width: 100vw;
+        height: 100vh;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
     }
 }
 
-/* Markdown content styles */
+/* ============================================
+   Markdown Content Styles
+   ============================================ */
 .markdown-content {
     @apply text-sm leading-relaxed;
 }
@@ -254,7 +291,9 @@
     padding: 0;
 }
 
-/* GitHub Dark-style syntax highlighting */
+/* ============================================
+   Syntax Highlighting (GitHub Dark)
+   ============================================ */
 .hljs {
     color: #c9d1d9;
 }

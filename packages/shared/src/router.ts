@@ -277,6 +277,23 @@ export const appRouter = os.router({
 			return conv;
 		}),
 
+	// Update conversation title
+	updateConversationTitle: os
+		.input(z.object({
+			sessionId: z.string(),
+			title: z.string().min(1).max(120),
+		}))
+		.output(z.object({ success: z.boolean() }))
+		.handler(async ({ input }) => {
+			const storeInstance = getStoreOrThrow();
+			const conv = storeInstance.getConversation(input.sessionId);
+			if (!conv) return { success: false };
+			storeInstance.updateConversation(input.sessionId, {
+				title: input.title,
+			});
+			return { success: true };
+		}),
+
 	sendMessage: os
 		.input(z.object({
 			sessionId: z.string(),

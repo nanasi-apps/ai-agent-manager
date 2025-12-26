@@ -8,11 +8,10 @@ import {
   Cpu,
   Terminal,
   Loader2,
-  ExternalLink,
-  Clock
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardHeader, CardTitle } from '@/components/ui/card'
+import ConversionCard from '@/components/ConversionCard.vue'
 import { 
   Dialog,
   DialogContent,
@@ -139,17 +138,6 @@ const openConversation = (id: string) => {
   router.push(`/conversions/${id}`)
 }
 
-const formatTime = (timestamp: number) => {
-  const date = new Date(timestamp)
-  const now = new Date()
-  const diff = now.getTime() - date.getTime()
-  
-  if (diff < 60000) return 'Just now'
-  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`
-  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`
-  return date.toLocaleDateString()
-}
-
 const getProjectName = (projectId: string) => {
   return userProjects.value.find(p => p.id === projectId)?.name || projectId
 }
@@ -214,29 +202,14 @@ onMounted(() => {
         <h2 class="text-xl font-semibold">Recent Conversations</h2>
         
         <div class="space-y-2">
-          <Card 
-            v-for="conv in recentConversations" 
+          <ConversionCard
+            v-for="conv in recentConversations"
             :key="conv.id"
-            class="cursor-pointer transition-all hover:shadow-md hover:border-primary/50"
+            :title="conv.title"
+            :project-name="getProjectName(conv.projectId)"
+            :updated-at="conv.updatedAt"
             @click="openConversation(conv.id)"
-          >
-            <CardContent class="p-4 flex items-center justify-between">
-              <div class="flex items-center gap-3 min-w-0">
-                <MessageSquare class="size-5 text-muted-foreground shrink-0" />
-                <div class="min-w-0">
-                  <p class="font-medium truncate">{{ conv.title }}</p>
-                  <p class="text-xs text-muted-foreground">{{ getProjectName(conv.projectId) }}</p>
-                </div>
-              </div>
-              <div class="flex items-center gap-2 shrink-0">
-                <div class="flex items-center gap-1 text-xs text-muted-foreground">
-                  <Clock class="size-3" />
-                  {{ formatTime(conv.updatedAt) }}
-                </div>
-                <ExternalLink class="size-4 text-muted-foreground" />
-              </div>
-            </CardContent>
-          </Card>
+          />
         </div>
       </section>
 
