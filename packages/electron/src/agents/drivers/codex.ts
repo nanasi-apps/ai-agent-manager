@@ -30,7 +30,8 @@ export class CodexDriver implements AgentDriver {
             args = ['exec', ...fullAutoArgs, ...jsonArgs, escapedMessage, ...modelArgs];
         } else if (context.codexThreadId) {
             // We have a valid thread ID: resume it with `codex exec resume <session_id> <prompt> [options]`
-            args = ['exec', ...jsonArgs, 'resume', context.codexThreadId, escapedMessage, ...modelArgs];
+            // Usage: codex exec resume [OPTIONS] [SESSION_ID] [PROMPT]
+            args = ['exec', ...jsonArgs, 'resume', ...modelArgs, context.codexThreadId, escapedMessage];
         } else {
             // No thread ID but not first message:
             // This can happen if agent was swapped or thread ID capture failed.
