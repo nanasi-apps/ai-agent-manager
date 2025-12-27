@@ -3,7 +3,6 @@ import { ref, onMounted, nextTick, watch } from 'vue'
 import { useRoute, onBeforeRouteLeave } from 'vue-router'
 import { orpc } from '@/services/orpc'
 import { useMarkdown } from '@/composables/useMarkdown'
-import { MIN_LOAD_TIME } from '@/lib/constants'
 import { 
   Send, 
   Loader2, 
@@ -53,7 +52,6 @@ const titleDraft = ref('')
 const isSavingTitle = ref(false)
 const copiedId = ref<string | null>(null)
 const expandedMessageIds = ref(new Set<string>())
-const isPageLoading = ref(true)
 const modelTemplates = ref<ModelTemplate[]>([])
 const modelIdDraft = ref('')
 const currentModelId = ref('')
@@ -187,6 +185,21 @@ const swapModel = async () => {
 
   const previousId = currentModelId.value
   isSwappingModel.value = true
+  // Find model name for the log
+  const nextTemplate = modelTemplates.value.find(m => m.id === nextId)
+  const nextName = nextTemplate ? formatModelLabel(nextTemplate) : 'next agent'
+
+  // Add handover message
+  messages.value.push({
+    id: crypto.randomUUID(),
+    role: 'system',
+    content: `Handing over conversation to **${nextName}**...`,
+    timestamp: Date.now(),
+    logType: 'system',
+  })
+  scrollToBottom()
+
+  // isLoading removed here to prevent spinner during background swap
   try {
     const result = await orpc.swapConversationAgent({
       sessionId: sessionId.value,
@@ -222,6 +235,12 @@ const swapModel = async () => {
     isSwappingModel.value = false
   }
 }
+
+watch(modelIdDraft, async (newVal) => {
+  if (newVal && newVal !== currentModelId.value) {
+    await swapModel()
+  }
+})
 
 
 
@@ -278,11 +297,18 @@ const sendMessage = async () => {
 
   // Check if we need to swap model before sending
   if (modelIdDraft.value && modelIdDraft.value !== currentModelId.value) {
-    const intendedId = modelIdDraft.value
-    await swapModel()
+    // If waiting for an in-progress swap (e.g. from watcher), wait for it
+    if (isSwappingModel.value) {
+        while (isSwappingModel.value) {
+            await new Promise(resolve => setTimeout(resolve, 100))
+        }
+    } else {
+        // Otherwise trigger it explicitly
+        await swapModel()
+    }
     
-    // If swap failed (draft reverted to previous), stop sending
-    if (currentModelId.value !== intendedId) {
+    // If swap failed (draft reverted to previous) or mismatch persists, stop sending
+    if (currentModelId.value !== modelIdDraft.value) {
       isLoading.value = false
       return
     }
@@ -377,10 +403,9 @@ const handleKeydown = (e: KeyboardEvent) => {
     }
 }
 
-// Unified initialization logic with minimum load time
+// Unified initialization logic
 async function initSession(id: string) {
-  isPageLoading.value = true
-  const minLoadTime = new Promise(resolve => setTimeout(resolve, MIN_LOAD_TIME))
+  isLoading.value = true
 
   sessionId.value = id
   messages.value = []
@@ -391,12 +416,11 @@ async function initSession(id: string) {
   try {
     await loadConversation(id)
   } finally {
-    await minLoadTime
-    isPageLoading.value = false
+    isLoading.value = false
     // Wait for 'out-in' transition (approx 100ms) to complete so ScrollArea is in DOM
     setTimeout(async () => {
       await restoreScrollPosition()
-    }, 200)
+    }, 100)
   }
 }
 
@@ -526,12 +550,7 @@ const formatTime = (timestamp: number) => {
       </div>
     </div>
 
-    <Transition name="fade" mode="out-in">
-      <div v-if="isPageLoading" class="flex-1 flex items-center justify-center">
-        <Loader2 class="size-8 animate-spin text-muted-foreground" />
-      </div>
-      
-      <div v-else class="flex-1 flex flex-col min-h-0">
+    <div class="flex-1 flex flex-col min-h-0">
         <!-- Messages Area -->
         <ScrollArea class="flex-1 min-h-0" ref="scrollAreaRef">
           <div class="flex flex-col gap-2 p-4 max-w-3xl mx-auto">
@@ -702,6 +721,5 @@ const formatTime = (timestamp: number) => {
           </div>
         </div>
       </div>
-    </Transition>
   </div>
 </template>
