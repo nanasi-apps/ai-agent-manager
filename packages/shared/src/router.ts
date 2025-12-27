@@ -1,7 +1,7 @@
 import { os } from "@orpc/server";
 import { z } from "zod";
 import type { AgentConfig, AgentLogPayload } from "./types/agent";
-import type { IStore } from "./types/store";
+import type { IStore, Project } from "./types/store";
 import { availableAgents, getAgentTemplate } from "./types/project";
 import type { AgentType } from "./types/agent";
 
@@ -31,9 +31,14 @@ export interface IAgentManager {
 	on(event: 'log', listener: (payload: AgentLogPayload) => void): void;
 }
 
+export interface INativeDialog {
+	selectDirectory(): Promise<string | null>;
+}
+
 // Dependencies to be injected
 let agentManager: IAgentManager | null = null;
 let store: IStore | null = null;
+let nativeDialog: INativeDialog | null = null;
 
 /**
  * Set the agent manager implementation
@@ -51,6 +56,11 @@ export function setStore(storeImpl: IStore): void {
 	console.log('[Router] Store set');
 }
 
+export function setNativeDialog(dialogImpl: INativeDialog | null): void {
+	nativeDialog = dialogImpl;
+	console.log('[Router] Native dialog set');
+}
+
 function getAgentManagerOrThrow(): IAgentManager {
 	if (!agentManager) {
 		throw new Error('Agent manager not initialized. Call setAgentManager first.');
@@ -63,6 +73,10 @@ function getStoreOrThrow(): IStore {
 		throw new Error('Store not initialized. Call setStore first.');
 	}
 	return store;
+}
+
+function getNativeDialog(): INativeDialog | null {
+	return nativeDialog;
 }
 
 // Zod schema for agent type
@@ -87,6 +101,7 @@ export const appRouter = os.router({
 			id: z.string(),
 			name: z.string(),
 			description: z.string().optional(),
+			rootPath: z.string().optional(),
 			createdAt: z.number(),
 			updatedAt: z.number(),
 		})))
@@ -99,6 +114,7 @@ export const appRouter = os.router({
 		.input(z.object({
 			name: z.string(),
 			description: z.string().optional(),
+			rootPath: z.string().optional(),
 		}))
 		.output(z.object({
 			id: z.string(),
@@ -110,6 +126,7 @@ export const appRouter = os.router({
 				id,
 				name: input.name,
 				description: input.description,
+				rootPath: input.rootPath,
 				createdAt: now,
 				updatedAt: now,
 			});
@@ -136,7 +153,9 @@ export const appRouter = os.router({
 			id: z.string(),
 			name: z.string(),
 			description: z.string().optional(),
+			rootPath: z.string().optional(),
 			createdAt: z.number(),
+			updatedAt: z.number(),
 		}).nullable())
 		.handler(async ({ input }) => {
 			const project = getStoreOrThrow().getProject(input.projectId);
@@ -145,8 +164,42 @@ export const appRouter = os.router({
 				id: project.id,
 				name: project.name,
 				description: project.description,
+				rootPath: project.rootPath,
 				createdAt: project.createdAt,
+				updatedAt: project.updatedAt,
 			};
+		}),
+
+	updateProject: os
+		.input(z.object({
+			projectId: z.string(),
+			name: z.string().min(1).optional(),
+			rootPath: z.string().nullable().optional(),
+		}))
+		.output(z.object({ success: z.boolean() }))
+		.handler(async ({ input }) => {
+			const storeInstance = getStoreOrThrow();
+			const project = storeInstance.getProject(input.projectId);
+			if (!project) return { success: false };
+
+			const updates: Partial<Project> = {};
+			if (input.name !== undefined) {
+				updates.name = input.name;
+			}
+			if (Object.prototype.hasOwnProperty.call(input, 'rootPath')) {
+				updates.rootPath = input.rootPath ?? undefined;
+			}
+
+			storeInstance.updateProject(input.projectId, updates);
+			return { success: true };
+		}),
+
+	selectDirectory: os
+		.output(z.string().nullable())
+		.handler(async () => {
+			const dialog = getNativeDialog();
+			if (!dialog) return null;
+			return dialog.selectDirectory();
 		}),
 
 	startAgent: os
@@ -251,7 +304,10 @@ export const appRouter = os.router({
 			if (!agentManagerInstance.isRunning(sessionId)) {
 				console.log(`Starting agent for project ${input.projectId} (Session: ${sessionId})`);
 				console.log(`Command: ${agentTemplate.agent.command}`);
-				agentManagerInstance.startSession(sessionId, agentTemplate.agent.command, agentTemplate.agent);
+				agentManagerInstance.startSession(sessionId, agentTemplate.agent.command, {
+					...agentTemplate.agent,
+					cwd: project.rootPath || agentTemplate.agent.cwd,
+				});
 			}
 
 			agentManagerInstance.sendToSession(sessionId, input.initialMessage);

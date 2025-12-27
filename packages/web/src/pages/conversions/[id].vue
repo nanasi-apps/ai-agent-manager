@@ -119,11 +119,16 @@ const copyMessage = async (content: string, id: string) => {
     // Strip HTML tags for plain text copy
     const plainText = content.replace(/<[^>]*>/g, '')
     await navigator.clipboard.writeText(plainText)
-    copiedId.value = id
+    copiedId.value = id;
     setTimeout(() => copiedId.value = null, 2000)
   } catch (err) {
     console.error('Failed to copy:', err)
   }
+}
+
+const sanitizeLogContent = (content: string, logType?: LogType) => {
+  if (!logType || logType === 'text') return content
+  return content.replace(/\[[^\]]+\]/g, '')
 }
 
 
@@ -134,6 +139,7 @@ const appendAgentLog = (payload: AgentLogPayload) => {
 
   // Determine effective type and role for the INCOMING chunk
   const incomingType = payload.type || 'text'
+  if (incomingType === 'thinking') return
   const incomingRole = incomingType === 'system' ? 'system' : 'agent'
   
   const lastMsg = messages.value[messages.value.length - 1]
@@ -304,7 +310,8 @@ async function loadConversation(id: string) {
     // Load saved messages from store
     const savedMessages = await orpc.getMessages({ sessionId: id })
     if (savedMessages && savedMessages.length > 0) {
-      messages.value = savedMessages.map(m => ({
+      messages.value = savedMessages
+          .map(m => ({
         id: m.id,
         role: m.role,
         content: m.content,
@@ -471,11 +478,6 @@ const formatTime = (timestamp: number) => {
                     {{ msg.logType?.replace('_', ' ') }}
                   </span>
                   
-                  <!-- Preview of content if collapsed -->
-                  <span v-if="!expandedMessageIds.has(msg.id)" class="text-xs text-muted-foreground/60 truncate flex-1 font-mono">
-                     - {{ msg.content.slice(0, 60).replace(/\n/g, ' ') }}
-                  </span>
-                  
                    <!-- Timestamp (faint) -->
                    <span class="ml-auto text-[10px] text-muted-foreground/40">{{ formatTime(msg.timestamp) }}</span>
                 </div>
@@ -485,12 +487,12 @@ const formatTime = (timestamp: number) => {
                   v-show="expandedMessageIds.has(msg.id)"
                   class="pl-8 pr-2 pb-2"
                 >
-                  <div class="relative bg-muted/30 border rounded-md px-3 py-2 text-xs font-mono whitespace-pre-wrap break-words overflow-x-auto text-muted-foreground">
-                    {{ msg.content }}
+                  <div class="relative bg-muted/30 border rounded-md px-3 py-2 text-sm markdown-content">
+                    <div v-html="renderMarkdown(sanitizeLogContent(msg.content, msg.logType))" />
                     
                      <!-- Copy Button (Small) -->
                     <button 
-                      @click.stop="copyMessage(msg.content, msg.id)"
+                      @click.stop="copyMessage(sanitizeLogContent(msg.content, msg.logType), msg.id)"
                       class="absolute top-2 right-2 size-6 rounded bg-background/50 border opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center hover:bg-background"
                     >
                       <Check v-if="copiedId === msg.id" class="size-3 text-green-500" />

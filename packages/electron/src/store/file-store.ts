@@ -153,6 +153,18 @@ export class FileStore implements IStore {
         return Array.from(this.projects.values()).sort((a, b) => b.updatedAt - a.updatedAt);
     }
 
+    updateProject(id: string, updates: Partial<Project>) {
+        const existing = this.projects.get(id);
+        if (existing) {
+            this.projects.set(id, {
+                ...existing,
+                ...updates,
+                updatedAt: Date.now(),
+            });
+            this.scheduleSave();
+        }
+    }
+
     deleteProject(id: string) {
         this.projects.delete(id);
         this.scheduleSave();

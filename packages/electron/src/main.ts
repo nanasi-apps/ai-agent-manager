@@ -1,5 +1,5 @@
-import { setAgentManager, setStore } from "@agent-manager/shared";
-import { app, BrowserWindow } from "electron";
+import { setAgentManager, setNativeDialog, setStore } from "@agent-manager/shared";
+import { app, BrowserWindow, dialog } from "electron";
 import path from "path";
 import { oneShotAgentManager } from "./agents";
 import { setupAgentLogs } from "./main/agent-logs";
@@ -10,6 +10,15 @@ import { store } from "./store";
 // Set up dependencies for the router
 setAgentManager(oneShotAgentManager);
 setStore(store);
+setNativeDialog({
+	selectDirectory: async () => {
+		const result = await dialog.showOpenDialog({
+			properties: ["openDirectory"],
+		});
+		if (result.canceled) return null;
+		return result.filePaths[0] ?? null;
+	},
+});
 
 function createWindow() {
 	const win = new BrowserWindow({

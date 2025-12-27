@@ -13,4 +13,5 @@ export function setupIpc() {
             serverPort.start();
         }
     });
+
 }

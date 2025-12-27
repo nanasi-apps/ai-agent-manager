@@ -14,7 +14,8 @@ const { open } = useNewConversionDialog()
 
 // Safely access route param
 const projectId = computed(() => (route.params as any).id as string)
-const project = ref<{ id: string, name: string } | null>(null)
+const isSettingsRoute = computed(() => route.path.endsWith('/settings'))
+const project = ref<{ id: string, name: string, rootPath?: string } | null>(null)
 const conversations = ref<any[]>([])
 const isLoading = ref(true)
 
@@ -44,12 +45,18 @@ const openConversation = (id: string) => {
   router.push(`/conversions/${id}`)
 }
 
+const goSettings = (id:string) =>{
+  console.log("go settings", id)
+  router.push(`/projects/${id}/settings`)
+}
+
 watch(projectId, loadData, { immediate: true })
 </script>
 
 <template>
   <div class="p-6">
-    <Transition name="fade" mode="out-in">
+    <router-view v-if="isSettingsRoute" />
+    <Transition v-else name="fade" mode="out-in">
       <div v-if="isLoading" class="flex items-center justify-center py-20">
         <Loader2 class="size-8 animate-spin text-muted-foreground" />
       </div>
@@ -62,10 +69,15 @@ watch(projectId, loadData, { immediate: true })
                Viewing project: <span class="font-medium text-foreground">{{ project?.name || projectId }}</span>
              </p>
            </div>
-           <Button @click="open">
-             <Plus class="w-4 h-4 mr-2" />
-             New Conversion
-           </Button>
+           <div class="flex items-center gap-2">
+             <Button variant="secondary" @click="goSettings(projectId)">
+               Settings
+             </Button>
+             <Button @click="open">
+               <Plus class="w-4 h-4 mr-2" />
+               New Conversion
+             </Button>
+           </div>
         </div>
 
         <!-- Conversations List -->

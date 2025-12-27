@@ -2,5 +2,5 @@
 export * from "./types/index";
 
 // Router
-export { appRouter, setAgentManager, setStore } from "./router";
+export { appRouter, setAgentManager, setStore, setNativeDialog } from "./router";
 export type { AppRouter, IAgentManager } from "./router";

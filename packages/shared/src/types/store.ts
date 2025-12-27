@@ -31,6 +31,7 @@ export interface Project {
     id: string;
     name: string;
     description?: string;
+    rootPath?: string;
     createdAt: number;
     updatedAt: number;
 }
@@ -57,5 +58,6 @@ export interface IStore {
     addProject(project: Project): void;
     getProject(id: string): Project | undefined;
     listProjects(): Project[];
+    updateProject(id: string, updates: Partial<Project>): void;
     deleteProject(id: string): void;
 }
