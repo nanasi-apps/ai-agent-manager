@@ -31,6 +31,7 @@ export class PtyAgentManager extends EventEmitter implements IAgentManager {
         const agentConfig: AgentConfig = {
             type: config?.type ?? 'custom',
             command,
+            model: config?.model,
             cwd: config?.cwd,
             env: config?.env,
             streamJson: config?.streamJson ?? false,
@@ -96,6 +97,13 @@ export class PtyAgentManager extends EventEmitter implements IAgentManager {
             this.emitLog(sessionId, `\r\n[Error starting PTY: ${error}]\r\n`, 'error');
             throw error;
         }
+    }
+
+    resetSession(sessionId: string, command: string, config?: Partial<AgentConfig>) {
+        if (this.sessions.has(sessionId)) {
+            this.stopSession(sessionId);
+        }
+        this.startSession(sessionId, command, config);
     }
 
     private handleOutput(sessionId: string, data: string) {

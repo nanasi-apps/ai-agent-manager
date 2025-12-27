@@ -2,7 +2,7 @@
 export type { AgentType, AgentConfig, AgentLogPayload } from './agent';
 
 // Project types
-export type { ProjectConfig } from './project';
+export type { ProjectConfig, ModelTemplate } from './project';
 export { availableAgents, getAgentTemplate } from './project';
 
 // Store types

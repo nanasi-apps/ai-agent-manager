@@ -9,6 +9,14 @@ export interface ProjectConfig {
     agent: AgentConfig;
 }
 
+export interface ModelTemplate {
+    id: string;
+    name: string;
+    agentType: string;
+    agentName: string;
+    model?: string;
+}
+
 /**
  * Available agent templates
  */

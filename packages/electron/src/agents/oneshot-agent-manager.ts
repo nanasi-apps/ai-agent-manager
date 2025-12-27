@@ -17,6 +17,7 @@ interface SessionInfo extends AgentDriverContext {
     buffer: string;
     isProcessing: boolean;
     currentProcess?: ChildProcess;
+    pendingHandover?: string;
 }
 
 /**
@@ -38,6 +39,7 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
         const agentConfig: AgentConfig = {
             type: config?.type ?? 'custom',
             command,
+            model: config?.model,
             cwd: config?.cwd,
             env: config?.env,
             streamJson: config?.streamJson ?? false,
@@ -53,6 +55,37 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
         });
 
         // this.emitLog(sessionId, '[Session started]\n', 'system');
+    }
+
+    resetSession(sessionId: string, command: string, config?: Partial<AgentConfig>) {
+        const session = this.sessions.get(sessionId);
+        if (!session) {
+            this.startSession(sessionId, command, config);
+            return;
+        }
+
+        const nextType = config?.type ?? session.config.type;
+        const shouldResetState = session.config.type !== nextType;
+
+        if (session.currentProcess) {
+            session.currentProcess.kill();
+            session.currentProcess = undefined;
+        }
+
+        session.isProcessing = false;
+        session.buffer = '';
+        session.config = {
+            ...session.config,
+            ...config,
+            type: nextType,
+            command,
+        };
+
+        if (shouldResetState) {
+            session.messageCount = 0;
+            session.geminiSessionId = undefined;
+            session.codexThreadId = undefined;
+        }
     }
 
     sendToSession(sessionId: string, message: string) {
@@ -88,7 +121,7 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
 
     private runCommand(sessionId: string, session: SessionInfo, message: string) {
         const driver = this.getDriver(session.config);
-        const { command, args } = driver.getCommand(session, message);
+        const { command, args } = driver.getCommand(session, message, session.config);
 
         console.log(`[OneShotAgentManager] Running: ${command} ${args.join(' ')}`);
 
@@ -208,6 +241,31 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
 
     listSessions(): string[] {
         return Array.from(this.sessions.keys());
+    }
+
+    getSessionMetadata(sessionId: string): { geminiSessionId?: string, codexThreadId?: string } | undefined {
+        const session = this.sessions.get(sessionId);
+        if (!session) return undefined;
+        return {
+            geminiSessionId: session.geminiSessionId,
+            codexThreadId: session.codexThreadId,
+        };
+    }
+
+    setPendingHandover(sessionId: string, context: string) {
+        const session = this.sessions.get(sessionId);
+        if (session) {
+            session.pendingHandover = context;
+        }
+    }
+
+    consumePendingHandover(sessionId: string): string | undefined {
+        const session = this.sessions.get(sessionId);
+        if (!session || !session.pendingHandover) return undefined;
+
+        const context = session.pendingHandover;
+        session.pendingHandover = undefined;
+        return context;
     }
 }
 

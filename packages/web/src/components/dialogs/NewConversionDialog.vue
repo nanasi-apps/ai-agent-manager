@@ -19,9 +19,12 @@ interface Project {
     name: string
 }
 
-interface AgentTemplate {
+interface ModelTemplate {
     id: string
     name: string
+    agentType: string
+    agentName: string
+    model?: string
 }
 
 const { isOpen, close, projectId: preselectedProjectId } = useNewConversionDialog()
@@ -30,21 +33,32 @@ const route = useRoute()
 
 const input = ref('')
 const selectedProjectId = ref('')
-const selectedAgentType = ref('gemini')
+const selectedModelId = ref('')
 const projects = ref<Project[]>([])
-const agentTemplates = ref<AgentTemplate[]>([])
+const modelTemplates = ref<ModelTemplate[]>([])
 const isLoading = ref(false)
 const isInitializing = ref(true)
+
+const formatModelLabel = (model: ModelTemplate) => {
+    if (!model.agentName || model.name.includes(model.agentName)) {
+        return model.name
+    }
+    return `${model.name} (${model.agentName})`
+}
 
 const loadData = async () => {
     isInitializing.value = true
     try {
-        const [projRes, agentRes] = await Promise.all([
+        const [projRes, modelRes] = await Promise.all([
             orpc.listProjects({}),
-            orpc.listAgentTemplates({})
+            orpc.listModelTemplates({})
         ])
         projects.value = projRes
-        agentTemplates.value = agentRes
+        modelTemplates.value = modelRes
+        if (!selectedModelId.value && modelTemplates.value.length > 0) {
+            const preferred = modelTemplates.value.find((model) => model.agentType !== 'default')
+            selectedModelId.value = preferred?.id || modelTemplates.value[0]!.id
+        }
 
         // Auto-select project logic
         const params = route.params as any
@@ -73,7 +87,7 @@ watch(isOpen, (val) => {
 })
 
 const handleStart = async () => {
-    if (!input.value.trim() || !selectedProjectId.value || !selectedAgentType.value) return
+    if (!input.value.trim() || !selectedProjectId.value || !selectedModelId.value) return
 
     isLoading.value = true
     try {
@@ -81,7 +95,7 @@ const handleStart = async () => {
         const res = await orpc.createConversation({
             projectId: selectedProjectId.value,
             initialMessage: input.value,
-            agentType: selectedAgentType.value
+            modelId: selectedModelId.value
         })
         
         window.dispatchEvent(new Event('agent-manager:data-change'))
@@ -142,11 +156,11 @@ const handleKeydown = (e: KeyboardEvent) => {
                         <label class="text-xs font-medium text-muted-foreground">Model</label>
                         <div class="relative">
                              <select 
-                                v-model="selectedAgentType"
+                                v-model="selectedModelId"
                                 class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 appearance-none"
                             >
-                                <option v-for="a in agentTemplates" :key="a.id" :value="a.id">
-                                    {{ a.name }}
+                                <option v-for="m in modelTemplates" :key="m.id" :value="m.id">
+                                    {{ formatModelLabel(m) }}
                                 </option>
                             </select>
                              <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-muted-foreground">

@@ -22,6 +22,7 @@ export interface Conversation {
     geminiSessionName?: string;
     messages: Message[];
     agentType?: string;
+    agentModel?: string;
 }
 
 /**

@@ -1,9 +1,10 @@
 import { os } from "@orpc/server";
 import { z } from "zod";
-import type { AgentConfig, AgentLogPayload } from "./types/agent";
-import type { IStore, Project } from "./types/store";
+import { spawn } from "node:child_process";
+import type { AgentConfig, AgentLogPayload, AgentType } from "./types/agent";
+import type { IStore, Project, Message } from "./types/store";
 import { availableAgents, getAgentTemplate } from "./types/project";
-import type { AgentType } from "./types/agent";
+import type { ModelTemplate } from "./types/project";
 
 // Cross-platform UUID generation
 function generateUUID(): string {
@@ -19,16 +20,125 @@ function generateUUID(): string {
 	});
 }
 
+const MODEL_ID_SEPARATOR = "::";
+const MODEL_CACHE_TTL_MS = 60_000;
+
+// Hardcoded model lists for each CLI type
+// Dynamic detection is unreliable due to authentication, permission dialogs, and CLI quirks
+const HARDCODED_MODELS: Record<string, string[]> = {
+	gemini: [
+		'gemini-3-pro-preview',
+		'gemini-3-flash-preview',
+		'gemini-2.5-pro',
+		'gemini-2.5-flash',
+		'gemini-2.5-flash-lite',
+	],
+	claude: [
+		'claude-sonnet-4.5',
+		'claude-opus-4.5',
+		'claude-haiku-4.5',
+	],
+	codex: [
+		'gpt-5.2-codex',
+		'gpt-5.1-codex-max',
+		'gpt-5.1-codex-mini',
+		'gpt-5.2',
+	],
+};
+
+const modelListCache = new Map<string, { expiresAt: number; models: ModelTemplate[] }>();
+
+function splitCommand(command: string): { command: string; args: string[] } {
+	const parts: string[] = [];
+	let current = '';
+	let quote: '"' | "'" | null = null;
+
+	for (let i = 0; i < command.length; i++) {
+		const char = command[i];
+
+		if (quote) {
+			if (char === quote) {
+				quote = null;
+				continue;
+			}
+			if (char === '\\' && i + 1 < command.length) {
+				current += command[i + 1];
+				i++;
+				continue;
+			}
+			current += char;
+			continue;
+		}
+
+		if (char === '"' || char === "'") {
+			quote = char;
+			continue;
+		}
+
+		if (/\s/.test(char)) {
+			if (current) {
+				parts.push(current);
+				current = '';
+			}
+			continue;
+		}
+
+		if (char === '\\' && i + 1 < command.length) {
+			current += command[i + 1];
+			i++;
+			continue;
+		}
+
+		current += char;
+	}
+
+	if (current) {
+		parts.push(current);
+	}
+
+	const cmd = parts.shift() || '';
+	return { command: cmd, args: parts };
+}
+
+function buildModelId(agentType: string, model?: string): string {
+	return `${agentType}${MODEL_ID_SEPARATOR}${model ?? ''}`;
+}
+
+function parseModelId(modelId: string): { agentType: string; model?: string } | null {
+	if (!modelId) return null;
+	const [agentType, ...rest] = modelId.split(MODEL_ID_SEPARATOR);
+	if (!agentType) return null;
+	const model = rest.join(MODEL_ID_SEPARATOR);
+	return { agentType, model: model || undefined };
+}
+
+function stripAnsi(value: string): string {
+	// eslint-disable-next-line no-control-regex
+	return value.replace(/\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g, '');
+}
+
+function getModelsForCliType(cliType: string): string[] {
+	return HARDCODED_MODELS[cliType] ?? [];
+}
+
+
+
 /**
  * Interface for AgentManager - allows different implementations
  */
 export interface IAgentManager {
 	startSession(sessionId: string, command: string, config?: Partial<AgentConfig>): void;
+	resetSession(sessionId: string, command: string, config?: Partial<AgentConfig>): void;
 	stopSession(sessionId: string): boolean;
 	sendToSession(sessionId: string, message: string): void;
 	isRunning(sessionId: string): boolean;
 	listSessions(): string[];
 	on(event: 'log', listener: (payload: AgentLogPayload) => void): void;
+	getSessionMetadata(sessionId: string): { geminiSessionId?: string; codexThreadId?: string } | undefined;
+	/** Store handover context to prepend to next user message */
+	setPendingHandover(sessionId: string, context: string): void;
+	/** Retrieve and clear pending handover context */
+	consumePendingHandover(sessionId: string): string | undefined;
 }
 
 export interface INativeDialog {
@@ -146,6 +256,62 @@ export const appRouter = os.router({
 			}));
 		}),
 
+	listModelTemplates: os
+		.output(z.array(z.object({
+			id: z.string(),
+			name: z.string(),
+			agentType: z.string(),
+			agentName: z.string(),
+			model: z.string().optional(),
+		})))
+		.handler(async () => {
+			const cached = modelListCache.get('all');
+			const now = Date.now();
+			if (cached && cached.expiresAt > now) {
+				return cached.models;
+			}
+
+			const results: ModelTemplate[] = [];
+
+			for (const agent of availableAgents) {
+				const agentType = agent.id;
+				const agentName = agent.name;
+				const cliType = agent.agent.type;
+				const models = getModelsForCliType(cliType);
+
+				// Only add default entry if there are no hardcoded models
+				if (models.length === 0) {
+					const defaultName = agentName.toLowerCase().includes('default')
+						? agentName
+						: `${agentName} (Default)`;
+					results.push({
+						id: buildModelId(agentType),
+						name: defaultName,
+						agentType,
+						agentName,
+					});
+				} else {
+					// Add all hardcoded models
+					for (const model of models) {
+						results.push({
+							id: buildModelId(agentType, model),
+							name: model,
+							agentType,
+							agentName,
+							model,
+						});
+					}
+				}
+			}
+
+			modelListCache.set('all', {
+				expiresAt: now + MODEL_CACHE_TTL_MS,
+				models: results,
+			});
+
+			return results;
+		}),
+
 	// Get a specific project
 	getProject: os
 		.input(z.object({ projectId: z.string() }))
@@ -207,6 +373,7 @@ export const appRouter = os.router({
 			command: z.string(),
 			sessionId: z.string().default('debug-session'),
 			agentType: agentTypeSchema.optional(),
+			agentModel: z.string().optional(),
 			streamJson: z.boolean().optional(),
 			cwd: z.string().optional(),
 		}))
@@ -219,6 +386,7 @@ export const appRouter = os.router({
 				getAgentManagerOrThrow().startSession(input.sessionId, input.command, {
 					type: (input.agentType as AgentType) || 'custom',
 					command: input.command,
+					model: input.agentModel,
 					streamJson: input.streamJson,
 					cwd: input.cwd,
 				});
@@ -261,7 +429,9 @@ export const appRouter = os.router({
 		.input(z.object({
 			projectId: z.string(),
 			initialMessage: z.string(),
-			agentType: z.string(),
+			modelId: z.string().optional(),
+			agentType: z.string().optional(),
+			agentModel: z.string().optional(),
 		}))
 		.output(z.object({
 			sessionId: z.string(),
@@ -278,11 +448,19 @@ export const appRouter = os.router({
 				throw new Error(`Project not found: ${input.projectId}`);
 			}
 
-			// Get Agent Template
-			const agentTemplate = getAgentTemplate(input.agentType);
-			if (!agentTemplate) {
-				throw new Error(`Agent type not found: ${input.agentType}`);
+			const parsedModel = input.modelId ? parseModelId(input.modelId) : null;
+			const resolvedAgentType = parsedModel?.agentType || input.agentType;
+
+			if (!resolvedAgentType) {
+				throw new Error('Model or agent type is required.');
 			}
+
+			// Get Agent Template
+			const agentTemplate = getAgentTemplate(resolvedAgentType);
+			if (!agentTemplate) {
+				throw new Error(`Agent type not found: ${resolvedAgentType}`);
+			}
+			const resolvedModel = parsedModel?.model || input.agentModel;
 
 			// Save to store with initialMessage and messages array
 			storeInstance.addConversation({
@@ -292,7 +470,8 @@ export const appRouter = os.router({
 				initialMessage: input.initialMessage,
 				createdAt: now,
 				updatedAt: now,
-				agentType: input.agentType,
+				agentType: resolvedAgentType,
+				agentModel: resolvedModel,
 				messages: [{
 					id: generateUUID(),
 					role: 'user',
@@ -306,6 +485,7 @@ export const appRouter = os.router({
 				console.log(`Command: ${agentTemplate.agent.command}`);
 				agentManagerInstance.startSession(sessionId, agentTemplate.agent.command, {
 					...agentTemplate.agent,
+					model: resolvedModel,
 					cwd: project.rootPath || agentTemplate.agent.cwd,
 				});
 			}
@@ -326,6 +506,7 @@ export const appRouter = os.router({
 			createdAt: z.number(),
 			updatedAt: z.number(),
 			agentType: z.string().optional(),
+			agentModel: z.string().optional(),
 		}).nullable())
 		.handler(async ({ input }) => {
 			const conv = getStoreOrThrow().getConversation(input.sessionId);
@@ -380,6 +561,7 @@ export const appRouter = os.router({
 				console.warn(`Session ${input.sessionId} not found, restarting with command: ${agentTemplate.agent.command}`);
 				agentManagerInstance.startSession(input.sessionId, agentTemplate.agent.command, {
 					...agentTemplate.agent,
+					model: conv.agentModel,
 					cwd,
 				});
 			}
@@ -392,7 +574,10 @@ export const appRouter = os.router({
 				timestamp: Date.now(),
 			});
 
-			agentManagerInstance.sendToSession(input.sessionId, input.message);
+			const pendingHandover = agentManagerInstance.consumePendingHandover(input.sessionId);
+			const messageToSend = pendingHandover ? `${pendingHandover}\n${input.message}` : input.message;
+
+			agentManagerInstance.sendToSession(input.sessionId, messageToSend);
 
 			return { success: true };
 		}),
@@ -464,6 +649,221 @@ export const appRouter = os.router({
 		})))
 		.handler(async ({ input }) => {
 			return getStoreOrThrow().listConversations(input.projectId);
+		}),
+
+	swapConversationAgent: os
+		.input(z.object({
+			sessionId: z.string(),
+			modelId: z.string().optional(),
+			agentType: z.string().optional(),
+			agentModel: z.string().optional(),
+		}))
+		.output(z.object({
+			success: z.boolean(),
+			message: z.string().optional(),
+		}))
+		.handler(async ({ input }) => {
+			const storeInstance = getStoreOrThrow();
+			const agentManagerInstance = getAgentManagerOrThrow();
+
+			const conv = storeInstance.getConversation(input.sessionId);
+			if (!conv) {
+				return { success: false, message: `Conversation not found: ${input.sessionId}` };
+			}
+
+			const parsedModel = input.modelId ? parseModelId(input.modelId) : null;
+			const resolvedAgentType = parsedModel?.agentType || input.agentType;
+
+			if (!resolvedAgentType) {
+				return { success: false, message: 'Model or agent type is required.' };
+			}
+
+			const nextTemplate = getAgentTemplate(resolvedAgentType);
+			if (!nextTemplate) {
+				return { success: false, message: `Agent type not found: ${resolvedAgentType}` };
+			}
+
+			const currentTemplate = conv.agentType ? getAgentTemplate(conv.agentType) : undefined;
+			const sameCli = currentTemplate?.agent.type === nextTemplate.agent.type;
+			const resolvedModel = parsedModel?.model || input.agentModel;
+			const nextModelLabel = resolvedModel;
+			const previousModelLabel = conv.agentModel;
+
+			const project = storeInstance.getProject(conv.projectId);
+			const cwd = project?.rootPath || nextTemplate.agent.cwd;
+
+			const previousName = currentTemplate?.name || conv.agentType || 'unknown';
+			const label = nextModelLabel || nextTemplate.name;
+			const systemMessage = `Switched agent from ${previousName} to ${label}.`;
+
+			storeInstance.updateConversation(input.sessionId, {
+				agentType: resolvedAgentType,
+				agentModel: resolvedModel,
+			});
+
+			storeInstance.addMessage(input.sessionId, {
+				id: generateUUID(),
+				role: 'system',
+				content: systemMessage,
+				timestamp: Date.now(),
+				logType: 'system',
+			});
+
+			// Helper to get summary from an agent process
+			async function getAgentSummary(agentType: string, context: string, metadata?: { geminiSessionId?: string; codexThreadId?: string }): Promise<string | null> {
+				return new Promise((resolve) => {
+					let command = '';
+					let args: string[] = [];
+					const prompt = 'Summarize the preceding conversation for a handover context. Focus on key decisions and current state.';
+
+					// Determine command based on agent type
+					if (agentType === 'codex' && metadata?.codexThreadId) {
+						command = 'codex';
+						// codex exec resume -m <model> <session_id> <prompt>
+						args = ['exec', 'resume', '-m', 'gpt-5.2', metadata.codexThreadId, prompt];
+					} else if (agentType === 'gemini' && metadata?.geminiSessionId) {
+						command = 'gemini';
+						// gemini --resume <id> "message"
+						args = ['--resume', metadata.geminiSessionId, '-y', prompt];
+					} else if (agentType === 'claude') {
+						// Claude might support resume, but if we don't have ID, we fallback to context injection
+						// For now, if no ID, fallback to context injection (std behavior below)
+						command = 'claude';
+						args = ['-p', prompt];
+					} else {
+						// Fallback: If we don't have an ID for resume, or it's a different agent,
+						// we can try to feed the text context to a fresh instance (classic way),
+						// BUT the user specifically asked to use 'resume' to avoid context dump issues.
+						// So if we have IDs, we use them. If not, we might try the text injection as fallback.
+
+						if (agentType === 'codex') {
+							command = 'codex';
+							args = ['exec', '-m', 'gpt-5.2', prompt];
+						} else if (agentType === 'gemini') {
+							command = 'gemini';
+							args = ['-y', prompt];
+						} else {
+							return resolve(null);
+						}
+					}
+
+					console.log(`[Router] Generating summary with: ${command} ${args.join(' ')}`);
+
+					try {
+						const child = spawn(command, args, {
+							cwd,
+							env: process.env,
+							stdio: ['pipe', 'pipe', 'pipe'],
+							shell: true,
+						});
+
+						// No timeout - let it run as long as needed
+						// const timeout = setTimeout(...)
+
+						let output = '';
+						let stderrOutput = '';
+
+						child.stderr.on('data', (data) => {
+							stderrOutput += data.toString();
+						});
+
+						// Only write context if we are NOT resuming (fallback mode)
+						const isResuming = args.includes('resume') || args.includes('--resume');
+						if (!isResuming) {
+							child.stdin.write(context);
+						}
+						child.stdin.end();
+
+						child.stdout.on('data', (data) => {
+							output += data.toString();
+						});
+
+						child.on('close', (code) => {
+							// clearTimeout(timeout);
+							if (code === 0 && output.trim()) {
+								resolve(output.trim());
+							} else {
+								console.warn(`[Router] Summary generation failed/empty with code ${code}`);
+								if (stderrOutput.trim()) {
+									console.warn(`[Router] Summary stderr: ${stderrOutput.trim()}`);
+								}
+								if (output.trim()) {
+									console.warn(`[Router] Summary stdout: ${output.trim().slice(0, 200)}`);
+								}
+								resolve(null);
+							}
+						});
+
+						child.on('error', (err) => {
+							console.error(`[Router] Summary generation error: ${err}`);
+							// clearTimeout(timeout);
+							resolve(null);
+						});
+					} catch (e) {
+						console.error(`[Router] Summary generation exception: ${e}`);
+						resolve(null);
+					}
+				});
+			}
+
+			function summarizeContent(content: string): string {
+				const limit = 300;
+				// Simple whitespace normalization
+				const clean = content.replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
+				if (clean.length <= limit) return clean;
+				return clean.slice(0, limit) + '... (truncated)';
+			}
+
+			// Prepare context handover data BEFORE resetting the session
+			// This preserves the old agent's session IDs for proper resume
+			let handoverSummary: string | null = null;
+			let handoverPreviousName = '';
+
+			if (!sameCli) {
+				const pastMessages = storeInstance.getMessages(input.sessionId);
+				const recent = pastMessages
+					.filter(m => (m.role === 'user' || m.role === 'agent') && (!m.logType || m.logType === 'text'))
+					.slice(-20);
+
+				if (recent.length > 0) {
+					const historyText = recent.map(m => `${m.role === 'user' ? 'User' : 'Agent'}: ${m.content}`).join('\n\n');
+					handoverPreviousName = currentTemplate?.name || conv.agentType || 'unknown';
+
+					// Get metadata BEFORE resetSession clears it
+					const metadata = agentManagerInstance.getSessionMetadata(input.sessionId);
+
+					// Generate summary using the previous agent's context (if possible)
+					handoverSummary = await getAgentSummary(conv.agentType || 'gemini', historyText, metadata);
+
+					// Fallback to simple truncation if smart summary failed
+					if (!handoverSummary) {
+						handoverSummary = recent.map(m => {
+							const role = m.role === 'user' ? 'User' : 'Agent';
+							return `- ${role}: ${summarizeContent(m.content)}`;
+						}).join('\n');
+					}
+				}
+			}
+
+			// NOW reset the session after we've captured the metadata
+			agentManagerInstance.resetSession(input.sessionId, nextTemplate.agent.command, {
+				...nextTemplate.agent,
+				model: resolvedModel,
+				cwd,
+			});
+
+			// Store handover context to prepend to next user message (if we have one)
+			// This prevents the agent from responding with "I'm standing by..." type messages
+			if (handoverSummary) {
+				const handoverContext = `[SYSTEM CONTEXT from previous agent (${handoverPreviousName})]:
+${handoverSummary}
+
+[User's message follows]
+`;
+				agentManagerInstance.setPendingHandover(input.sessionId, handoverContext);
+			}
+
+			return { success: true, message: systemMessage };
 		})
 });
 

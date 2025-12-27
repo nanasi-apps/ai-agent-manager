@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { onMounted } from "vue";
 import DashboardLayout from "@/layouts/DashboardLayout.vue";
+import NewProjectDialog from '@/components/dialogs/NewProjectDialog.vue'
+import { useNewProjectDialog } from '@/composables/useNewProjectDialog'
+
+const { isOpen, close } = useNewProjectDialog()
 
 onMounted(async () => {
   const electronAPI = window.electronAPI;
@@ -30,5 +34,5 @@ onMounted(async () => {
   <DashboardLayout>
     <router-view />
   </DashboardLayout>
+  <NewProjectDialog v-model:open="isOpen" />
 </template>
- 

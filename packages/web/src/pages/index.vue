@@ -34,9 +34,12 @@ interface UserProject {
 }
 
 // Agent template with full config
-interface AgentTemplate {
+interface ModelTemplate {
   id: string
   name: string
+  agentType: string
+  agentName: string
+  model?: string
 }
 
 interface Conversation {
@@ -50,13 +53,13 @@ interface Conversation {
 const router = useRouter()
 
 const userProjects = ref<UserProject[]>([])
-const agentTemplates = ref<AgentTemplate[]>([])
+const modelTemplates = ref<ModelTemplate[]>([])
 const recentConversations = ref<Conversation[]>([])
 const isLoading = ref(true)
 
 const dialogOpen = ref(false)
 const selectedProject = ref<UserProject | null>(null)
-const selectedAgent = ref<AgentTemplate | null>(null)
+const selectedModel = ref<ModelTemplate | null>(null)
 const initialMessage = ref('')
 const isCreating = ref(false)
 
@@ -65,6 +68,7 @@ const agentIcons: Record<string, typeof Sparkles> = {
   claude: Cpu,
   codex: Terminal,
   cat: MessageSquare,
+  default: MessageSquare,
   custom: Terminal,
 }
 
@@ -73,6 +77,7 @@ const agentColors: Record<string, string> = {
   claude: 'bg-orange-500/10 text-orange-500 border-orange-500/20',
   codex: 'bg-green-500/10 text-green-500 border-green-500/20',
   cat: 'bg-gray-500/10 text-gray-500 border-gray-500/20',
+  default: 'bg-gray-500/10 text-gray-500 border-gray-500/20',
   custom: 'bg-purple-500/10 text-purple-500 border-purple-500/20',
 }
 
@@ -83,10 +88,10 @@ const loadData = async () => {
     const [projectsData, conversationsData, templatesData] = await Promise.all([
       orpc.listProjects({}),
       orpc.listConversations({}),
-      orpc.listAgentTemplates({})
+      orpc.listModelTemplates({})
     ])
     userProjects.value = projectsData
-    agentTemplates.value = templatesData
+    modelTemplates.value = templatesData
     // Get most recent 5 conversations
     recentConversations.value = conversationsData
       .sort((a, b) => b.updatedAt - a.updatedAt)
@@ -99,12 +104,12 @@ const loadData = async () => {
   }
 }
 
-const openNewAgentConversation = (agent: AgentTemplate) => {
+const openNewModelConversation = (model: ModelTemplate) => {
   if (userProjects.value.length === 0) {
     alert('Create a project and set its root path before starting a conversation.')
     return
   }
-  selectedAgent.value = agent
+  selectedModel.value = model
   // Use first project; require a project to exist
   selectedProject.value = userProjects.value[0] || null
   initialMessage.value = ''
@@ -112,7 +117,7 @@ const openNewAgentConversation = (agent: AgentTemplate) => {
 }
 
 const createConversation = async () => {
-  if (!selectedAgent.value || !initialMessage.value.trim()) return
+  if (!selectedModel.value || !initialMessage.value.trim()) return
   
   // Require a project selection before starting
   let projectId = selectedProject.value?.id
@@ -123,11 +128,11 @@ const createConversation = async () => {
   
   isCreating.value = true
   try {
-    console.log('Creating conversation...', projectId, selectedAgent.value.id, initialMessage.value.trim())
+    console.log('Creating conversation...', projectId, selectedModel.value.id, initialMessage.value.trim())
     const result = await orpc.createConversation({
       projectId,
       initialMessage: initialMessage.value.trim(),
-      agentType: selectedAgent.value.id
+      modelId: selectedModel.value.id
     })
     console.log('Conversation created:', result)
     dialogOpen.value = false
@@ -177,26 +182,26 @@ onMounted(() => {
           
           <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <Card 
-              v-for="agent in agentTemplates" 
-              :key="agent.id"
+              v-for="model in modelTemplates" 
+              :key="model.id"
               class="cursor-pointer transition-all hover:shadow-lg hover:scale-[1.02] hover:border-primary/50"
-              @click="openNewAgentConversation(agent)"
+              @click="openNewModelConversation(model)"
             >
               <CardHeader class="pb-3">
                 <div class="flex items-center gap-3">
                   <div 
                     class="p-2 rounded-lg border"
-                    :class="agentColors[agent.id] || agentColors.custom"
+                    :class="agentColors[model.agentType] || agentColors.custom"
                   >
                     <component 
-                      :is="agentIcons[agent.id] || agentIcons.custom" 
+                      :is="agentIcons[model.agentType] || agentIcons.custom" 
                       class="size-5"
                     />
                   </div>
                   <div>
-                    <CardTitle class="text-base">{{ agent.name }}</CardTitle>
+                    <CardTitle class="text-base">{{ model.name }}</CardTitle>
                     <Badge variant="outline" class="mt-1 text-xs">
-                      {{ agent.id }}
+                      {{ model.agentName }}
                     </Badge>
                   </div>
                 </div>
@@ -235,11 +240,11 @@ onMounted(() => {
         <DialogHeader>
           <DialogTitle class="flex items-center gap-2">
             <component 
-              v-if="selectedAgent"
-              :is="agentIcons[selectedAgent.id] || agentIcons.custom" 
+              v-if="selectedModel"
+              :is="agentIcons[selectedModel.agentType] || agentIcons.custom" 
               class="size-5"
             />
-            New Conversation with {{ selectedAgent?.name }}
+            New Conversation with {{ selectedModel?.name }}
           </DialogTitle>
           <DialogDescription>
             Enter your first message to start the conversation.

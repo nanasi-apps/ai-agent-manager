@@ -6,6 +6,7 @@ import type { AgentConfig, AgentLogPayload } from '@agent-manager/shared';
  */
 export interface IAgentManager {
     startSession(sessionId: string, command: string, config?: Partial<AgentConfig>): void;
+    resetSession(sessionId: string, command: string, config?: Partial<AgentConfig>): void;
     stopSession(sessionId: string): boolean;
     sendToSession(sessionId: string, message: string): void;
     isRunning(sessionId: string): boolean;
@@ -44,6 +45,9 @@ export const agentManager = {
     },
     startSession(sessionId: string, command: string, config?: Partial<AgentConfig>) {
         return getAgentManager().startSession(sessionId, command, config);
+    },
+    resetSession(sessionId: string, command: string, config?: Partial<AgentConfig>) {
+        return getAgentManager().resetSession(sessionId, command, config);
     },
     stopSession(sessionId: string) {
         return getAgentManager().stopSession(sessionId);

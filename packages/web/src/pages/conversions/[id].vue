@@ -32,6 +32,14 @@ interface Message {
   logType?: LogType
 }
 
+interface ModelTemplate {
+  id: string
+  name: string
+  agentType: string
+  agentName: string
+  model?: string
+}
+
 const route = useRoute()
 const { renderMarkdown } = useMarkdown()
 const sessionId = ref((route.params as unknown as { id: string }).id)
@@ -46,6 +54,19 @@ const isSavingTitle = ref(false)
 const copiedId = ref<string | null>(null)
 const expandedMessageIds = ref(new Set<string>())
 const isPageLoading = ref(true)
+const modelTemplates = ref<ModelTemplate[]>([])
+const modelIdDraft = ref('')
+const currentModelId = ref('')
+const conversationAgentType = ref<string | null>(null)
+const conversationAgentModel = ref<string | null>(null)
+const isSwappingModel = ref(false)
+
+const formatModelLabel = (model: ModelTemplate) => {
+  if (!model.agentName || model.name.includes(model.agentName)) {
+    return model.name
+  }
+  return `${model.name} (${model.agentName})`
+}
 
 const scrollAreaRef = ref<InstanceType<typeof ScrollArea> | null>(null)
 const messagesEndRef = ref<HTMLElement | null>(null)
@@ -131,6 +152,77 @@ const sanitizeLogContent = (content: string, logType?: LogType) => {
   return content.replace(/\[[^\]]+\]/g, '')
 }
 
+const loadModelTemplates = async () => {
+  try {
+    modelTemplates.value = await orpc.listModelTemplates({})
+  } catch (err) {
+    console.error('Failed to load model templates:', err)
+  }
+}
+
+const applyConversationModelSelection = () => {
+  if (modelTemplates.value.length === 0) return
+
+  const match = modelTemplates.value.find(
+    (template) =>
+      template.agentType === conversationAgentType.value &&
+      (template.model || '') === (conversationAgentModel.value || '')
+  )
+
+  const preferred = modelTemplates.value.find((model) => model.agentType !== 'default')
+  const nextId = match?.id || preferred?.id || modelTemplates.value[0]!.id
+  currentModelId.value = nextId
+  modelIdDraft.value = nextId
+}
+
+const setModelFromConversation = (agentType?: string, agentModel?: string) => {
+  conversationAgentType.value = agentType || null
+  conversationAgentModel.value = agentModel || null
+  applyConversationModelSelection()
+}
+
+const swapModel = async () => {
+  const nextId = modelIdDraft.value
+  if (!nextId || nextId === currentModelId.value || isSwappingModel.value) return
+
+  const previousId = currentModelId.value
+  isSwappingModel.value = true
+  try {
+    const result = await orpc.swapConversationAgent({
+      sessionId: sessionId.value,
+      modelId: nextId
+    })
+    if (!result.success) {
+      throw new Error(result.message || 'Failed to swap model')
+    }
+
+    currentModelId.value = nextId
+    if (result.message) {
+      messages.value.push({
+        id: crypto.randomUUID(),
+        role: 'system',
+        content: result.message,
+        timestamp: Date.now(),
+        logType: 'system',
+      })
+    }
+    window.dispatchEvent(new Event('agent-manager:data-change'))
+    scrollToBottom()
+  } catch (err) {
+    console.error('Failed to swap model:', err)
+    modelIdDraft.value = previousId
+    messages.value.push({
+      id: crypto.randomUUID(),
+      role: 'system',
+      content: `Failed to swap model: ${err}`,
+      timestamp: Date.now(),
+      logType: 'error',
+    })
+  } finally {
+    isSwappingModel.value = false
+  }
+}
+
 
 
 const appendAgentLog = (payload: AgentLogPayload) => {
@@ -182,9 +274,22 @@ const appendAgentLog = (payload: AgentLogPayload) => {
 const sendMessage = async () => {
   if (!input.value.trim()) return
 
+  isLoading.value = true
+
+  // Check if we need to swap model before sending
+  if (modelIdDraft.value && modelIdDraft.value !== currentModelId.value) {
+    const intendedId = modelIdDraft.value
+    await swapModel()
+    
+    // If swap failed (draft reverted to previous), stop sending
+    if (currentModelId.value !== intendedId) {
+      isLoading.value = false
+      return
+    }
+  }
+
   const messageText = input.value
   input.value = ''
-  isLoading.value = true
   
   // Add user message
   messages.value.push({
@@ -253,9 +358,11 @@ const loadConversationMeta = async (id: string) => {
     if (conv) {
       conversationTitle.value = conv.title
       titleDraft.value = conv.title
+      setModelFromConversation(conv.agentType, conv.agentModel)
     } else {
       conversationTitle.value = 'Untitled Session'
       titleDraft.value = conversationTitle.value
+      setModelFromConversation(undefined, undefined)
     }
   } catch (err) {
     console.error('Failed to load conversation metadata:', err)
@@ -331,6 +438,7 @@ const stopGeneration = () => {
 }
 
 onMounted(async () => {
+  await loadModelTemplates()
   // Initialize current session
   await initSession(sessionId.value)
 
@@ -355,6 +463,10 @@ onMounted(async () => {
       logType: 'system',
     })
   }
+})
+
+watch(modelTemplates, () => {
+  applyConversationModelSelection()
 })
 
 
@@ -388,6 +500,27 @@ const formatTime = (timestamp: number) => {
           <div class="flex items-center gap-1.5">
             <span class="size-1.5 rounded-full" :class="isConnected ? 'bg-green-500' : 'bg-red-500'" />
             <span class="text-xs text-muted-foreground">{{ isConnected ? 'Connected' : 'Disconnected' }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <div class="flex flex-col items-end gap-1">
+          <span class="text-[10px] uppercase tracking-wide text-muted-foreground">Model</span>
+          <div class="relative">
+            <select
+              v-model="modelIdDraft"
+              class="h-8 rounded-md border border-input bg-transparent px-2.5 py-1 text-xs shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 appearance-none pr-7"
+              :disabled="isSwappingModel || isLoading || modelTemplates.length === 0"
+            >
+              <option v-for="m in modelTemplates" :key="m.id" :value="m.id">
+                {{ formatModelLabel(m) }}
+              </option>
+            </select>
+            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2 text-muted-foreground">
+              <Loader2 v-if="isSwappingModel" class="size-3 animate-spin" />
+              <svg v-else xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-3 w-3"><path d="m6 9 6 6 6-6"/></svg>
+            </div>
           </div>
         </div>
       </div>

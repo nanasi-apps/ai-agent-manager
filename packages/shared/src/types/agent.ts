@@ -9,6 +9,8 @@ export type AgentType = 'gemini' | 'claude' | 'codex' | 'cat' | 'custom';
 export interface AgentConfig {
     type: AgentType;
     command: string;
+    /** Optional model name for CLIs that support it */
+    model?: string;
     /** Working directory for the agent */
     cwd?: string;
     /** Environment variables to pass */
