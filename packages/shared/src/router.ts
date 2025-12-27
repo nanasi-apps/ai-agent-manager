@@ -114,7 +114,7 @@ export const appRouter = os.router({
 		.input(z.object({
 			name: z.string(),
 			description: z.string().optional(),
-			rootPath: z.string().optional(),
+			rootPath: z.string().min(1),
 		}))
 		.output(z.object({
 			id: z.string(),
@@ -374,8 +374,14 @@ export const appRouter = os.router({
 					return { success: false };
 				}
 
+				const project = storeInstance.getProject(conv.projectId);
+				const cwd = project?.rootPath || agentTemplate.agent.cwd;
+
 				console.warn(`Session ${input.sessionId} not found, restarting with command: ${agentTemplate.agent.command}`);
-				agentManagerInstance.startSession(input.sessionId, agentTemplate.agent.command, agentTemplate.agent);
+				agentManagerInstance.startSession(input.sessionId, agentTemplate.agent.command, {
+					...agentTemplate.agent,
+					cwd,
+				});
 			}
 
 			// Save the user message to store

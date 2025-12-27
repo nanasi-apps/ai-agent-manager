@@ -100,8 +100,12 @@ const loadData = async () => {
 }
 
 const openNewAgentConversation = (agent: AgentTemplate) => {
+  if (userProjects.value.length === 0) {
+    alert('Create a project and set its root path before starting a conversation.')
+    return
+  }
   selectedAgent.value = agent
-  // Use first project or create a default one
+  // Use first project; require a project to exist
   selectedProject.value = userProjects.value[0] || null
   initialMessage.value = ''
   dialogOpen.value = true
@@ -110,12 +114,11 @@ const openNewAgentConversation = (agent: AgentTemplate) => {
 const createConversation = async () => {
   if (!selectedAgent.value || !initialMessage.value.trim()) return
   
-  // If no project, we need to create one first or use a default
+  // Require a project selection before starting
   let projectId = selectedProject.value?.id
   if (!projectId) {
-    // Create a default project
-    const newProject = await orpc.createProject({ name: 'Default Project' })
-    projectId = newProject.id
+    alert('Select or create a project with a root path before starting a conversation.')
+    return
   }
   
   isCreating.value = true

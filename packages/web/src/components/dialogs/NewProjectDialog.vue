@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -22,20 +22,40 @@ const emit = defineEmits<{
 }>()
 
 const name = ref('')
+const rootPath = ref('')
 const isLoading = ref(false)
+const hasNativePicker = computed(() => {
+  return typeof window !== 'undefined' && !!window.electronAPI
+})
+
+const browseRootPath = async () => {
+  if (!hasNativePicker.value) return
+  try {
+    const selected = await orpc.selectDirectory()
+    if (selected) {
+      rootPath.value = selected
+    }
+  } catch (e) {
+    console.error("Failed to select directory", e)
+  }
+}
 
 const handleCreate = async () => {
-    if (!name.value.trim()) return
+    const trimmedName = name.value.trim()
+    const trimmedRoot = rootPath.value.trim()
+    if (!trimmedName || !trimmedRoot) return
 
     isLoading.value = true
     try {
         await orpc.createProject({
-            name: name.value
+            name: trimmedName,
+            rootPath: trimmedRoot,
         })
         window.dispatchEvent(new Event('agent-manager:data-change'))
         emit('created')
         emit('update:open', false)
         name.value = ''
+        rootPath.value = ''
     } catch (e) {
         console.error("Failed to create project", e)
     } finally {
@@ -54,22 +74,46 @@ const handleCreate = async () => {
                 </DialogDescription>
             </DialogHeader>
             <div class="grid gap-4 py-4">
-                <div class="grid grid-cols-4 items-center gap-4">
+                <div class="space-y-2">
+                    <label class="text-xs font-medium text-muted-foreground">Project Name (required)</label>
                     <Input
                         id="name"
                         v-model="name"
                         placeholder="Project Name"
-                        class="col-span-4"
                         @keydown.enter="handleCreate"
                         autoFocus
                     />
+                </div>
+                <div class="space-y-2">
+                    <label class="text-xs font-medium text-muted-foreground">Root Path (required)</label>
+                    <div class="flex gap-2">
+                        <Input
+                            id="rootPath"
+                            v-model="rootPath"
+                            placeholder="/path/to/project"
+                            class="flex-1"
+                            @keydown.enter="handleCreate"
+                        />
+                        <Button
+                            variant="secondary"
+                            type="button"
+                            :disabled="!hasNativePicker || isLoading"
+                            @click="browseRootPath"
+                        >
+                            Browse
+                        </Button>
+                    </div>
                 </div>
             </div>
             <DialogFooter>
                 <Button type="button" variant="secondary" @click="emit('update:open', false)">
                     Cancel
                 </Button>
-                <Button type="submit" @click="handleCreate" :disabled="isLoading || !name.trim()">
+                <Button
+                    type="submit"
+                    @click="handleCreate"
+                    :disabled="isLoading || !name.trim() || !rootPath.trim()"
+                >
                     <span v-if="isLoading">Creating...</span>
                     <span v-else>Create Project</span>
                 </Button>
