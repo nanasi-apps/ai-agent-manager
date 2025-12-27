@@ -1,6 +1,6 @@
 # Agent Manager - 決定事項まとめ
 
-*最終更新: 2025-12-27*
+*最終更新: 2025-12-28*
 
 ---
 
@@ -37,7 +37,7 @@
 |------|----------|
 | **stdio パース** | 全フォーマット対応（JSON Lines、プレーンテキスト、ANSI） |
 | **stderr** | 表示対象 |
-| **モデルホットスワップ** | エージェントに状態を出力させてから切り替え、Markdown形式でやりとり |
+| **モデルホットスワップ** | エージェント切り替え時に会話履歴を要約してコンテキストとして引き継ぐ（Agent Handoff） |
 | **CLIツール認証** | ユーザー側で事前ログイン済みを前提、stdioで制御 |
 | **APIキー管理** | 暗号化して保存 |
 
@@ -240,7 +240,8 @@ export const router = os.router({
 1. ✅ `child_process.spawn` によるCLIツール起動
 2. ✅ stdio パース（ANSI対応）→ リアルタイム表示
 3. ✅ エージェント起動・停止制御
-4. ⬜ モデルホットスワップUI
+4. ✅ モデルホットスワップ（Agent Handoff & Summarization）
+5. ✅ Scroll Restoration & UI Improvements
 
 ### Phase 3: Git Worktree 管理
 1. ⬜ Git Worktree 作成・削除機能
@@ -267,21 +268,19 @@ export const router = os.router({
 
 ## 実装進捗
 
-### ✅ 完了した実装（2025-12-25現在）
+### ✅ 完了した実装（2025-12-28現在）
 
 | カテゴリ | 実装内容 |
 |----------|----------|
 | **プロジェクト構成** | pnpm monorepo (packages/shared, electron, web) |
-| **UIフレームワーク** | Shadcn Vue コンポーネント群 (Dialog, Card, Badge, etc.) |
-| **サイドバー** | リサイズ可能、自動折りたたみ、動的プロジェクト/会話リスト表示 |
-| **ナビゲーション** | Dashboard, Inbox, Search, Agents, Settings |
-| **ページ** | index, inbox, agents, settings, projects/[id], conversions/[id] |
-| **IPC通信** | oRPC Electron Adapter による型安全な通信 |
-| **テーマ** | ダークモード（OS設定と同期） |
-| **コード品質** | Biome によるリンティング・フォーマット |
-| **CLIエージェント** | Gemini CLI, Claude Code, OpenAI Codex のstdio統合 |
-| **リアルタイム表示** | stream-json形式のパース、ANSI対応、ログタイプ別スタイリング |
-| **プロジェクトAPI** | listProjects, getProject, listConversations, createConversation |
+| **UIフレームワーク** | Shadcn UI, Sidebar, Dark Mode, Conversion Card Component |
+| **ページ・ルーティング** | Dashboard, Inbox, Agents, Settings, Projects/Conversions |
+| **IPC通信** | oRPC Electron Adapter, Type-safe communication |
+| **CLIエージェント** | Gemini CLI, Claude Code, OpenAI Codex (stdio統合) |
+| **エージェント制御** | 起動/停止, モデル名取得・表示, HotSwap時のLoading表示 |
+| **Agent Handoff** | エージェント切り替え時のコンテキスト要約と引き継ぎ機能 |
+| **UI UX** | スクロール位置の保持 (Scroll Restoration), サイドバーActionボタン改善 |
+| **プロジェクト管理** | プロジェクト作成フロー, コンバージョンとの関連付け |
 
 ### 🎯 次のアクション
 
@@ -290,8 +289,8 @@ export const router = os.router({
    - ブラウザ版でも動作可能に
 
 2. **会話履歴の永続化**
-   - メッセージ履歴のストア保存
-   - 会話の再開機能
+   - メッセージ履歴の完全なストア保存
+   - アプリ再起動後の履歴復元
 
-3. **モデルホットスワップUI**
-   - 実行中にモデルを切り替えるUI
+3. **Phase 3: Git Worktree統合**
+   - Worktree作成ロジックの実装開始
