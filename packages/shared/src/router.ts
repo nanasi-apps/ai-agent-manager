@@ -1,6 +1,9 @@
 import { os } from "@orpc/server";
 import { z } from "zod";
 import { spawn } from "node:child_process";
+import { readFile, writeFile, mkdir, readdir, unlink, stat } from "node:fs/promises";
+import { join } from "node:path";
+import { homedir } from "node:os";
 import type { AgentConfig, AgentLogPayload, AgentType } from "./types/agent";
 import type { IStore, Project, Message } from "./types/store";
 import { availableAgents, getAgentTemplate } from "./types/project";
@@ -22,6 +25,7 @@ function generateUUID(): string {
 
 const MODEL_ID_SEPARATOR = "::";
 const MODEL_CACHE_TTL_MS = 60_000;
+const RULES_DIR = join(homedir(), '.agent-manager', 'rules');
 
 // Hardcoded model lists for each CLI type
 // Dynamic detection is unreliable due to authentication, permission dialogs, and CLI quirks
@@ -123,6 +127,33 @@ function getModelsForCliType(cliType: string): string[] {
 
 
 
+async function resolveProjectRules(projectId: string): Promise<string> {
+	const storeInstance = getStoreOrThrow();
+	const project = storeInstance.getProject(projectId);
+	if (!project) return '';
+
+	let globalRulesContent = '';
+	if (project.activeGlobalRules && project.activeGlobalRules.length > 0) {
+		for (const ruleId of project.activeGlobalRules) {
+			try {
+				const ruleContent = await readFile(join(RULES_DIR, ruleId), 'utf-8');
+				globalRulesContent += `\n\n<!-- Rule: ${ruleId} -->\n${ruleContent}`;
+			} catch (e) {
+				console.warn(`Failed to read rule ${ruleId}`, e);
+			}
+		}
+	}
+
+	let projectRulesContent = '';
+	if (project.projectRules && project.projectRules.length > 0) {
+		for (const rule of project.projectRules) {
+			projectRulesContent += `\n\n<!-- Project Rule: ${rule.name} -->\n${rule.content}`;
+		}
+	}
+
+	return `${globalRulesContent}\n\n<!-- Project Specific Rules -->\n${projectRulesContent}`.trim();
+}
+
 /**
  * Interface for AgentManager - allows different implementations
  */
@@ -199,6 +230,104 @@ export const appRouter = os.router({
 		.handler(async () => {
 			console.log("Ping received on server");
 			return "pong from electron (ORPC)";
+		}),
+
+	listGlobalRules: os
+		.output(z.array(z.object({
+			id: z.string(),
+			name: z.string(),
+			content: z.string().optional(),
+		})))
+		.handler(async () => {
+			await mkdir(RULES_DIR, { recursive: true });
+			try {
+				const files = await readdir(RULES_DIR);
+				const rules = [];
+				for (const file of files) {
+					if (file.endsWith('.md')) { // Only md files
+						// id is filename, name is filename without ext for now
+						// user might want custom names metadata, but let's stick to filename = name
+						const filePath = join(RULES_DIR, file);
+						const stats = await stat(filePath);
+						if (stats.isFile()) {
+							rules.push({
+								id: file,
+								name: file.replace(/\.md$/, ''),
+							});
+						}
+					}
+				}
+				return rules;
+			} catch (e) {
+				return [];
+			}
+		}),
+
+	getGlobalRule: os
+		.input(z.object({ id: z.string() }))
+		.output(z.object({
+			id: z.string(),
+			name: z.string(),
+			content: z.string()
+		}).nullable())
+		.handler(async ({ input }) => {
+			const filePath = join(RULES_DIR, input.id);
+			try {
+				const content = await readFile(filePath, 'utf-8');
+				return {
+					id: input.id,
+					name: input.id.replace(/\.md$/, ''),
+					content
+				};
+			} catch (e) {
+				return null;
+			}
+		}),
+
+	createGlobalRule: os
+		.input(z.object({
+			name: z.string().min(1),
+			content: z.string().default('')
+		}))
+		.output(z.object({
+			id: z.string(),
+			success: z.boolean()
+		}))
+		.handler(async ({ input }) => {
+			// Sanitize name to be safe filename
+			const safeName = input.name.replace(/[^a-zA-Z0-9_-]/g, '_');
+			const filename = `${safeName}.md`;
+			const filePath = join(RULES_DIR, filename);
+			await mkdir(RULES_DIR, { recursive: true });
+			// Check if exists? Overwrite? Let's error if exists or append suffix?
+			// Simple behavior: overwrite if same name
+			await writeFile(filePath, input.content, 'utf-8');
+			return { id: filename, success: true };
+		}),
+
+	updateGlobalRule: os
+		.input(z.object({
+			id: z.string(),
+			content: z.string()
+		}))
+		.output(z.object({ success: z.boolean() }))
+		.handler(async ({ input }) => {
+			const filePath = join(RULES_DIR, input.id);
+			await writeFile(filePath, input.content, 'utf-8');
+			return { success: true };
+		}),
+
+	deleteGlobalRule: os
+		.input(z.object({ id: z.string() }))
+		.output(z.object({ success: z.boolean() }))
+		.handler(async ({ input }) => {
+			const filePath = join(RULES_DIR, input.id);
+			try {
+				await unlink(filePath);
+				return { success: true };
+			} catch (e) {
+				return { success: false };
+			}
 		}),
 
 	getPlatform: os
@@ -322,6 +451,12 @@ export const appRouter = os.router({
 			rootPath: z.string().optional(),
 			createdAt: z.number(),
 			updatedAt: z.number(),
+			activeGlobalRules: z.array(z.string()).optional(),
+			projectRules: z.array(z.object({
+				id: z.string(),
+				name: z.string(),
+				content: z.string()
+			})).optional(),
 		}).nullable())
 		.handler(async ({ input }) => {
 			const project = getStoreOrThrow().getProject(input.projectId);
@@ -333,6 +468,8 @@ export const appRouter = os.router({
 				rootPath: project.rootPath,
 				createdAt: project.createdAt,
 				updatedAt: project.updatedAt,
+				activeGlobalRules: project.activeGlobalRules,
+				projectRules: project.projectRules,
 			};
 		}),
 
@@ -341,6 +478,12 @@ export const appRouter = os.router({
 			projectId: z.string(),
 			name: z.string().min(1).optional(),
 			rootPath: z.string().nullable().optional(),
+			activeGlobalRules: z.array(z.string()).optional(),
+			projectRules: z.array(z.object({
+				id: z.string(),
+				name: z.string(),
+				content: z.string()
+			})).optional(),
 		}))
 		.output(z.object({ success: z.boolean() }))
 		.handler(async ({ input }) => {
@@ -355,8 +498,49 @@ export const appRouter = os.router({
 			if (Object.prototype.hasOwnProperty.call(input, 'rootPath')) {
 				updates.rootPath = input.rootPath ?? undefined;
 			}
+			if (input.activeGlobalRules !== undefined) {
+				updates.activeGlobalRules = input.activeGlobalRules;
+			}
+			if (input.projectRules !== undefined) {
+				updates.projectRules = input.projectRules;
+			}
 
 			storeInstance.updateProject(input.projectId, updates);
+
+			// Generate rule files in project root
+			const updatedProject = storeInstance.getProject(input.projectId);
+			if (updatedProject && updatedProject.rootPath) {
+				try {
+					let globalRulesContent = '';
+					if (updatedProject.activeGlobalRules && updatedProject.activeGlobalRules.length > 0) {
+						for (const ruleId of updatedProject.activeGlobalRules) {
+							try {
+								const ruleContent = await readFile(join(RULES_DIR, ruleId), 'utf-8');
+								globalRulesContent += `\n\n<!-- Rule: ${ruleId} -->\n${ruleContent}`;
+							} catch (e) {
+								console.warn(`Failed to read rule ${ruleId}`, e);
+							}
+						}
+					}
+
+					let projectRulesContent = '';
+					if (updatedProject.projectRules && updatedProject.projectRules.length > 0) {
+						for (const rule of updatedProject.projectRules) {
+							projectRulesContent += `\n\n<!-- Project Rule: ${rule.name} -->\n${rule.content}`;
+						}
+					}
+
+					/*
+					const finalContent = `${globalRulesContent}\n\n<!-- Project Specific Rules -->\n${projectRulesContent}`.trim();
+
+					await writeFile(join(updatedProject.rootPath, 'Agents.md'), finalContent, 'utf-8');
+					await writeFile(join(updatedProject.rootPath, 'Claude.md'), finalContent, 'utf-8');
+					*/
+				} catch (e) {
+					console.error("Failed to generate rule files", e);
+				}
+			}
+
 			return { success: true };
 		}),
 
@@ -483,10 +667,14 @@ export const appRouter = os.router({
 			if (!agentManagerInstance.isRunning(sessionId)) {
 				console.log(`Starting agent for project ${input.projectId} (Session: ${sessionId})`);
 				console.log(`Command: ${agentTemplate.agent.command}`);
+
+				const rulesContent = await resolveProjectRules(input.projectId);
+
 				agentManagerInstance.startSession(sessionId, agentTemplate.agent.command, {
 					...agentTemplate.agent,
 					model: resolvedModel,
 					cwd: project.rootPath || agentTemplate.agent.cwd,
+					rulesContent,
 				});
 			}
 
@@ -559,10 +747,14 @@ export const appRouter = os.router({
 				const cwd = project?.rootPath || agentTemplate.agent.cwd;
 
 				console.warn(`Session ${input.sessionId} not found, restarting with command: ${agentTemplate.agent.command}`);
+
+				const rulesContent = await resolveProjectRules(conv.projectId);
+
 				agentManagerInstance.startSession(input.sessionId, agentTemplate.agent.command, {
 					...agentTemplate.agent,
 					model: conv.agentModel,
 					cwd,
+					rulesContent,
 				});
 			}
 

@@ -19,6 +19,8 @@ export interface AgentConfig {
     streamJson?: boolean;
     /** Whether this agent uses one-shot mode (new process per message) */
     oneShotMode?: boolean;
+    /** Content of rules to inject into the session */
+    rulesContent?: string;
 }
 
 /**

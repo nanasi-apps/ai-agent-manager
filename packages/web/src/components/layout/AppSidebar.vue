@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch } from "vue"
 import { useRoute } from "vue-router"
-import { Home, Settings, Bot, Inbox, Search, PanelLeft, Plus, Folder } from "lucide-vue-next"
+import { Home, Settings, Bot, Inbox, Search, PanelLeft, Plus, Folder, BookOpen } from "lucide-vue-next"
 import {
   Sidebar,
   SidebarContent,
@@ -113,6 +113,8 @@ watch(() => route.path, (path) => {
     activeItem.value = id
   } else if (path === '/agents') {
     activeItem.value = 'Agents'
+  } else if (path === '/rules') {
+    activeItem.value = 'Rules'
   } else if (path === '/settings') {
     activeItem.value = 'Settings'
   }
@@ -124,6 +126,11 @@ const bottomItems = [
     title: "Agents",
     url: "/agents",
     icon: Bot,
+  },
+  {
+    title: "Rules",
+    url: "/rules",
+    icon: BookOpen,
   },
   {
     title: "Settings",

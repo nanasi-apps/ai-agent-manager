@@ -44,6 +44,7 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
             env: config?.env,
             streamJson: config?.streamJson ?? false,
             oneShotMode: config?.oneShotMode ?? true,
+            rulesContent: config?.rulesContent,
         };
 
         this.sessions.set(sessionId, {
@@ -103,7 +104,14 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
         }
 
         session.isProcessing = true;
-        this.runCommand(sessionId, session, message);
+
+        let finalMessage = message;
+        if (session.messageCount === 0 && session.config.rulesContent) {
+            console.log(`[OneShotAgentManager] Injecting rules for session ${sessionId}`);
+            finalMessage = `${session.config.rulesContent}\n\n${message}`;
+        }
+
+        this.runCommand(sessionId, session, finalMessage);
     }
 
     private getDriver(config: AgentConfig): AgentDriver {

@@ -10,6 +10,7 @@ interface SessionInfo {
     buffer: string;
     ready: boolean;
     messageQueue: string[];
+    messageCount: number;
 }
 
 /**
@@ -35,6 +36,7 @@ export class PtyAgentManager extends EventEmitter implements IAgentManager {
             cwd: config?.cwd,
             env: config?.env,
             streamJson: config?.streamJson ?? false,
+            rulesContent: config?.rulesContent,
         };
 
         try {
@@ -62,6 +64,7 @@ export class PtyAgentManager extends EventEmitter implements IAgentManager {
                 buffer: '',
                 ready: false,
                 messageQueue: [],
+                messageCount: 0,
             };
 
             this.sessions.set(sessionId, sessionInfo);
@@ -86,7 +89,15 @@ export class PtyAgentManager extends EventEmitter implements IAgentManager {
                             const msg = session.messageQueue.shift();
                             if (msg) {
                                 console.log(`[PtyAgentManager] Sending queued message: ${msg.substring(0, 50)}...`);
-                                session.pty.write(msg + '\r');
+                                // Since we don't know the message count when queuing (it might be the first message),
+                                // check here if it's the first.
+                                let finalMsg = msg;
+                                if (session.messageCount === 0 && session.config.rulesContent) {
+                                    console.log(`[PtyAgentManager] Injecting rules for session ${sessionId} (queued)`);
+                                    finalMsg = `${session.config.rulesContent}\n\n${msg}`;
+                                }
+                                session.pty.write(finalMsg + '\r');
+                                session.messageCount++;
                             }
                         }
                     }
@@ -180,7 +191,13 @@ export class PtyAgentManager extends EventEmitter implements IAgentManager {
         if (session) {
             if (session.ready) {
                 console.log(`[PtyAgentManager] Sending message: ${message.substring(0, 50)}...`);
-                session.pty.write(message + '\r');
+                let finalMsg = message;
+                if (session.messageCount === 0 && session.config.rulesContent) {
+                    console.log(`[PtyAgentManager] Injecting rules for session ${sessionId}`);
+                    finalMsg = `${session.config.rulesContent}\n\n${message}`;
+                }
+                session.pty.write(finalMsg + '\r');
+                session.messageCount++;
             } else {
                 console.log(`[PtyAgentManager] Queueing message (session not ready): ${message.substring(0, 50)}...`);
                 session.messageQueue.push(message);

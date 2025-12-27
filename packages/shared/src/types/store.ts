@@ -35,6 +35,14 @@ export interface Project {
     rootPath?: string;
     createdAt: number;
     updatedAt: number;
+    activeGlobalRules?: string[];
+    projectRules?: ProjectRule[];
+}
+
+export interface ProjectRule {
+    id: string;
+    name: string;
+    content: string;
 }
 
 /**
@@ -62,3 +70,4 @@ export interface IStore {
     updateProject(id: string, updates: Partial<Project>): void;
     deleteProject(id: string): void;
 }
+
