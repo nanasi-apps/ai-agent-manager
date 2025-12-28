@@ -2,24 +2,47 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { homedir } from 'os';
 
-export async function prepareGeminiEnv(mcpServerUrl: string, existingHome?: string): Promise<NodeJS.ProcessEnv> {
+export interface GeminiEnvOptions {
+    mcpServerUrl: string;
+    existingHome?: string;
+    apiKey?: string;
+    baseUrl?: string;
+}
+
+export async function prepareGeminiEnv(options: GeminiEnvOptions): Promise<NodeJS.ProcessEnv> {
+    const { mcpServerUrl, existingHome, apiKey, baseUrl } = options;
+    const env: NodeJS.ProcessEnv = {};
+
+    // Set API key if provided
+    if (apiKey) {
+        env.GEMINI_API_KEY = apiKey;
+        console.log('[EnvUtils] Setting GEMINI_API_KEY for Gemini CLI');
+    }
+
+    // Set custom base URL if provided
+    if (baseUrl) {
+        env.GOOGLE_GEMINI_BASE_URL = baseUrl;
+        console.log(`[EnvUtils] Setting GOOGLE_GEMINI_BASE_URL: ${baseUrl}`);
+    }
+
     try {
         const { tmpdir } = await import('os');
         if (existingHome) {
-            await ensureGeminiSettings(existingHome, mcpServerUrl, false);
-            return { HOME: existingHome };
+            await ensureGeminiSettings(existingHome, mcpServerUrl, false, !!apiKey);
+            return { ...env, HOME: existingHome };
         }
 
         const uniqueId = Math.random().toString(36).substring(7);
         const tempHome = path.join(tmpdir(), `agent-manager-gemini-${uniqueId}`);
-        await ensureGeminiSettings(tempHome, mcpServerUrl, true);
+        await ensureGeminiSettings(tempHome, mcpServerUrl, true, !!apiKey);
 
-        return { HOME: tempHome };
+        return { ...env, HOME: tempHome };
     } catch (error) {
         console.error('[EnvUtils] Failed to prepare Gemini temp env:', error);
-        return {};
+        return env;
     }
 }
+
 
 export async function prepareClaudeEnv(mcpServerUrl: string, existingConfigDir?: string): Promise<NodeJS.ProcessEnv> {
     try {
@@ -40,10 +63,39 @@ export async function prepareClaudeEnv(mcpServerUrl: string, existingConfigDir?:
     }
 }
 
+export interface CodexEnvOptions {
+    apiKey?: string;
+    baseUrl?: string;
+}
+
+/**
+ * Prepare environment variables for Codex CLI
+ * - OPENAI_API_KEY: API key for OpenAI authentication
+ * - OPENAI_BASE_URL: Custom base URL for API endpoint (e.g., Azure OpenAI)
+ */
+export function prepareCodexEnv(options: CodexEnvOptions): NodeJS.ProcessEnv {
+    const { apiKey, baseUrl } = options;
+    const env: NodeJS.ProcessEnv = {};
+
+    if (apiKey) {
+        env.OPENAI_API_KEY = apiKey;
+        console.log('[EnvUtils] Setting OPENAI_API_KEY for Codex CLI');
+    }
+
+    if (baseUrl) {
+        env.OPENAI_BASE_URL = baseUrl;
+        console.log(`[EnvUtils] Setting OPENAI_BASE_URL: ${baseUrl}`);
+    }
+
+    return env;
+}
+
+
 async function ensureGeminiSettings(
     homeDir: string,
     mcpServerUrl: string,
-    copyAuth: boolean
+    copyAuth: boolean,
+    useApiKey: boolean = false
 ): Promise<void> {
     const settingsDir = path.join(homeDir, '.gemini');
     const settingsFile = path.join(settingsDir, 'settings.json');
@@ -82,8 +134,18 @@ async function ensureGeminiSettings(
         // If it wasn't there or invalid, we start with empty settings
     }
 
+    // Configure MCP servers
     if (!settings.mcpServers) settings.mcpServers = {};
     settings.mcpServers['agents-manager-mcp'] = { url: mcpServerUrl };
+
+    // When using API key, configure security settings for Gemini CLI
+    // Note: 'oauth-personal' is required for using custom models in one-shot mode
+    if (useApiKey) {
+        if (!settings.security) settings.security = {};
+        if (!settings.security.auth) settings.security.auth = {};
+        settings.security.auth.selectedType = 'gemini-api-key';
+        console.log('[EnvUtils] Configured Gemini security.auth.selectedType = gemini-api-key');
+    }
 
     await fs.writeFile(settingsFile, JSON.stringify(settings, null, 2));
 }

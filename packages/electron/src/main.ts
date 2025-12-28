@@ -9,7 +9,7 @@ import {
 import { app, BrowserWindow, dialog } from "electron";
 import path from "path";
 import { homedir } from "os";
-import { oneShotAgentManager, setAgentManager as setElectronAgentManager } from "./agents";
+import { unifiedAgentManager, setAgentManager as setElectronAgentManager } from "./agents";
 import { setupAgentLogs } from "./main/agent-logs";
 import { setupIpc } from "./main/ipc";
 import { loadMcpConfig } from "./main/mcp-config";
@@ -34,8 +34,9 @@ const fixPath = () => {
 fixPath();
 
 // Set up dependencies for the router
-setAgentManager(oneShotAgentManager);
-setElectronAgentManager(oneShotAgentManager);
+// Use unifiedAgentManager to support both CLI-based and API-based agents
+setAgentManager(unifiedAgentManager);
+setElectronAgentManager(unifiedAgentManager);
 setStore(store);
 setMcpManager(mcpHub);
 setWorktreeManager(worktreeManager);

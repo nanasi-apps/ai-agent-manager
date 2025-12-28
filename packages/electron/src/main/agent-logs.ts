@@ -1,11 +1,11 @@
 import { BrowserWindow } from "electron";
-import { oneShotAgentManager } from "../agents";
+import { unifiedAgentManager } from "../agents";
 import { store } from "../store";
 import * as crypto from "node:crypto";
 
 export function setupAgentLogs() {
     // Agent Log Setup - forward logs to renderer
-    oneShotAgentManager.on("log", (data) => {
+    unifiedAgentManager.on("log", (data) => {
         // Save agent message to store for persistence
         if (data.data) {
             store.addMessage(data.sessionId, {

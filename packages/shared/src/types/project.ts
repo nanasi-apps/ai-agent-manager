@@ -74,3 +74,4 @@ export const availableAgents: ProjectConfig[] = [
 export function getAgentTemplate(id: string): ProjectConfig | undefined {
     return availableAgents.find(p => p.id === id);
 }
+

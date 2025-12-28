@@ -8,7 +8,7 @@ import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
   <SidebarProvider>
     <AppSidebar />
     <SidebarInset class="h-screen overflow-hidden">
-      <div class="flex flex-1 flex-col h-full overflow-hidden">
+      <div class="flex flex-1 flex-col h-full overflow-auto">
         <slot></slot>
       </div>
     </SidebarInset>

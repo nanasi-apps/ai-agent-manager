@@ -1,9 +1,10 @@
-import { Conversation, Message, Project, ResourceLock } from '@agent-manager/shared';
+import { Conversation, Message, Project, ResourceLock, ApiSettings } from '@agent-manager/shared';
 
 export interface StoreData {
     conversations: Conversation[];
     projects: Project[];
     locks?: ResourceLock[];
+    apiSettings?: ApiSettings;
 }
 
 export function normalizeMessages(messages: Message[]): Message[] {

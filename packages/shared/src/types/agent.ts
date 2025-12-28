@@ -1,5 +1,9 @@
 /**
  * Supported agent types
+ * All agents use CLI tools. API keys are passed via environment variables where needed.
+ * - gemini: Uses Gemini CLI (set GEMINI_API_KEY for API mode)
+ * - codex: Uses OpenAI Codex CLI (set OPENAI_API_KEY for API mode)
+ * - claude: Uses Claude CLI
  */
 export type AgentType = 'gemini' | 'claude' | 'codex' | 'cat' | 'custom';
 
@@ -21,6 +25,7 @@ export interface AgentConfig {
     oneShotMode?: boolean;
     /** Content of rules to inject into the session */
     rulesContent?: string;
+
 }
 
 /**

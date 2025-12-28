@@ -14,7 +14,7 @@ import {
     ClaudeDriver,
     CodexDriver
 } from './drivers';
-import { prepareGeminiEnv, prepareClaudeEnv } from './env-utils';
+import { prepareGeminiEnv, prepareClaudeEnv, prepareCodexEnv } from './env-utils';
 
 interface PendingWorktreeResume {
     request: WorktreeResumeRequest;
@@ -174,12 +174,28 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
             let spawnEnv = { ...process.env, ...session.config.env };
 
             // If Gemini, prepare a temporary environment with injected config
+            // API keys are already in session.config.env if configured
             if (isGemini) {
-                const geminiEnv = await prepareGeminiEnv(mcpServerUrl, session.geminiHome);
+                const geminiEnv = await prepareGeminiEnv({
+                    mcpServerUrl,
+                    existingHome: session.geminiHome,
+                    // API key/base URL already in config.env if configured
+                    apiKey: session.config.env?.GEMINI_API_KEY,
+                    baseUrl: session.config.env?.GOOGLE_GEMINI_BASE_URL,
+                });
                 if (geminiEnv.HOME) {
                     session.geminiHome = geminiEnv.HOME;
                 }
                 spawnEnv = { ...spawnEnv, ...geminiEnv };
+            }
+
+            // If Codex, prepare API key environment variables
+            if (isCodex) {
+                const codexEnv = prepareCodexEnv({
+                    apiKey: session.config.env?.OPENAI_API_KEY,
+                    baseUrl: session.config.env?.OPENAI_BASE_URL,
+                });
+                spawnEnv = { ...spawnEnv, ...codexEnv };
             }
 
             // If Claude, prepare a temporary config directory with injected MCP

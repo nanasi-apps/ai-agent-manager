@@ -65,7 +65,12 @@ export class PtyAgentManager extends EventEmitter implements IAgentManager {
             let claudeHome = config?.claudeHome;
 
             if (isGemini) {
-                const geminiEnv = await prepareGeminiEnv(mcpServerUrl, geminiHome);
+                const geminiEnv = await prepareGeminiEnv({
+                    mcpServerUrl,
+                    existingHome: geminiHome,
+                    apiKey: agentConfig.env?.GEMINI_API_KEY,
+                    baseUrl: agentConfig.env?.GOOGLE_GEMINI_BASE_URL,
+                });
                 if (geminiEnv.HOME) {
                     geminiHome = geminiEnv.HOME;
                     env = { ...env, ...geminiEnv as Record<string, string> };
@@ -110,19 +115,19 @@ export class PtyAgentManager extends EventEmitter implements IAgentManager {
                 if (!session?.pendingWorktreeResume) {
                     this.emitLog(sessionId, `\r\n[Process exited with code ${exitCode}]\r\n`, 'system');
                 }
-                
+
                 if (session?.pendingWorktreeResume) {
                     const resume = session.pendingWorktreeResume;
                     session.pendingWorktreeResume = undefined;
-                    
+
                     console.log(`[PtyAgentManager] Resuming session ${sessionId} in worktree: ${resume.cwd}`);
                     this.emitLog(sessionId, `\n[System] Switching to worktree ${resume.branch} at ${resume.cwd}\n`, 'system');
-                    
+
                     // Restart session in new CWD, preserving home directories for context
                     const oldConfig = session.config;
                     const oldGeminiHome = session.geminiHome;
                     const oldClaudeHome = session.claudeHome;
-                    
+
                     this.sessions.delete(sessionId);
                     this.startSession(sessionId, oldConfig.command, {
                         ...oldConfig,
@@ -132,7 +137,7 @@ export class PtyAgentManager extends EventEmitter implements IAgentManager {
                     }).catch(err => {
                         console.error(`[PtyAgentManager] Failed to restart after worktree resume:`, err);
                     });
-                    
+
                     if (resume.resumeMessage) {
                         this.sendToSession(sessionId, resume.resumeMessage);
                     }
@@ -277,18 +282,18 @@ export class PtyAgentManager extends EventEmitter implements IAgentManager {
         const session = this.sessions.get(sessionId);
         if (session) {
             if (session.messageCount === 0) {
-                 try {
-                     const mcpInstructions = await getMcpToolInstructions();
-                     if (mcpInstructions) {
+                try {
+                    const mcpInstructions = await getMcpToolInstructions();
+                    if (mcpInstructions) {
                         if (session.config.rulesContent) {
-                             session.config.rulesContent += mcpInstructions;
+                            session.config.rulesContent += mcpInstructions;
                         } else {
-                             session.config.rulesContent = mcpInstructions;
+                            session.config.rulesContent = mcpInstructions;
                         }
-                     }
-                 } catch (e) {
-                     console.error('Failed to fetch MCP tools', e);
-                 }
+                    }
+                } catch (e) {
+                    console.error('Failed to fetch MCP tools', e);
+                }
             }
 
             if (session.ready) {
@@ -338,7 +343,7 @@ export class PtyAgentManager extends EventEmitter implements IAgentManager {
 
         console.log(`[PtyAgentManager] Scheduling worktree resume for session ${sessionId}`);
         session.pendingWorktreeResume = request;
-        
+
         // Kill the current PTY, the onExit handler will restart it in the new CWD
         session.pty.kill();
         return true;

@@ -11,6 +11,8 @@ import type { ModelTemplate } from "./types/project";
 import type { IMcpManager } from "./types/mcp";
 import type { IWorktreeManager } from "./types/worktree";
 import type { IOrchestrationManager } from "./types/orchestration";
+import OpenAI from "openai";
+import { GoogleGenAI, GoogleGenAIOptions } from "@google/genai";
 
 // Cross-platform UUID generation
 function generateUUID(): string {
@@ -71,6 +73,119 @@ function getModelsForCliType(cliType: string): string[] {
 	return HARDCODED_MODELS[cliType] ?? [];
 }
 
+/**
+ * Timeout wrapper for async operations
+ */
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallback: T): Promise<T> {
+	return Promise.race([
+		promise,
+		new Promise<T>((resolve) => {
+			setTimeout(() => {
+				console.warn(`[withTimeout] Operation timed out after ${timeoutMs}ms, using fallback`);
+				resolve(fallback);
+			}, timeoutMs);
+		}),
+	]);
+}
+
+const MODEL_FETCH_TIMEOUT_MS = 10000; // 10 seconds
+
+
+/**
+ * Fetch available models from OpenAI-compatible API
+ * Works with OpenAI, Azure, DeepSeek, and other compatible endpoints
+ */
+async function fetchOpenAIModels(apiKey: string, baseUrl?: string): Promise<string[]> {
+	// Use codex hardcoded models as fallback for standard OpenAI
+	// For custom endpoints, we want to return what the API provides
+	const isCustomEndpoint = baseUrl && !baseUrl.includes('openai.com');
+	const fallback = isCustomEndpoint ? [] : (HARDCODED_MODELS['codex'] ?? []);
+
+	const fetchModels = async (): Promise<string[]> => {
+		console.log(`[fetchOpenAIModels] Fetching models${baseUrl ? ` from: ${baseUrl}` : ''}`);
+		const client = new OpenAI({
+			apiKey,
+			baseURL: baseUrl,
+			timeout: MODEL_FETCH_TIMEOUT_MS,
+		});
+
+		const response = await client.models.list();
+		const models: string[] = [];
+
+		for await (const model of response) {
+			models.push(model.id);
+		}
+
+		// Sort alphabetically, with common prefixes grouped
+		models.sort((a, b) => a.localeCompare(b));
+
+		return models.length > 0 ? models : fallback;
+	};
+
+	try {
+		const result = await withTimeout(fetchModels(), MODEL_FETCH_TIMEOUT_MS, fallback);
+		// For custom endpoints, if we got models but timeout/fallback returned empty, try to be helpful
+		if (result.length === 0 && isCustomEndpoint) {
+			console.warn('[fetchOpenAIModels] No models found from custom endpoint, will show empty list');
+		}
+		return result;
+	} catch (error) {
+		console.error('[fetchOpenAIModels] Error fetching models:', error);
+		return fallback;
+	}
+}
+
+
+/**
+ * Fetch available models from Gemini API using SDK
+ */
+async function fetchGeminiModels(apiKey: string, baseUrl?: string): Promise<string[]> {
+	const fallback = HARDCODED_MODELS['gemini'] ?? [];
+
+	const fetchModels = async (): Promise<string[]> => {
+		console.log(`[fetchGeminiModels] Fetching models${baseUrl ? ` from: ${baseUrl}` : ''}`);
+
+		const clientOptions: GoogleGenAIOptions = {
+			apiKey,
+			httpOptions: { timeout: MODEL_FETCH_TIMEOUT_MS },
+		};
+		if (baseUrl) {
+			clientOptions.httpOptions = { ...clientOptions.httpOptions, baseUrl };
+		}
+		console.log('[fetchGeminiModels] Client options:', JSON.stringify(clientOptions, null, 2));
+		const client = new GoogleGenAI(clientOptions);
+		const response = await client.models.list();
+		console.log('[fetchGeminiModels] Got response');
+		const models: string[] = [];
+
+		for await (const model of response) {
+			if (
+				model.supportedActions?.includes('generateContent') &&
+				model.name
+			) {
+				models.push(model.name.replace('models/', ''));
+			}
+		}
+
+		// Sort newer models first (2.5 > 2.0 > 1.5)
+		models.sort((a, b) => {
+			const getVersion = (s: string) => {
+				const match = s.match(/gemini-(\d+\.?\d*)/);
+				return match ? parseFloat(match[1]) : 0;
+			};
+			return getVersion(b) - getVersion(a);
+		});
+
+		return models.length > 0 ? models : fallback;
+	};
+
+	try {
+		return await withTimeout(fetchModels(), MODEL_FETCH_TIMEOUT_MS, fallback);
+	} catch (error) {
+		console.error('[fetchGeminiModels] Error fetching models:', error);
+		return fallback;
+	}
+}
 
 
 async function resolveProjectRules(projectId: string): Promise<string> {
@@ -320,6 +435,52 @@ export const appRouter = os.router({
 			}
 		}),
 
+	// API Settings endpoints
+	getApiSettings: os
+		.output(z.object({
+			openaiApiKey: z.string().optional(),
+			openaiBaseUrl: z.string().optional(),
+			geminiApiKey: z.string().optional(),
+			geminiBaseUrl: z.string().optional(),
+		}))
+		.handler(async () => {
+			const settings = getStoreOrThrow().getApiSettings();
+			// Mask API keys for security (return only existence, not full key)
+			return {
+				openaiApiKey: settings.openaiApiKey ? '***' : undefined,
+				openaiBaseUrl: settings.openaiBaseUrl,
+				geminiApiKey: settings.geminiApiKey ? '***' : undefined,
+				geminiBaseUrl: settings.geminiBaseUrl,
+			};
+		}),
+
+	updateApiSettings: os
+		.input(z.object({
+			openaiApiKey: z.string().optional(),
+			openaiBaseUrl: z.string().optional(),
+			geminiApiKey: z.string().optional(),
+			geminiBaseUrl: z.string().optional(),
+		}))
+		.output(z.object({ success: z.boolean() }))
+		.handler(async ({ input }) => {
+			const updates: Record<string, string | undefined> = {};
+			// Only update fields that are explicitly provided
+			if (input.openaiApiKey !== undefined) {
+				updates.openaiApiKey = input.openaiApiKey || undefined;
+			}
+			if (input.openaiBaseUrl !== undefined) {
+				updates.openaiBaseUrl = input.openaiBaseUrl || undefined;
+			}
+			if (input.geminiApiKey !== undefined) {
+				updates.geminiApiKey = input.geminiApiKey || undefined;
+			}
+			if (input.geminiBaseUrl !== undefined) {
+				updates.geminiBaseUrl = input.geminiBaseUrl || undefined;
+			}
+			getStoreOrThrow().updateApiSettings(updates);
+			return { success: true };
+		}),
+
 	getPlatform: os
 		.output(z.enum(["electron", "web"]))
 		.handler(async () => "electron" as const),
@@ -384,7 +545,16 @@ export const appRouter = os.router({
 			model: z.string().optional(),
 		})))
 		.handler(async () => {
-			const cached = modelListCache.get('all');
+			const storeInstance = getStoreOrThrow();
+			const apiSettings = storeInstance.getApiSettings();
+
+			// Check which API keys are configured
+			const hasOpenaiKey = !!apiSettings.openaiApiKey;
+			const hasGeminiApiKey = !!apiSettings.geminiApiKey;
+
+			// Skip cache if we need to check API settings dynamically
+			const cacheKey = `all:openai=${hasOpenaiKey}:gemini=${hasGeminiApiKey}`;
+			const cached = modelListCache.get(cacheKey);
 			const now = Date.now();
 			if (cached && cached.expiresAt > now) {
 				return cached.models;
@@ -396,7 +566,23 @@ export const appRouter = os.router({
 				const agentType = agent.id;
 				const agentName = agent.name;
 				const cliType = agent.agent.type;
-				const models = getModelsForCliType(cliType);
+
+				// For CLI agents with API keys configured, try to fetch models dynamically
+				// Otherwise use hardcoded model lists
+				let models: string[] = [];
+				let isCustomEndpoint = false;
+
+				if (cliType === 'codex' && hasOpenaiKey) {
+					models = await fetchOpenAIModels(apiSettings.openaiApiKey!, apiSettings.openaiBaseUrl);
+					// Check if using a custom endpoint (not standard OpenAI)
+					isCustomEndpoint = !!(apiSettings.openaiBaseUrl && !apiSettings.openaiBaseUrl.includes('openai.com'));
+				} else if (cliType === 'gemini' && hasGeminiApiKey) {
+					models = await fetchGeminiModels(apiSettings.geminiApiKey!, apiSettings.geminiBaseUrl);
+					// Check if using a custom endpoint (not standard Google)
+					isCustomEndpoint = !!(apiSettings.geminiBaseUrl && !apiSettings.geminiBaseUrl.includes('googleapis.com') && !apiSettings.geminiBaseUrl.includes('google.com'));
+				} else {
+					models = getModelsForCliType(cliType);
+				}
 
 				// Only add default entry if there are no hardcoded models
 				if (models.length === 0) {
@@ -410,11 +596,16 @@ export const appRouter = os.router({
 						agentName,
 					});
 				} else {
-					// Add all hardcoded models
+					// Add all models
 					for (const model of models) {
+						// For custom endpoints, add suffix to show it's from custom API
+						const displayName = isCustomEndpoint
+							? `${model} - Custom API (${agentName})`
+							: model;
+
 						results.push({
 							id: buildModelId(agentType, model),
-							name: model,
+							name: displayName,
 							agentType,
 							agentName,
 							model,
@@ -423,7 +614,7 @@ export const appRouter = os.router({
 				}
 			}
 
-			modelListCache.set('all', {
+			modelListCache.set(cacheKey, {
 				expiresAt: now + MODEL_CACHE_TTL_MS,
 				models: results,
 			});
@@ -748,11 +939,36 @@ export const appRouter = os.router({
 
 				const rulesContent = await resolveProjectRules(input.projectId);
 
+				// Build environment variables with API credentials
+				const apiSettings = storeInstance.getApiSettings();
+				const agentEnv: Record<string, string> = {};
+
+				// For Codex/OpenAI CLI
+				if (agentTemplate.agent.type === 'codex') {
+					if (apiSettings.openaiApiKey) {
+						agentEnv.OPENAI_API_KEY = apiSettings.openaiApiKey;
+					}
+					if (apiSettings.openaiBaseUrl) {
+						agentEnv.OPENAI_BASE_URL = apiSettings.openaiBaseUrl;
+					}
+				}
+
+				// For Gemini CLI
+				if (agentTemplate.agent.type === 'gemini') {
+					if (apiSettings.geminiApiKey) {
+						agentEnv.GEMINI_API_KEY = apiSettings.geminiApiKey;
+					}
+					if (apiSettings.geminiBaseUrl) {
+						agentEnv.GOOGLE_GEMINI_BASE_URL = apiSettings.geminiBaseUrl;
+					}
+				}
+
 				agentManagerInstance.startSession(sessionId, agentTemplate.agent.command, {
 					...agentTemplate.agent,
 					model: resolvedModel,
 					cwd: project.rootPath || agentTemplate.agent.cwd,
 					rulesContent,
+					env: { ...agentTemplate.agent.env, ...agentEnv },
 				});
 			}
 
@@ -828,11 +1044,36 @@ export const appRouter = os.router({
 
 				const rulesContent = await resolveProjectRules(conv.projectId);
 
+				// Build environment variables with API credentials
+				const apiSettings = storeInstance.getApiSettings();
+				const agentEnv: Record<string, string> = {};
+
+				// For Codex/OpenAI CLI
+				if (agentTemplate.agent.type === 'codex') {
+					if (apiSettings.openaiApiKey) {
+						agentEnv.OPENAI_API_KEY = apiSettings.openaiApiKey;
+					}
+					if (apiSettings.openaiBaseUrl) {
+						agentEnv.OPENAI_BASE_URL = apiSettings.openaiBaseUrl;
+					}
+				}
+
+				// For Gemini CLI
+				if (agentTemplate.agent.type === 'gemini') {
+					if (apiSettings.geminiApiKey) {
+						agentEnv.GEMINI_API_KEY = apiSettings.geminiApiKey;
+					}
+					if (apiSettings.geminiBaseUrl) {
+						agentEnv.GOOGLE_GEMINI_BASE_URL = apiSettings.geminiBaseUrl;
+					}
+				}
+
 				agentManagerInstance.startSession(input.sessionId, agentTemplate.agent.command, {
 					...agentTemplate.agent,
 					model: conv.agentModel,
 					cwd,
 					rulesContent,
+					env: { ...agentTemplate.agent.env, ...agentEnv },
 				});
 			}
 

@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import type { Conversation, Message, Project, IStore, ResourceLock } from '@agent-manager/shared';
+import type { Conversation, Message, Project, IStore, ResourceLock, ApiSettings } from '@agent-manager/shared';
 import { normalizeMessages, StoreData, tryMergeMessage } from './serialization';
 
 /**
@@ -11,6 +11,7 @@ export class FileStore implements IStore {
     private conversations: Map<string, Conversation> = new Map();
     private projects: Map<string, Project> = new Map();
     private locks: Map<string, ResourceLock> = new Map();
+    private apiSettings: ApiSettings = {};
     private dataPath: string | null = null;
     private saveTimeout: ReturnType<typeof setTimeout> | null = null;
 
@@ -58,6 +59,10 @@ export class FileStore implements IStore {
                     }
                 }
 
+                if (data.apiSettings) {
+                    this.apiSettings = data.apiSettings;
+                }
+
                 console.log(`[FileStore] Loaded ${this.conversations.size} conversations, ${this.projects.size} projects, and ${this.locks.size} locks from ${this.dataPath}`);
                 this.scheduleSave();
             }
@@ -89,7 +94,8 @@ export class FileStore implements IStore {
             const data: StoreData = {
                 conversations: Array.from(this.conversations.values()),
                 projects: Array.from(this.projects.values()),
-                locks: Array.from(this.locks.values())
+                locks: Array.from(this.locks.values()),
+                apiSettings: this.apiSettings,
             };
             fs.writeFileSync(this.dataPath, JSON.stringify(data, null, 2), 'utf-8');
             console.log(`[FileStore] Saved ${this.conversations.size} conversations to ${this.dataPath}`);
@@ -191,15 +197,15 @@ export class FileStore implements IStore {
 
         // Check if existing lock is expired
         if (existing && existing.expiresAt && existing.expiresAt < now) {
-             this.locks.delete(lock.resourceId);
-             // Proceed to acquire
+            this.locks.delete(lock.resourceId);
+            // Proceed to acquire
         } else if (existing) {
             // Already locked by someone else (or same agent)
             if (existing.agentId === lock.agentId) {
-                 // Refresh lock
-                 this.locks.set(lock.resourceId, { ...lock, timestamp: now });
-                 this.scheduleSave();
-                 return true;
+                // Refresh lock
+                this.locks.set(lock.resourceId, { ...lock, timestamp: now });
+                this.scheduleSave();
+                return true;
             }
             return false;
         }
@@ -254,6 +260,16 @@ export class FileStore implements IStore {
             this.locks.delete(resourceId);
             this.scheduleSave();
         }
+    }
+
+    // API settings methods
+    getApiSettings(): ApiSettings {
+        return { ...this.apiSettings };
+    }
+
+    updateApiSettings(settings: Partial<ApiSettings>): void {
+        this.apiSettings = { ...this.apiSettings, ...settings };
+        this.scheduleSave();
     }
 }
 

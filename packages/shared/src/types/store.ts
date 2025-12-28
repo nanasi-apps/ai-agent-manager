@@ -58,6 +58,17 @@ export interface ResourceLock {
 }
 
 /**
+ * API Settings for direct API calls (OpenAI, Gemini)
+ * Stored separately from projects for security
+ */
+export interface ApiSettings {
+    openaiApiKey?: string;
+    openaiBaseUrl?: string;
+    geminiApiKey?: string;
+    geminiBaseUrl?: string;
+}
+
+/**
  * Interface for store implementations
  */
 export interface IStore {
@@ -88,4 +99,8 @@ export interface IStore {
     getLock(resourceId: string): ResourceLock | undefined;
     listLocks(): ResourceLock[];
     forceReleaseLock(resourceId: string): void;
+
+    // API settings methods
+    getApiSettings(): ApiSettings;
+    updateApiSettings(settings: Partial<ApiSettings>): void;
 }
