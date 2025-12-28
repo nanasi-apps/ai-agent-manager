@@ -1,28 +1,30 @@
 import type { AppRouter } from "@agent-manager/shared";
 import { createORPCClient } from "@orpc/client";
-import { RPCLink } from "@orpc/client/message-port";
+import { RPCLink } from "@orpc/client/websocket";
 import type { ContractRouterClient } from "@orpc/contract";
 
 // Initialize the ORPC client
 export const createClient = () => {
-    // Determine transport
-    // In Electron, we create a MessageChannel and send one port to the main process
-    const channel = new MessageChannel();
-    const port1 = channel.port1;
-    const port2 = channel.port2;
+    const wsUrl = "ws://localhost:3002";
+    console.log(`Web: Connecting to ORPC via WebSocket (${wsUrl})...`);
+    
+    // Create WebSocket instance
+    const websocket = new WebSocket(wsUrl);
+    
+    websocket.onopen = () => {
+        console.log("Web: WebSocket connected");
+    };
+    
+    websocket.onclose = () => {
+        console.log("Web: WebSocket disconnected");
+    };
+    
+    websocket.onerror = (err) => {
+        console.error("Web: WebSocket error", err);
+    };
 
-    // Send port2 to Electron via window.postMessage (handled in preload)
-    if (window.electronAPI) {
-        console.log("Web: Connecting to Electron via ORPC (window.postMessage)...");
-        window.postMessage("start-orpc-client", "*", [port2]);
-    } else {
-        console.warn("Web: ORPC connection skipped (not in Electron)");
-    }
-
-    // Create the client using port1
-    port1.start();
     const link = new RPCLink({
-        port: port1,
+        websocket,
     });
 
     return createORPCClient<ContractRouterClient<AppRouter>>(link);

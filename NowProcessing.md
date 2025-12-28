@@ -429,13 +429,14 @@ packages/electron/src/
 | **MCP Hub基盤** | McpHub (MCP Client)、FileSystemProvider (内部ツール) |
 | **Git Worktree** | GitWorktreeProvider, Worktree Resources, CommitSyncProvider |
 | **Orchestration** | AgentOrchestrationProvider (dispatch, status, broadcast) |
+| **oRPC WebSocket** | WebSocket Server (3002), Web Client (ws://) |
 
 ### 🎯 次のアクション（Phase 3: MCPホスト実装）
 
 #### 優先度: 高
 1. **oRPC WebSocket対応**
-   - リアルタイムストリーミングをWebSocket経由に移行
-   - ブラウザ版でも動作可能に
+   - ✅ リアルタイムストリーミングをWebSocket経由に移行
+   - ✅ ブラウザ版でも動作可能に
 
 #### 優先度: 中
 2. **会話履歴の永続化**

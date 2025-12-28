@@ -8,6 +8,7 @@ import {
 } from "@agent-manager/shared";
 import { app, BrowserWindow, dialog } from "electron";
 import path from "path";
+import { homedir } from "os";
 import { oneShotAgentManager, setAgentManager as setElectronAgentManager } from "./agents";
 import { setupAgentLogs } from "./main/agent-logs";
 import { setupIpc } from "./main/ipc";
@@ -18,6 +19,19 @@ import { mcpHub } from "./mcp-hub";
 import { worktreeManager } from "./main/worktree-manager";
 import { orchestrationManager } from "./main/orchestration-manager";
 import { startMcpServer } from "./server/mcp-server.js";
+import { startOrpcServer } from "./server/orpc-server";
+
+// Ensure local bin is in PATH for tools like git-gtr
+const fixPath = () => {
+	const home = homedir();
+	const binPath = path.join(home, '.local', 'bin');
+	const delimiter = process.platform === 'win32' ? ';' : ':';
+	if (!process.env.PATH?.includes(binPath)) {
+		process.env.PATH = `${binPath}${delimiter}${process.env.PATH}`;
+		console.log(`[Main] Added ${binPath} to PATH`);
+	}
+};
+fixPath();
 
 // Set up dependencies for the router
 setAgentManager(oneShotAgentManager);
@@ -83,6 +97,10 @@ app.whenReady().then(() => {
 	setupIpc();
 	setupGlobalThemeHandlers();
 	setupAgentLogs();
+
+	// Start ORPC WebSocket server
+	console.log("[Main] Starting ORPC WebSocket server...");
+	startOrpcServer(3002);
 
 	// Start internal MCP server
 	console.log("[Main] Starting internal MCP server...");
