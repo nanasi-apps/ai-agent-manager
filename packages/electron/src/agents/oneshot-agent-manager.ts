@@ -264,7 +264,7 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
                 session.isProcessing = false;
                 console.log(`[OneShotAgentManager ${sessionId}] Process exited with code ${code}`);
 
-                if (code !== 0) {
+                if (!session.pendingWorktreeResume) {
                     this.emitLog(sessionId, `\n[Process exited with code ${code}]\n`, 'system');
                 }
                 this.handlePendingWorktreeResume(sessionId);

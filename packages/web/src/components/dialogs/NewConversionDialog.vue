@@ -123,7 +123,7 @@ const handleKeydown = (e: KeyboardEvent) => {
 
 <template>
     <Dialog :open="isOpen" @update:open="(val) => !val && close()">
-        <DialogContent class="sm:max-w-md">
+        <DialogContent class="sm:max-w-md overflow-x-hidden">
             <DialogHeader>
                 <DialogTitle>Start New Conversation</DialogTitle>
                 <DialogDescription>
@@ -131,10 +131,10 @@ const handleKeydown = (e: KeyboardEvent) => {
                 </DialogDescription>
             </DialogHeader>
             
-            <div class="grid gap-4 py-2">
+            <div class="flex flex-col gap-4 py-2 max-h-[60vh] overflow-y-auto overflow-x-hidden pr-2 w-full">
                 <!-- Selectors Row -->
-                <div class="grid grid-col-1 sm:grid-cols-2 gap-4">
-                    <div class="space-y-2">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
+                    <div class="space-y-2 min-w-0">
                         <label class="text-xs font-medium text-muted-foreground">Project</label>
                         <div class="relative">
                             <select 
@@ -152,7 +152,7 @@ const handleKeydown = (e: KeyboardEvent) => {
                         </div>
                     </div>
 
-                    <div class="space-y-2">
+                    <div class="space-y-2 min-w-0">
                         <label class="text-xs font-medium text-muted-foreground">Model</label>
                         <div class="relative">
                              <select 
@@ -170,14 +170,14 @@ const handleKeydown = (e: KeyboardEvent) => {
                     </div>
                 </div>
 
-                <div class="space-y-2">
+                <div class="space-y-2 min-w-0">
                     <label class="text-xs font-medium text-muted-foreground">Initial Request</label>
                     <Textarea
                         v-model="input"
                         placeholder="Describe your task... (Cmd+Enter to send)"
                         @keydown="handleKeydown"
                         :disabled="isLoading"
-                        class="min-h-[100px]"
+                        class="min-h-[100px] max-h-[300px] overflow-y-auto w-full resize-none break-all"
                         autofocus
                     />
                 </div>

@@ -106,9 +106,11 @@ export class PtyAgentManager extends EventEmitter implements IAgentManager {
             });
 
             ptyProcess.onExit(({ exitCode }) => {
-                this.emitLog(sessionId, `\r\n[Process exited with code ${exitCode}]\r\n`, 'system');
-                
                 const session = this.sessions.get(sessionId);
+                if (!session?.pendingWorktreeResume) {
+                    this.emitLog(sessionId, `\r\n[Process exited with code ${exitCode}]\r\n`, 'system');
+                }
+                
                 if (session?.pendingWorktreeResume) {
                     const resume = session.pendingWorktreeResume;
                     session.pendingWorktreeResume = undefined;

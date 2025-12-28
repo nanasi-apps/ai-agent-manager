@@ -1,8 +1,10 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import * as path from "node:path";
 import { McpTool } from "@agent-manager/shared";
 import { splitCommand } from "../../agents/drivers/interface";
 import { InternalToolProvider } from "../types";
+import { getAgentManager } from "../../agents/agent-manager";
 
 const execFileAsync = promisify(execFile);
 
@@ -82,6 +84,9 @@ export class GitWorktreeProvider implements InternalToolProvider {
                     properties: {
                         repoPath: { type: "string", description: "Absolute path to the git repository root" },
                         branch: { type: "string", description: "Branch name to create or checkout" },
+                        sessionId: { type: "string", description: "Agent session ID to resume in the worktree" },
+                        resume: { type: "boolean", description: "Schedule a resume in the created worktree" },
+                        resumeMessage: { type: "string", description: "Optional message to send on resume" },
                     },
                     required: ["repoPath", "branch"],
                 },
@@ -153,7 +158,25 @@ export class GitWorktreeProvider implements InternalToolProvider {
                 if (!args.branch) {
                     throw new Error("branch is required.");
                 }
-                return await runGtr(args.repoPath, ["new", args.branch]);
+                const result = await runGtr(args.repoPath, ["new", args.branch]);
+
+                if (args.resume && args.sessionId) {
+                    const manager = getAgentManager();
+                    const targetCwd = path.join(args.repoPath, ".worktrees", args.branch);
+                    
+                    const scheduled = manager.requestWorktreeResume?.(args.sessionId, {
+                        cwd: targetCwd,
+                        branch: args.branch,
+                        repoPath: args.repoPath,
+                        resumeMessage: args.resumeMessage
+                    });
+
+                    if (scheduled) {
+                        return `${result}\n\n[Agent Manager] Scheduled resume in worktree ${args.branch}`;
+                    }
+                }
+                
+                return result;
             }
             case "worktree_list":
                 return await runGtr(args.repoPath, ["list", "--porcelain"]);
