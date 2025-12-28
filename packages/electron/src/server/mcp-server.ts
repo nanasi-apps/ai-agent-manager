@@ -4,6 +4,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPTransport } from "@hono/mcp";
 import { execFile } from "node:child_process";
 import * as fs from "fs/promises";
+import { existsSync } from "fs";
 import * as path from "path";
 import { promisify } from "node:util";
 import { z } from "zod";
@@ -11,13 +12,27 @@ import { splitCommand } from "../agents/drivers/interface";
 import { getAgentManager } from "../agents/agent-manager";
 import { worktreeManager } from "../main/worktree-manager";
 
+const execFileAsync = promisify(execFile);
+
+async function getCurrentBranch(repoPath: string): Promise<string> {
+    const { stdout } = await execFileAsync("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: repoPath });
+    return stdout.trim();
+}
+
+async function getConflictedFiles(repoPath: string): Promise<string[]> {
+    try {
+        const { stdout } = await execFileAsync("git", ["diff", "--name-only", "--diff-filter=U"], { cwd: repoPath });
+        return stdout.trim().split("\n").filter(s => s);
+    } catch (e) {
+        return [];
+    }
+}
+
 export async function startMcpServer(port: number = 3001) {
     const server = new McpServer({
         name: "agent-manager",
         version: "1.0.0"
     });
-
-    const execFileAsync = promisify(execFile);
 
     const runGtr = async (repoPath: string, args: string[]) => {
         try {
@@ -295,9 +310,51 @@ export async function startMcpServer(port: number = 3001) {
         async ({ repoPath, branch }) => {
             try {
                 // 1. Merge
-                await execFileAsync("git", ["merge", "--no-ff", branch], {
-                    cwd: repoPath,
-                });
+                try {
+                    await execFileAsync("git", ["merge", "--no-ff", branch], {
+                        cwd: repoPath,
+                    });
+                } catch (error: any) {
+                     const stdout = error?.stdout?.toString() || "";
+                     if (!stdout.includes("CONFLICT")) {
+                          throw error;
+                     }
+
+                     // 1. Abort
+                     await execFileAsync("git", ["merge", "--abort"], { cwd: repoPath });
+
+                     // 2. Identify worktree
+                     const worktreePath = path.join(repoPath, ".worktrees", branch);
+                     if (!existsSync(worktreePath)) {
+                         throw new Error(`Merge conflict detected and worktree ${worktreePath} not found to resolve it.`);
+                     }
+
+                     const targetBranch = await getCurrentBranch(repoPath);
+
+                     // 3. Reverse Merge
+                     try {
+                         await execFileAsync("git", ["merge", targetBranch], { cwd: worktreePath });
+                         
+                         // 4. Retry original merge
+                         await execFileAsync("git", ["merge", "--no-ff", branch], {
+                             cwd: repoPath,
+                         });
+                     } catch (reverseError: any) {
+                         const reverseStdout = reverseError?.stdout?.toString() || "";
+                         if (reverseStdout.includes("CONFLICT")) {
+                             const conflicts = await getConflictedFiles(worktreePath);
+                             return {
+                                content: [{ type: "text", text: 
+                                    `Merge conflict detected. I have attempted to merge '${targetBranch}' into your worktree to resolve this, but conflicts were found.\n\n` +
+                                    `Conflicted files in worktree:\n${conflicts.map(c => `- ${c}`).join("\n")}\n\n` +
+                                    `Action Required: Please resolve these conflicts inside your worktree, commit the changes, and then run 'worktree_complete' again.`
+                                }],
+                                isError: true
+                             }
+                         }
+                         throw reverseError;
+                     }
+                }
 
                 // 2. Remove
                 const result = await runGtr(repoPath, ["rm", branch]);

@@ -255,6 +255,23 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
                             session.geminiSessionId = undefined;
                         }
                     }
+
+                    // Detect Gemini API connection errors - clear session ID to allow fresh start
+                    if (str.includes('Error when talking to Gemini API')) {
+                        // Check for quota/rate limit errors first (don't clear session for these)
+                        const quotaMatch = str.match(/Your quota will reset after (\d+h\d+m\d+s|\d+m\d+s|\d+s)/);
+                        if (str.includes('exhausted your capacity') || quotaMatch) {
+                            const resetTime = quotaMatch ? quotaMatch[1] : 'some time';
+                            this.emitLog(sessionId, `\n[Gemini Quota Error] API quota exhausted. Quota will reset after ${resetTime}. Try using a different model or wait for reset.\n`, 'error');
+                        } else {
+                            // Generic API error - clear session ID for fresh start
+                            if (session.geminiSessionId) {
+                                console.warn(`[OneShotAgentManager ${sessionId}] Gemini API error during session ${session.geminiSessionId}, clearing session ID for retry.`);
+                                session.geminiSessionId = undefined;
+                            }
+                            this.emitLog(sessionId, '\n[Gemini API Error] Connection to Gemini API failed. Please check your network connection and authentication.\n', 'error');
+                        }
+                    }
                     // Optional: this.emitLog(sessionId, str, 'system');
                 });
             }

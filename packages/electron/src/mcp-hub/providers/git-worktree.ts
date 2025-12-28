@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import * as path from "node:path";
+import { existsSync } from "node:fs";
 import { McpTool } from "@agent-manager/shared";
 import { splitCommand } from "../../agents/drivers/interface";
 import { InternalToolProvider } from "../types";
@@ -31,6 +32,20 @@ function extractErrorMessage(error: unknown) {
         return error.message;
     }
     return String(error);
+}
+
+async function getCurrentBranch(repoPath: string): Promise<string> {
+    const { stdout } = await execFileAsync("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: repoPath });
+    return stdout.trim();
+}
+
+async function getConflictedFiles(repoPath: string): Promise<string[]> {
+    try {
+        const { stdout } = await execFileAsync("git", ["diff", "--name-only", "--diff-filter=U"], { cwd: repoPath });
+        return stdout.trim().split("\n").filter(s => s);
+    } catch (e) {
+        return [];
+    }
 }
 
 async function runGtr(repoPath: string, args: string[]) {
@@ -208,9 +223,66 @@ export class GitWorktreeProvider implements InternalToolProvider {
                         cwd: args.repoPath,
                     });
                 } catch (error: any) {
-                    const stdout = error?.stdout?.toString();
-                    const stderr = error?.stderr?.toString();
-                    throw new Error(`Merge failed: ${formatOutput(stdout, stderr)}`);
+                    // Merge failed, likely due to conflict.
+                    // Strategy:
+                    // 1. Abort the merge in repoPath (main) to keep it clean.
+                    // 2. Try to merge repoPath's current branch INTO the worktree.
+                    // 3. If that conflicts, tell the agent to fix it there.
+                    // 4. If that succeeds, try merging into repoPath again (should be FF or clean).
+
+                    try {
+                        const stdout = error?.stdout?.toString() || "";
+                        if (!stdout.includes("CONFLICT")) {
+                             throw error; // Rethrow if it's not a conflict
+                        }
+
+                        // 1. Abort
+                        await execFileAsync("git", ["merge", "--abort"], { cwd: args.repoPath });
+
+                        // 2. Identify worktree
+                        const worktreePath = path.join(args.repoPath, ".worktrees", args.branch);
+                        if (!existsSync(worktreePath)) {
+                            // If worktree doesn't exist, we can't do the reverse merge strategy.
+                            throw new Error(`Merge conflict detected and worktree ${worktreePath} not found to resolve it.`);
+                        }
+
+                        const targetBranch = await getCurrentBranch(args.repoPath);
+
+                        // 3. Reverse Merge
+                        try {
+                            await execFileAsync("git", ["merge", targetBranch], { cwd: worktreePath });
+                            
+                            // 4. Retry original merge
+                            // Now that worktree has merged main, merging worktree into main should be clean.
+                            await execFileAsync("git", ["merge", "--no-ff", args.branch], {
+                                cwd: args.repoPath,
+                            });
+                        } catch (reverseError: any) {
+                            // If reverse merge failed, it's likely a conflict in the worktree.
+                            const reverseStdout = reverseError?.stdout?.toString() || "";
+                            if (reverseStdout.includes("CONFLICT")) {
+                                const conflicts = await getConflictedFiles(worktreePath);
+                                throw new Error(
+                                    `Merge conflict detected. I have attempted to merge '${targetBranch}' into your worktree to resolve this, but conflicts were found.\n\n` +
+                                    `Conflicted files in worktree:\n${conflicts.map(c => `- ${c}`).join("\n")}\n\n` +
+                                    `Action Required: Please resolve these conflicts inside your worktree, commit the changes, and then run 'worktree_complete' again.`
+                                );
+                            }
+                            throw reverseError;
+                        }
+
+                    } catch (innerError: any) {
+                         // Fallback to original error if our strategy failed unexpectedly or we rethrew
+                         const stdout = innerError?.stdout?.toString() || error?.stdout?.toString();
+                         const stderr = innerError?.stderr?.toString() || error?.stderr?.toString();
+                         const message = innerError.message || `Merge failed: ${formatOutput(stdout, stderr)}`;
+                         
+                         // Ensure we don't wrap the detailed error we just threw
+                         if (innerError.message && innerError.message.includes("Action Required")) {
+                             throw innerError;
+                         }
+                         throw new Error(message);
+                    }
                 }
                 // 2. Remove
                 return await runGtr(args.repoPath, ["rm", args.branch]);
