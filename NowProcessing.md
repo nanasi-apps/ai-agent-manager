@@ -47,7 +47,7 @@
 |------|----------|
 | **作成タイミング** | エージェント起動時 |
 | **最大数** | 5個/リポジトリ |
-| **自動クリーンアップ** | 検討対象（要実装） |
+| **自動クリーンアップ** | 実装済み (worktree_complete) |
 | **コミット粒度** | 1ファイルごと |
 | **コミットメッセージ** | 自動生成 |
 | **squash** | しない |
@@ -369,6 +369,7 @@ packages/electron/src/
    - `worktree_create` - `git gtr new <branch>`
    - `worktree_list` - `git gtr list --porcelain`
    - `worktree_remove` - `git gtr rm <branch>`
+   - `worktree_complete` - `git merge <branch> && git gtr rm <branch>`
    - `worktree_run` - `git gtr run <branch> <cmd>`
 3. ✅ `McpHub` への `GitWorktreeProvider` 登録
 
