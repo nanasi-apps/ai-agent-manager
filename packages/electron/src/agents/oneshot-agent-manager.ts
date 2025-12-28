@@ -3,7 +3,6 @@ import { EventEmitter } from 'node:events';
 import * as fs from 'fs/promises';
 import { statSync } from 'node:fs';
 import * as path from 'path';
-import { homedir } from 'os';
 import type { AgentConfig, AgentLogPayload } from '@agent-manager/shared';
 import { AgentOutputParser } from './output-parser';
 import type { IAgentManager, WorktreeResumeRequest } from './agent-manager';
@@ -15,6 +14,7 @@ import {
     ClaudeDriver,
     CodexDriver
 } from './drivers';
+import { prepareGeminiEnv, prepareClaudeEnv } from './env-utils';
 
 interface PendingWorktreeResume {
     request: WorktreeResumeRequest;
@@ -39,6 +39,7 @@ interface SessionInfo extends AgentDriverContext {
     pendingWorktreeResume?: PendingWorktreeResume;
     activeWorktree?: ActiveWorktreeContext;
     geminiHome?: string;
+    claudeHome?: string;
 }
 
 /**
@@ -112,6 +113,7 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
             session.codexThreadId = undefined;
             session.lastUserMessage = undefined;
             session.geminiHome = undefined;
+            session.claudeHome = undefined;
         }
     }
 
@@ -152,15 +154,16 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
         try {
             const driver = this.getDriver(session.config);
             // Determine if the agent type supports dynamic MCP injection
-            const isGemini = session.config.type === 'gemini' || session.config.command === 'gemini';
+            const isGemini = session.config.type === 'gemini' || session.config.command === 'gemini' || session.config.command.startsWith('gemini ');
             const isCodex = session.config.type === 'codex' || session.config.command.startsWith('codex');
+            const isClaude = session.config.type === 'claude' || session.config.command === 'claude' || session.config.command.startsWith('claude ');
 
             const context: AgentDriverContext = {
                 sessionId,
                 geminiSessionId: session.geminiSessionId,
                 codexThreadId: session.codexThreadId,
                 messageCount: session.messageCount,
-                mcpServerUrl: (isCodex) ? mcpServerUrl : undefined,
+                mcpServerUrl: (isCodex || isGemini || isClaude) ? mcpServerUrl : undefined,
             };
 
             const cmd = driver.getCommand(context, messageToSend, session.config, systemPrompt);
@@ -171,13 +174,21 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
             let spawnEnv = { ...process.env, ...session.config.env };
 
             // If Gemini, prepare a temporary environment with injected config
-            // This avoids writing to the user's real ~/.gemini or the project's .gemini
             if (isGemini) {
-                const geminiEnv = await this.prepareGeminiEnv(mcpServerUrl, session.geminiHome);
+                const geminiEnv = await prepareGeminiEnv(mcpServerUrl, session.geminiHome);
                 if (geminiEnv.HOME) {
                     session.geminiHome = geminiEnv.HOME;
                 }
                 spawnEnv = { ...spawnEnv, ...geminiEnv };
+            }
+
+            // If Claude, prepare a temporary config directory with injected MCP
+            if (isClaude) {
+                const claudeEnv = await prepareClaudeEnv(mcpServerUrl, session.claudeHome);
+                if (claudeEnv.CLAUDE_CONFIG_DIR) {
+                    session.claudeHome = claudeEnv.CLAUDE_CONFIG_DIR;
+                }
+                spawnEnv = { ...spawnEnv, ...claudeEnv };
             }
 
             // Safety check for CWD
@@ -305,79 +316,6 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
             'system'
         );
         return true;
-    }
-
-    /**
-     * Prepares a temporary environment for Gemini to run in.
-     * This creates a temporary HOME directory, copies the user's existing settings (auth),
-     * and injects the MCP server configuration.
-     * This ensures we don't pollute the user's real home or the project directory.
-     */
-    private async prepareGeminiEnv(mcpServerUrl: string, existingHome?: string): Promise<NodeJS.ProcessEnv> {
-        try {
-            const { tmpdir } = await import('os');
-            if (existingHome) {
-                await this.ensureGeminiSettings(existingHome, mcpServerUrl, false);
-                return { HOME: existingHome };
-            }
-
-            const uniqueId = Math.random().toString(36).substring(7);
-            const tempHome = path.join(tmpdir(), `agent-manager-gemini-${uniqueId}`);
-            await this.ensureGeminiSettings(tempHome, mcpServerUrl, true);
-
-            return { HOME: tempHome };
-        } catch (error) {
-            console.error('[OneShotAgentManager] Failed to prepare Gemini temp env:', error);
-            return {};
-        }
-    }
-
-    private async ensureGeminiSettings(
-        homeDir: string,
-        mcpServerUrl: string,
-        copyAuth: boolean
-    ): Promise<void> {
-        const settingsDir = path.join(homeDir, '.gemini');
-        const settingsFile = path.join(settingsDir, 'settings.json');
-
-        await fs.mkdir(settingsDir, { recursive: true });
-
-        if (copyAuth) {
-            const userHome = homedir();
-            const userGeminiDir = path.join(userHome, '.gemini');
-
-            const filesToCopy = [
-                'oauth_creds.json',
-                'google_accounts.json',
-                'installation_id',
-                'state.json',
-                'settings.json'
-            ];
-
-            for (const file of filesToCopy) {
-                try {
-                    await fs.copyFile(
-                        path.join(userGeminiDir, file),
-                        path.join(settingsDir, file)
-                    );
-                } catch (e) {
-                    // File might not exist, ignore
-                }
-            }
-        }
-
-        let settings: any = { mcpServers: {} };
-        try {
-            const content = await fs.readFile(settingsFile, 'utf-8');
-            settings = JSON.parse(content);
-        } catch (e) {
-            // If it wasn't there or invalid, we start with empty settings
-        }
-
-        if (!settings.mcpServers) settings.mcpServers = {};
-        settings.mcpServers['agents-manager-mcp'] = { url: mcpServerUrl };
-
-        await fs.writeFile(settingsFile, JSON.stringify(settings, null, 2));
     }
 
     private buildWorktreeInstructions(session: SessionInfo): string {

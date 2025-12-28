@@ -163,10 +163,13 @@ export async function startMcpServer(port: number = 3001) {
             let createError: string | null = null;
 
             try {
+                console.log(`[McpServer] Creating worktree for branch ${normalizedBranch} in ${repoPath}`);
                 createOutput = await runGtr(repoPath, ["new", normalizedBranch]);
+                console.log(`[McpServer] Create output: ${createOutput}`);
             } catch (error: any) {
                 createError = error?.message || String(error);
                 createOutput = `Error creating worktree: ${createError}`;
+                console.error(`[McpServer] Create error: ${createError}`);
             }
 
             const resumeRequested = resume ?? Boolean(sessionId);
@@ -176,21 +179,28 @@ export async function startMcpServer(port: number = 3001) {
 
             if (resumeRequested) {
                 try {
+                    console.log(`[McpServer] Locating worktree for branch ${normalizedBranch}`);
                     const worktrees = await worktreeManager.getWorktrees(repoPath);
+                    console.log(`[McpServer] Available worktrees: ${worktrees.map(wt => `${wt.branch}:${wt.path}`).join(', ')}`);
                     // Filter out prunable worktrees (directories that might have been deleted)
                     worktreePath = worktrees.find((wt) => wt.branch === normalizedBranch && !wt.prunable)?.path;
                     
                     if (worktreePath) {
                         try {
                             await fs.access(worktreePath);
+                            console.log(`[McpServer] Found and verified worktree path: ${worktreePath}`);
                         } catch {
                             // If we can't access it, assume it's invalid
                             resumeError = resumeError || `Worktree path ${worktreePath} is not accessible.`;
+                            console.warn(`[McpServer] Worktree path ${worktreePath} is not accessible.`);
                             worktreePath = undefined;
                         }
+                    } else {
+                        console.warn(`[McpServer] Worktree for branch ${normalizedBranch} not found in list.`);
                     }
                 } catch (error: any) {
                     resumeError = error?.message || String(error);
+                    console.error(`[McpServer] Error locating worktree: ${resumeError}`);
                 }
 
                 if (!sessionId) {
@@ -200,6 +210,7 @@ export async function startMcpServer(port: number = 3001) {
                 } else {
                     try {
                         const manager = getAgentManager();
+                        console.log(`[McpServer] Requesting worktree resume for session ${sessionId} in ${worktreePath}`);
                         if (typeof manager.requestWorktreeResume !== "function") {
                             resumeError = "Active agent manager does not support worktree resume.";
                         } else {
@@ -215,6 +226,7 @@ export async function startMcpServer(port: number = 3001) {
                         }
                     } catch (error: any) {
                         resumeError = error?.message || String(error);
+                        console.error(`[McpServer] Error scheduling resume: ${resumeError}`);
                     }
                 }
             }

@@ -2,9 +2,9 @@ import * as pty from 'node-pty';
 import { EventEmitter } from 'node:events';
 import type { AgentConfig, AgentLogPayload } from '@agent-manager/shared';
 import { AgentOutputParser } from './output-parser';
-import type { IAgentManager } from './agent-manager';
-import { mcpHub } from '../mcp-hub';
-import { getMcpToolInstructions, executeMcpTool } from './mcp-utils';
+import type { IAgentManager, WorktreeResumeRequest } from './agent-manager';
+import { executeMcpTool, getMcpToolInstructions } from './mcp-utils';
+import { prepareGeminiEnv, prepareClaudeEnv } from './env-utils';
 
 interface SessionInfo {
     pty: pty.IPty;
@@ -13,6 +13,9 @@ interface SessionInfo {
     ready: boolean;
     messageQueue: string[];
     messageCount: number;
+    pendingWorktreeResume?: WorktreeResumeRequest;
+    geminiHome?: string;
+    claudeHome?: string;
 }
 
 /**
@@ -23,7 +26,7 @@ export class PtyAgentManager extends EventEmitter implements IAgentManager {
     private sessions: Map<string, SessionInfo> = new Map();
     private parser = new AgentOutputParser();
 
-    startSession(sessionId: string, command: string, config?: Partial<AgentConfig>) {
+    async startSession(sessionId: string, command: string, config?: Partial<AgentConfig> & { geminiHome?: string, claudeHome?: string }) {
         if (this.sessions.has(sessionId)) {
             console.warn(`[PtyAgentManager] Session ${sessionId} is already running.`);
             return;
@@ -41,16 +44,41 @@ export class PtyAgentManager extends EventEmitter implements IAgentManager {
             rulesContent: config?.rulesContent,
         };
 
+        const mcpServerUrl = "http://localhost:3001/mcp/sse";
+
         try {
             const shell = process.platform === 'win32' ? 'powershell.exe' : process.env.SHELL || '/bin/zsh';
 
-            const env: Record<string, string> = {
+            let env: Record<string, string> = {
                 ...process.env as Record<string, string>,
                 ...agentConfig.env,
                 TERM: 'xterm-256color',
                 COLORTERM: 'truecolor',
                 FORCE_COLOR: '3',
             };
+
+            // Detect agent type for MCP injection
+            const isGemini = agentConfig.type === 'gemini' || agentConfig.command === 'gemini' || agentConfig.command.startsWith('gemini ');
+            const isClaude = agentConfig.type === 'claude' || agentConfig.command === 'claude' || agentConfig.command.startsWith('claude ');
+
+            let geminiHome = config?.geminiHome;
+            let claudeHome = config?.claudeHome;
+
+            if (isGemini) {
+                const geminiEnv = await prepareGeminiEnv(mcpServerUrl, geminiHome);
+                if (geminiEnv.HOME) {
+                    geminiHome = geminiEnv.HOME;
+                    env = { ...env, ...geminiEnv as Record<string, string> };
+                }
+            }
+
+            if (isClaude) {
+                const claudeEnv = await prepareClaudeEnv(mcpServerUrl, claudeHome);
+                if (claudeEnv.CLAUDE_CONFIG_DIR) {
+                    claudeHome = claudeEnv.CLAUDE_CONFIG_DIR;
+                    env = { ...env, ...claudeEnv as Record<string, string> };
+                }
+            }
 
             const ptyProcess = pty.spawn(shell, [], {
                 name: 'xterm-256color',
@@ -67,6 +95,8 @@ export class PtyAgentManager extends EventEmitter implements IAgentManager {
                 ready: false,
                 messageQueue: [],
                 messageCount: 0,
+                geminiHome,
+                claudeHome,
             };
 
             this.sessions.set(sessionId, sessionInfo);
@@ -77,7 +107,36 @@ export class PtyAgentManager extends EventEmitter implements IAgentManager {
 
             ptyProcess.onExit(({ exitCode }) => {
                 this.emitLog(sessionId, `\r\n[Process exited with code ${exitCode}]\r\n`, 'system');
-                this.sessions.delete(sessionId);
+                
+                const session = this.sessions.get(sessionId);
+                if (session?.pendingWorktreeResume) {
+                    const resume = session.pendingWorktreeResume;
+                    session.pendingWorktreeResume = undefined;
+                    
+                    console.log(`[PtyAgentManager] Resuming session ${sessionId} in worktree: ${resume.cwd}`);
+                    this.emitLog(sessionId, `\n[System] Switching to worktree ${resume.branch} at ${resume.cwd}\n`, 'system');
+                    
+                    // Restart session in new CWD, preserving home directories for context
+                    const oldConfig = session.config;
+                    const oldGeminiHome = session.geminiHome;
+                    const oldClaudeHome = session.claudeHome;
+                    
+                    this.sessions.delete(sessionId);
+                    this.startSession(sessionId, oldConfig.command, {
+                        ...oldConfig,
+                        cwd: resume.cwd,
+                        geminiHome: oldGeminiHome,
+                        claudeHome: oldClaudeHome,
+                    }).catch(err => {
+                        console.error(`[PtyAgentManager] Failed to restart after worktree resume:`, err);
+                    });
+                    
+                    if (resume.resumeMessage) {
+                        this.sendToSession(sessionId, resume.resumeMessage);
+                    }
+                } else {
+                    this.sessions.delete(sessionId);
+                }
             });
 
             setTimeout(() => {
@@ -112,11 +171,11 @@ export class PtyAgentManager extends EventEmitter implements IAgentManager {
         }
     }
 
-    resetSession(sessionId: string, command: string, config?: Partial<AgentConfig>) {
+    async resetSession(sessionId: string, command: string, config?: Partial<AgentConfig>) {
         if (this.sessions.has(sessionId)) {
             this.stopSession(sessionId);
         }
-        this.startSession(sessionId, command, config);
+        await this.startSession(sessionId, command, config);
     }
 
     private handleOutput(sessionId: string, data: string) {
@@ -266,6 +325,21 @@ export class PtyAgentManager extends EventEmitter implements IAgentManager {
         if (session) {
             session.pty.resize(cols, rows);
         }
+    }
+
+    requestWorktreeResume(sessionId: string, request: WorktreeResumeRequest): boolean {
+        const session = this.sessions.get(sessionId);
+        if (!session) {
+            console.warn(`[PtyAgentManager] Worktree resume requested for missing session ${sessionId}`);
+            return false;
+        }
+
+        console.log(`[PtyAgentManager] Scheduling worktree resume for session ${sessionId}`);
+        session.pendingWorktreeResume = request;
+        
+        // Kill the current PTY, the onExit handler will restart it in the new CWD
+        session.pty.kill();
+        return true;
     }
 }
 

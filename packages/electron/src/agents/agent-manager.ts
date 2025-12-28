@@ -5,8 +5,8 @@ import type { AgentConfig, AgentLogPayload } from '@agent-manager/shared';
  * Allows swapping between different implementations (PTY, OneShot, etc.)
  */
 export interface IAgentManager {
-    startSession(sessionId: string, command: string, config?: Partial<AgentConfig>): void;
-    resetSession(sessionId: string, command: string, config?: Partial<AgentConfig>): void;
+    startSession(sessionId: string, command: string, config?: Partial<AgentConfig>): void | Promise<void>;
+    resetSession(sessionId: string, command: string, config?: Partial<AgentConfig>): void | Promise<void>;
     stopSession(sessionId: string): boolean;
     sendToSession(sessionId: string, message: string): Promise<void>;
     isRunning(sessionId: string): boolean;
