@@ -250,7 +250,6 @@ const appendAgentLog = (payload: AgentLogPayload) => {
 
   // Determine effective type and role for the INCOMING chunk
   const incomingType = payload.type || 'text'
-  if (incomingType === 'thinking') return
   const incomingRole = incomingType === 'system' ? 'system' : 'agent'
   
   const lastMsg = messages.value[messages.value.length - 1]
@@ -327,6 +326,8 @@ const sendMessage = async () => {
   
   scrollToBottom()
 
+  isGenerating.value = true
+
   try {
     await orpc.sendMessage({
       sessionId: sessionId.value,
@@ -335,6 +336,7 @@ const sendMessage = async () => {
     // Agent logs will come via event listener
   } catch (err) {
     console.error('Failed to send message', err)
+    isGenerating.value = false
     messages.value.push({
       id: crypto.randomUUID(),
       role: 'system',
@@ -438,6 +440,10 @@ watch(() => (route.params as { id: string }).id, (newId, oldId) => {
 async function loadConversation(id: string) {
   try {
     await loadConversationMeta(id)
+    // Check if agent is currently running
+    const running = await orpc.isAgentRunning({ sessionId: id })
+    isGenerating.value = running
+
     // Load saved messages from store
     const savedMessages = await orpc.getMessages({ sessionId: id })
     if (savedMessages && savedMessages.length > 0) {
@@ -456,7 +462,12 @@ async function loadConversation(id: string) {
   }
 }
 
-const stopGeneration = () => {
+const stopGeneration = async () => {
+  try {
+    await orpc.stopSession({ sessionId: sessionId.value })
+  } catch (err) {
+    console.error('Failed to stop session:', err)
+  }
   isGenerating.value = false
   isLoading.value = false
 }
@@ -473,6 +484,14 @@ onMounted(async () => {
       // Filter by sessionId
       if (payload.sessionId === sessionId.value) {
         appendAgentLog(payload)
+        
+        // Check for completion signals
+        if (payload.type === 'system') {
+          if (payload.data.includes('[Process exited') || payload.data.includes('[Generation stopped')) {
+            isGenerating.value = false
+            isLoading.value = false
+          }
+        }
       }
     }
     
