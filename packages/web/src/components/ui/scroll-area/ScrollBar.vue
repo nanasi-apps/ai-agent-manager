@@ -5,11 +5,15 @@ import { reactiveOmit } from "@vueuse/core"
 import { ScrollAreaScrollbar, ScrollAreaThumb } from "reka-ui"
 import { cn } from "@/lib/utils"
 
-const props = withDefaults(defineProps<ScrollAreaScrollbarProps & { class?: HTMLAttributes["class"] }>(), {
+const props = withDefaults(defineProps<ScrollAreaScrollbarProps & {
+  class?: HTMLAttributes["class"]
+  variant?: 'default' | 'thin'
+}>(), {
   orientation: "vertical",
+  variant: "default",
 })
 
-const delegatedProps = reactiveOmit(props, "class")
+const delegatedProps = reactiveOmit(props, "class", "variant")
 </script>
 
 <template>
@@ -19,9 +23,9 @@ const delegatedProps = reactiveOmit(props, "class")
     :class="
       cn('flex touch-none p-px transition-colors select-none',
          orientation === 'vertical'
-           && 'h-full w-2.5 border-l border-l-transparent',
+           && (variant === 'thin' ? 'h-full w-1' : 'h-full w-2.5'),
          orientation === 'horizontal'
-           && 'h-2.5 flex-col border-t border-t-transparent',
+           && (variant === 'thin' ? 'h-1 flex-col' : 'h-2.5 flex-col'),
          props.class)"
   >
     <ScrollAreaThumb

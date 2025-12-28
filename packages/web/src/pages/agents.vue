@@ -139,9 +139,9 @@ onUnmounted(() => {
   <div class="p-6 space-y-6">
     <div class="flex items-center justify-between">
       <div>
-        <h1 class="text-2xl font-bold">Orchestration</h1>
+        <h1 class="text-2xl font-bold">Agent Manager Viewer</h1>
         <p class="text-sm text-muted-foreground">
-          Dispatch tasks, broadcast context, and monitor active agents.
+          Monitor and control active agents.
         </p>
       </div>
       <Button variant="outline" :disabled="isLoading" @click="loadDashboard">

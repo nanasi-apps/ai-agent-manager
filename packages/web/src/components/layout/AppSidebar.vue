@@ -112,7 +112,7 @@ watch(() => route.path, (path) => {
     const id = path.split('/')[2] || ''
     activeItem.value = id
   } else if (path === '/agents') {
-    activeItem.value = 'Agents'
+    activeItem.value = 'Agents Manager'
   } else if (path === '/rules') {
     activeItem.value = 'Rules'
   } else if (path === '/settings') {
@@ -123,7 +123,7 @@ watch(() => route.path, (path) => {
 // Bottom navigation items.
 const bottomItems = [
   {
-    title: "Agents",
+    title: "Agents Manager",
     url: "/agents",
     icon: Bot,
   },

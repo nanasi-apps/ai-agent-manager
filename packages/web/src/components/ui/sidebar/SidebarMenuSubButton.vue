@@ -4,14 +4,11 @@ import type { HTMLAttributes } from "vue"
 import { Primitive } from "reka-ui"
 import { cn } from "@/lib/utils"
 
-const props = withDefaults(defineProps<PrimitiveProps & {
+const { as = "a", size = "md", asChild, isActive } = defineProps<PrimitiveProps & {
   size?: "sm" | "md"
   isActive?: boolean
   class?: HTMLAttributes["class"]
-}>(), {
-  as: "a",
-  size: "md",
-})
+}>()
 </script>
 
 <template>
@@ -28,7 +25,7 @@ const props = withDefaults(defineProps<PrimitiveProps & {
       size === 'sm' && 'text-xs',
       size === 'md' && 'text-sm',
       'group-data-[collapsible=icon]:hidden',
-      props.class,
+      $props.class,
     )"
   >
     <slot />

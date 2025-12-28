@@ -1,6 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import * as fs from 'fs/promises';
+import { statSync } from 'node:fs';
 import * as path from 'path';
 import { homedir } from 'os';
 import type { AgentConfig, AgentLogPayload } from '@agent-manager/shared';
@@ -131,6 +132,8 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
         session.isProcessing = true;
         session.lastUserMessage = message;
 
+        await this.validateActiveWorktree(sessionId, session);
+
         let systemPrompt = '';
         if (session.messageCount === 0) {
             const baseRules = session.config.rulesContent ?? '';
@@ -192,15 +195,17 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
                             session.activeWorktree = undefined;
                         }
                     } else {
-                         this.emitLog(sessionId, `[Error] CWD ${session.config.cwd} does not exist and no valid fallback.\n`, 'error');
-                         session.isProcessing = false;
-                         return;
+                        this.emitLog(sessionId, `[Error] CWD ${session.config.cwd} does not exist and no valid fallback.\n`, 'error');
+                        session.isProcessing = false;
+                        return;
                     }
                 }
             }
 
+            const resolvedCwd = await this.resolveSessionCwd(sessionId, session);
+
             const child = spawn(cmd.command, cmd.args, {
-                cwd: session.config.cwd,
+                cwd: resolvedCwd,
                 env: spawnEnv,
                 shell: true
             });
@@ -231,6 +236,14 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
                     // Log stderr but maybe not emit to user interface unless error?
                     // Some tools talk on stderr.
                     console.log(`[OneShotAgentManager ${sessionId}] stderr:`, str);
+
+                    // Detect Gemini's "Invalid session identifier" error and clear the stale session ID
+                    if (str.includes('Invalid session identifier') || str.includes('No previous sessions found')) {
+                        if (session.geminiSessionId) {
+                            console.warn(`[OneShotAgentManager ${sessionId}] Gemini session ${session.geminiSessionId} is invalid, clearing it.`);
+                            session.geminiSessionId = undefined;
+                        }
+                    }
                     // Optional: this.emitLog(sessionId, str, 'system');
                 });
             }
@@ -264,6 +277,20 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
         const session = this.sessions.get(sessionId);
         if (!session) {
             console.warn(`[OneShotAgentManager] Worktree resume requested for missing session ${sessionId}`);
+            return false;
+        }
+
+        try {
+            if (!statSync(request.cwd).isDirectory()) {
+                throw new Error('Worktree path is not a directory.');
+            }
+        } catch (error: any) {
+            const message = error?.message || String(error);
+            this.emitLog(
+                sessionId,
+                `\n[System] Worktree resume blocked: ${message}\n`,
+                'system'
+            );
             return false;
         }
 
@@ -436,6 +463,65 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
         );
 
         void this.sendToSession(sessionId, pending.resumeMessage);
+    }
+
+    private async resolveSessionCwd(sessionId: string, session: SessionInfo): Promise<string | undefined> {
+        const requestedCwd = session.config.cwd;
+        if (requestedCwd && await this.pathExists(requestedCwd)) {
+            return requestedCwd;
+        }
+
+        const fallbackCwd = session.projectRoot;
+        if (fallbackCwd && await this.pathExists(fallbackCwd)) {
+            if (requestedCwd) {
+                session.config.cwd = fallbackCwd;
+                if (session.activeWorktree) {
+                    session.activeWorktree = undefined;
+                }
+                this.emitLog(
+                    sessionId,
+                    `\n[System] Worktree path not found. Falling back to ${fallbackCwd}\n`,
+                    'system'
+                );
+            }
+            return fallbackCwd;
+        }
+
+        if (requestedCwd) {
+            this.emitLog(
+                sessionId,
+                `\n[System] Working directory not found: ${requestedCwd}. Using default cwd.\n`,
+                'system'
+            );
+        }
+
+        return undefined;
+    }
+
+    private async validateActiveWorktree(sessionId: string, session: SessionInfo): Promise<void> {
+        if (!session.activeWorktree) return;
+        const cwd = session.config.cwd;
+        if (cwd && await this.pathExists(cwd)) return;
+
+        session.activeWorktree = undefined;
+        const fallback = session.projectRoot;
+        if (fallback) {
+            session.config.cwd = fallback;
+        }
+        this.emitLog(
+            sessionId,
+            `\n[System] Worktree path missing. Worktree context cleared.\n`,
+            'system'
+        );
+    }
+
+    private async pathExists(targetPath: string): Promise<boolean> {
+        try {
+            const stats = await fs.stat(targetPath);
+            return stats.isDirectory();
+        } catch {
+            return false;
+        }
     }
 
     private getDriver(config: AgentConfig): AgentDriver {
