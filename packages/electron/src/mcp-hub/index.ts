@@ -9,6 +9,7 @@ import type {
     McpResourceUpdate
 } from "@agent-manager/shared";
 import { FileSystemProvider } from "./filesystem";
+import { AgentOrchestrationProvider } from "./providers/agent-orchestrator";
 import { CommitSyncProvider } from "./providers/commit-sync";
 import { GitWorktreeProvider } from "./providers/git-worktree";
 import { WorktreeResourceProvider } from "./resources/worktree-resource";
@@ -100,6 +101,7 @@ export class McpHub extends EventEmitter {
         this.registerInternalProvider('agents-manager-mcp', new GitWorktreeProvider());
         this.registerInternalProvider('agents-manager-mcp', new WorktreeResourceProvider());
         this.registerInternalProvider('agents-manager-mcp', new CommitSyncProvider());
+        this.registerInternalProvider('agents-manager-mcp', new AgentOrchestrationProvider());
     }
 
     private registerInternalProvider(name: string, provider: InternalToolProvider) {

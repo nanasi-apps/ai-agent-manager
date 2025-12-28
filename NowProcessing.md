@@ -364,7 +364,7 @@ packages/electron/src/
 ### Phase 3: MCPホスト & Git Worktree 管理 🔄 進行中
 
 #### Phase 3.1: GitWorktreeProvider (`git-worktree-runner` wrapper)
-1. ⬜ `git-worktree-runner` のインストール・セットアップ（`scripts/setup-gtr.sh` 追加）
+1. ✅ `git-worktree-runner` のインストール・セットアップ（`scripts/setup-gtr.sh` 追加）
 2. ✅ `GitWorktreeProvider` 実装（`gtr` コマンドのMCPツール化）
    - `worktree_create` - `git gtr new <branch>`
    - `worktree_list` - `git gtr list --porcelain`
@@ -373,16 +373,16 @@ packages/electron/src/
 3. ✅ `McpHub` への `GitWorktreeProvider` 登録
 
 #### Phase 3.2: Worktree Resources 実装
-1. ⬜ MCP Resources スキーム定義
+1. ✅ MCP Resources スキーム定義
    - `mcp://worktree/{branch}` - Worktree metadata
    - `mcp://worktree/{branch}/diff` - Current diff
    - `mcp://worktree/{branch}/status` - Git status
-2. ⬜ リアルタイム購読（Subscribe）機能
+2. ✅ リアルタイム購読（Subscribe）機能
 
 #### Phase 3.3: CommitSyncProvider 実装
-1. ⬜ `commit_and_sync` ツール（構文チェック → コミット → 競合チェック）
-2. ⬜ `auto_rebase` ツール
-3. ⬜ `check_conflicts` ツール（Dependency Cruiser連携）
+1. ✅ `commit_and_sync` ツール（構文チェック → コミット → 競合チェック）
+2. ✅ `auto_rebase` ツール
+3. ✅ `check_conflicts` ツール（Dependency Cruiser連携）
 
 #### Phase 3.4: AgentOrchestrationProvider 実装 (一旦不要)
 1. ⬜ `dispatch_task` ツール（タスク振り分け）
@@ -390,8 +390,8 @@ packages/electron/src/
 3. ⬜ `broadcast_context` ツール（コンテキスト共有）
 
 #### Phase 3.5: フロントエンド統合
-1. ⬜ Worktree管理画面（Vue）
-2. ⬜ マイクロコミット・ログ表示
+1. ✅ Worktree管理画面（Vue）
+2. ✅ マイクロコミット・ログ表示
 3. ⬜ オーケストレーションダッシュボード
 
 ### Phase 4: バックエンド開発
@@ -427,32 +427,17 @@ packages/electron/src/
 | **UI UX** | スクロール位置の保持 (Scroll Restoration), サイドバーActionボタン改善 |
 | **プロジェクト管理** | プロジェクト作成フロー, コンバージョンとの関連付け |
 | **MCP Hub基盤** | McpHub (MCP Client)、FileSystemProvider (内部ツール) |
+| **Git Worktree** | GitWorktreeProvider, Worktree Resources, CommitSyncProvider |
+| **Orchestration** | AgentOrchestrationProvider (dispatch, status, broadcast) |
 
 ### 🎯 次のアクション（Phase 3: MCPホスト実装）
 
 #### 優先度: 高
-1. **Phase 3.1: GitWorktreeProvider 実装**
-   - ⬜ `git-worktree-runner` のインストール・設定（`scripts/setup-gtr.sh`）
-   - ✅ `GitWorktreeProvider` クラスの実装
-   - ✅ `McpHub` への統合
-
-2. **Phase 3.2: Worktree Resources 実装**
-   - `mcp://worktree/*` URI スキームの定義
-   - リソース読み取りAPI
-
-#### 優先度: 中
-3. **Phase 3.3: CommitSyncProvider 実装**
-   - `commit_and_sync` ツール
-   - 構文チェック統合
-
-4. **oRPC WebSocket対応**
+1. **oRPC WebSocket対応**
    - リアルタイムストリーミングをWebSocket経由に移行
    - ブラウザ版でも動作可能に
 
-#### 優先度: 低
-5. **会話履歴の永続化**
+#### 優先度: 中
+2. **会話履歴の永続化**
    - メッセージ履歴の完全なストア保存
    - アプリ再起動後の履歴復元
-
-6. **Phase 3.4: AgentOrchestrationProvider 実装**
-   - エージェント間タスク振り分け
