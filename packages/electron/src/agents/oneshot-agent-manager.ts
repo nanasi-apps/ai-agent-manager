@@ -141,6 +141,7 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
                 console.log(`[OneShotAgentManager] Injecting rules for session ${sessionId}`);
             }
         }
+        const messageToSend = this.appendWorktreeReminder(session, message);
 
         // We define the internal URL here. Ideally this constant comes from a shared config or server starter.
         const mcpServerUrl = "http://localhost:3001/mcp/sse";
@@ -159,7 +160,7 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
                 mcpServerUrl: (isCodex) ? mcpServerUrl : undefined,
             };
 
-            const cmd = driver.getCommand(context, message, session.config, systemPrompt);
+            const cmd = driver.getCommand(context, messageToSend, session.config, systemPrompt);
 
             // Execute the command
             console.log(`[OneShotAgentManager] Running: ${cmd.command} ${cmd.args.join(' ')}`);
@@ -174,6 +175,28 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
                     session.geminiHome = geminiEnv.HOME;
                 }
                 spawnEnv = { ...spawnEnv, ...geminiEnv };
+            }
+
+            // Safety check for CWD
+            if (session.config.cwd) {
+                try {
+                    await fs.access(session.config.cwd);
+                } catch (error) {
+                    console.error(`[OneShotAgentManager] CWD ${session.config.cwd} does not exist.`);
+                    if (session.projectRoot && session.projectRoot !== session.config.cwd) {
+                        console.log(`[OneShotAgentManager] Falling back to project root: ${session.projectRoot}`);
+                        this.emitLog(sessionId, `[Warning] Worktree directory ${session.config.cwd} not found. Falling back to project root.\n`, 'system');
+                        session.config.cwd = session.projectRoot;
+                        // Clear invalid active worktree
+                        if (session.activeWorktree?.cwd === session.config.cwd) {
+                            session.activeWorktree = undefined;
+                        }
+                    } else {
+                         this.emitLog(sessionId, `[Error] CWD ${session.config.cwd} does not exist and no valid fallback.\n`, 'error');
+                         session.isProcessing = false;
+                         return;
+                    }
+                }
             }
 
             const child = spawn(cmd.command, cmd.args, {
@@ -332,6 +355,7 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
 
     private buildWorktreeInstructions(session: SessionInfo): string {
         const projectRoot = session.projectRoot ?? session.config.cwd ?? '';
+        const branchSuggestion = `agent/${session.sessionId.slice(0, 8)}`;
         const lines = [
             '[Agent Manager Context]',
             `Session ID: ${session.sessionId}`,
@@ -343,11 +367,33 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
             lines.push(`Active worktree: ${session.activeWorktree.branch} (${session.activeWorktree.cwd})`);
         }
         lines.push('Worktree workflow:');
-        lines.push('- Decide if the task needs a git worktree before editing files.');
-        lines.push('- If needed, call MCP tool "worktree_create" with { repoPath, branch, sessionId, resume: true }.');
+        lines.push('- If the task involves code changes, tests, or file edits, create a worktree first.');
+        lines.push('- Only skip for pure Q/A that does not touch the repo.');
+        lines.push(`- Use repoPath = Project root. Suggested branch: ${branchSuggestion}.`);
+        lines.push('- Call MCP tool "worktree_create" with { repoPath, branch, sessionId, resume: true }.');
         lines.push('- After calling, stop and wait. The host will resume you with cwd switched to that worktree.');
         lines.push('- If you are already in a worktree, do not request another one.');
         return lines.join('\n');
+    }
+
+    private appendWorktreeReminder(session: SessionInfo, message: string): string {
+        if (session.messageCount === 0 || session.activeWorktree) {
+            return message;
+        }
+
+        const projectRoot = session.projectRoot ?? session.config.cwd ?? '';
+        const branchSuggestion = `agent/${session.sessionId.slice(0, 8)}`;
+        const reminderLines = [
+            '[Worktree Reminder]',
+            `Session ID: ${session.sessionId}`,
+        ];
+        if (projectRoot) {
+            reminderLines.push(`Project root: ${projectRoot}`);
+        }
+        reminderLines.push('If this task involves code changes, create a worktree first.');
+        reminderLines.push(`Use repoPath = Project root, branch = ${branchSuggestion}.`);
+        reminderLines.push('Call tool: worktree_create({ repoPath, branch, sessionId, resume: true }) then wait.');
+        return `${reminderLines.join('\n')}\n\n${message}`;
     }
 
     private buildWorktreeResumeMessage(session: SessionInfo, request: WorktreeResumeRequest): string {

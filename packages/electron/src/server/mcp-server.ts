@@ -177,7 +177,18 @@ export async function startMcpServer(port: number = 3001) {
             if (resumeRequested) {
                 try {
                     const worktrees = await worktreeManager.getWorktrees(repoPath);
-                    worktreePath = worktrees.find((wt) => wt.branch === normalizedBranch)?.path;
+                    // Filter out prunable worktrees (directories that might have been deleted)
+                    worktreePath = worktrees.find((wt) => wt.branch === normalizedBranch && !wt.prunable)?.path;
+                    
+                    if (worktreePath) {
+                        try {
+                            await fs.access(worktreePath);
+                        } catch {
+                            // If we can't access it, assume it's invalid
+                            resumeError = resumeError || `Worktree path ${worktreePath} is not accessible.`;
+                            worktreePath = undefined;
+                        }
+                    }
                 } catch (error: any) {
                     resumeError = error?.message || String(error);
                 }
