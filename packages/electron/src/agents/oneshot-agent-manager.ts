@@ -5,7 +5,7 @@ import * as path from 'path';
 import { homedir } from 'os';
 import type { AgentConfig, AgentLogPayload } from '@agent-manager/shared';
 import { AgentOutputParser } from './output-parser';
-import type { IAgentManager } from './agent-manager';
+import type { IAgentManager, WorktreeResumeRequest } from './agent-manager';
 // Removed mcpHub import as we are using native CLI MCP
 import {
     AgentDriver,
@@ -15,6 +15,17 @@ import {
     CodexDriver
 } from './drivers';
 
+interface PendingWorktreeResume {
+    request: WorktreeResumeRequest;
+    resumeMessage: string;
+}
+
+interface ActiveWorktreeContext {
+    cwd: string;
+    branch: string;
+    repoPath: string;
+}
+
 interface SessionInfo extends AgentDriverContext {
     config: AgentConfig; // Keep config accessible
     buffer: string;
@@ -22,6 +33,11 @@ interface SessionInfo extends AgentDriverContext {
     currentProcess?: ChildProcess;
     pendingHandover?: string;
     pendingToolCall?: { name: string; args: any };
+    projectRoot?: string;
+    lastUserMessage?: string;
+    pendingWorktreeResume?: PendingWorktreeResume;
+    activeWorktree?: ActiveWorktreeContext;
+    geminiHome?: string;
 }
 
 /**
@@ -57,6 +73,7 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
             buffer: '',
             isProcessing: false,
             sessionId, // From AgentDriverContext
+            projectRoot: agentConfig.cwd,
         });
     }
 
@@ -75,6 +92,8 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
             session.currentProcess = undefined;
         }
 
+        const previousProjectRoot = session.projectRoot ?? session.config.cwd;
+
         session.isProcessing = false;
         session.buffer = '';
         session.config = {
@@ -83,11 +102,15 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
             type: nextType,
             command,
         };
+        session.projectRoot = previousProjectRoot ?? session.config.cwd;
+        session.pendingWorktreeResume = undefined;
 
         if (shouldResetState) {
             session.messageCount = 0;
             session.geminiSessionId = undefined;
             session.codexThreadId = undefined;
+            session.lastUserMessage = undefined;
+            session.geminiHome = undefined;
         }
     }
 
@@ -106,11 +129,17 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
         }
 
         session.isProcessing = true;
+        session.lastUserMessage = message;
 
         let systemPrompt = '';
-        if (session.messageCount === 0 && session.config.rulesContent) {
-            console.log(`[OneShotAgentManager] Injecting rules for session ${sessionId}`);
-            systemPrompt = session.config.rulesContent;
+        if (session.messageCount === 0) {
+            const baseRules = session.config.rulesContent ?? '';
+            const worktreeInstructions = this.buildWorktreeInstructions(session);
+            const parts = [baseRules, worktreeInstructions].filter(Boolean);
+            systemPrompt = parts.join('\n\n');
+            if (baseRules) {
+                console.log(`[OneShotAgentManager] Injecting rules for session ${sessionId}`);
+            }
         }
 
         // We define the internal URL here. Ideally this constant comes from a shared config or server starter.
@@ -140,7 +169,10 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
             // If Gemini, prepare a temporary environment with injected config
             // This avoids writing to the user's real ~/.gemini or the project's .gemini
             if (isGemini) {
-                const geminiEnv = await this.prepareGeminiEnv(mcpServerUrl);
+                const geminiEnv = await this.prepareGeminiEnv(mcpServerUrl, session.geminiHome);
+                if (geminiEnv.HOME) {
+                    session.geminiHome = geminiEnv.HOME;
+                }
                 spawnEnv = { ...spawnEnv, ...geminiEnv };
             }
 
@@ -151,6 +183,7 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
             });
 
             session.currentProcess = child;
+            session.messageCount += 1;
 
             let stdout = '';
             let stderr = '';
@@ -187,6 +220,7 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
                 if (code !== 0) {
                     this.emitLog(sessionId, `\n[Process exited with code ${code}]\n`, 'system');
                 }
+                this.handlePendingWorktreeResume(sessionId);
             });
 
             child.on('error', (err) => {
@@ -203,74 +237,159 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
         }
     }
 
+    requestWorktreeResume(sessionId: string, request: WorktreeResumeRequest): boolean {
+        const session = this.sessions.get(sessionId);
+        if (!session) {
+            console.warn(`[OneShotAgentManager] Worktree resume requested for missing session ${sessionId}`);
+            return false;
+        }
+
+        const resumeMessage = request.resumeMessage ?? this.buildWorktreeResumeMessage(session, request);
+        session.pendingWorktreeResume = {
+            request,
+            resumeMessage,
+        };
+        this.emitLog(
+            sessionId,
+            `\n[System] Worktree resume scheduled for branch ${request.branch}.\n`,
+            'system'
+        );
+        return true;
+    }
+
     /**
      * Prepares a temporary environment for Gemini to run in.
      * This creates a temporary HOME directory, copies the user's existing settings (auth),
      * and injects the MCP server configuration.
      * This ensures we don't pollute the user's real home or the project directory.
      */
-    private async prepareGeminiEnv(mcpServerUrl: string): Promise<NodeJS.ProcessEnv> {
+    private async prepareGeminiEnv(mcpServerUrl: string, existingHome?: string): Promise<NodeJS.ProcessEnv> {
         try {
             const { tmpdir } = await import('os');
+            if (existingHome) {
+                await this.ensureGeminiSettings(existingHome, mcpServerUrl, false);
+                return { HOME: existingHome };
+            }
+
             const uniqueId = Math.random().toString(36).substring(7);
             const tempHome = path.join(tmpdir(), `agent-manager-gemini-${uniqueId}`);
-            const tempSettingsDir = path.join(tempHome, '.gemini');
-            const tempSettingsFile = path.join(tempSettingsDir, 'settings.json');
+            await this.ensureGeminiSettings(tempHome, mcpServerUrl, true);
 
-            await fs.mkdir(tempSettingsDir, { recursive: true });
+            return { HOME: tempHome };
+        } catch (error) {
+            console.error('[OneShotAgentManager] Failed to prepare Gemini temp env:', error);
+            return {};
+        }
+    }
 
+    private async ensureGeminiSettings(
+        homeDir: string,
+        mcpServerUrl: string,
+        copyAuth: boolean
+    ): Promise<void> {
+        const settingsDir = path.join(homeDir, '.gemini');
+        const settingsFile = path.join(settingsDir, 'settings.json');
+
+        await fs.mkdir(settingsDir, { recursive: true });
+
+        if (copyAuth) {
             const userHome = homedir();
             const userGeminiDir = path.join(userHome, '.gemini');
 
-            // Copy auth-related files to preserve session
             const filesToCopy = [
                 'oauth_creds.json',
                 'google_accounts.json',
                 'installation_id',
                 'state.json',
-                'settings.json' // Copy this too so we have a base
+                'settings.json'
             ];
 
             for (const file of filesToCopy) {
                 try {
                     await fs.copyFile(
                         path.join(userGeminiDir, file),
-                        path.join(tempSettingsDir, file)
+                        path.join(settingsDir, file)
                     );
                 } catch (e) {
                     // File might not exist, ignore
                 }
             }
-
-            let settings: any = { mcpServers: {} };
-
-            try {
-                // Read the copied settings.json (or empty if copy failed)
-                const content = await fs.readFile(tempSettingsFile, 'utf-8');
-                settings = JSON.parse(content);
-            } catch (e) {
-                // If it wasn't there or invalid, we start with empty settings
-            }
-
-            if (!settings.mcpServers) settings.mcpServers = {};
-
-            // Inject MCP Server
-            settings.mcpServers['internal-fs'] = {
-                url: mcpServerUrl
-            };
-
-            // 3. Write to temp config
-            await fs.writeFile(tempSettingsFile, JSON.stringify(settings, null, 2));
-
-            // Return env override
-            return {
-                HOME: tempHome
-            };
-
-        } catch (error) {
-            console.error('[OneShotAgentManager] Failed to prepare Gemini temp env:', error);
-            return {};
         }
+
+        let settings: any = { mcpServers: {} };
+        try {
+            const content = await fs.readFile(settingsFile, 'utf-8');
+            settings = JSON.parse(content);
+        } catch (e) {
+            // If it wasn't there or invalid, we start with empty settings
+        }
+
+        if (!settings.mcpServers) settings.mcpServers = {};
+        settings.mcpServers['agents-manager-mcp'] = { url: mcpServerUrl };
+
+        await fs.writeFile(settingsFile, JSON.stringify(settings, null, 2));
+    }
+
+    private buildWorktreeInstructions(session: SessionInfo): string {
+        const projectRoot = session.projectRoot ?? session.config.cwd ?? '';
+        const lines = [
+            '[Agent Manager Context]',
+            `Session ID: ${session.sessionId}`,
+        ];
+        if (projectRoot) {
+            lines.push(`Project root: ${projectRoot}`);
+        }
+        if (session.activeWorktree) {
+            lines.push(`Active worktree: ${session.activeWorktree.branch} (${session.activeWorktree.cwd})`);
+        }
+        lines.push('Worktree workflow:');
+        lines.push('- Decide if the task needs a git worktree before editing files.');
+        lines.push('- If needed, call MCP tool "worktree_create" with { repoPath, branch, sessionId, resume: true }.');
+        lines.push('- After calling, stop and wait. The host will resume you with cwd switched to that worktree.');
+        lines.push('- If you are already in a worktree, do not request another one.');
+        return lines.join('\n');
+    }
+
+    private buildWorktreeResumeMessage(session: SessionInfo, request: WorktreeResumeRequest): string {
+        const projectRoot = session.projectRoot ?? request.repoPath;
+        const originalMessage = session.lastUserMessage ?? '';
+        const lines = [
+            '[SYSTEM CONTEXT]',
+            'Worktree created and activated for this session.',
+            `Branch: ${request.branch}`,
+            `Worktree path: ${request.cwd}`,
+        ];
+        if (projectRoot) {
+            lines.push(`Project root: ${projectRoot}`);
+        }
+        lines.push('Continue the original task from the worktree. Do not create another worktree unless needed.');
+        if (originalMessage) {
+            lines.push('', 'Original request:', originalMessage);
+        }
+        return lines.join('\n');
+    }
+
+    private handlePendingWorktreeResume(sessionId: string) {
+        const session = this.sessions.get(sessionId);
+        if (!session || session.isProcessing) return;
+        const pending = session.pendingWorktreeResume;
+        if (!pending) return;
+
+        session.pendingWorktreeResume = undefined;
+        session.activeWorktree = {
+            cwd: pending.request.cwd,
+            branch: pending.request.branch,
+            repoPath: pending.request.repoPath,
+        };
+        session.config.cwd = pending.request.cwd;
+
+        this.emitLog(
+            sessionId,
+            `\n[System] Switching to worktree ${pending.request.branch} at ${pending.request.cwd}\n`,
+            'system'
+        );
+
+        void this.sendToSession(sessionId, pending.resumeMessage);
     }
 
     private getDriver(config: AgentConfig): AgentDriver {

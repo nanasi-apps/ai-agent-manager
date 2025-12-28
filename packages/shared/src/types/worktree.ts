@@ -7,6 +7,34 @@ export interface Worktree {
     prunable: string | null; // reason if prunable, null otherwise
 }
 
+export interface WorktreeStatusEntry {
+    path: string;
+    status: string;
+}
+
+export interface WorktreeStatus {
+    branch: string;
+    upstream?: string;
+    ahead: number;
+    behind: number;
+    entries: WorktreeStatusEntry[];
+    raw: string;
+}
+
+export interface WorktreeDiff {
+    text: string;
+    hasChanges: boolean;
+    untracked: string[];
+}
+
+export interface WorktreeCommit {
+    hash: string;
+    shortHash: string;
+    author: string;
+    date: string;
+    subject: string;
+}
+
 export interface WorktreeCreateOptions {
     projectId: string; // to look up the root path
     branchName: string; // new branch name or existing
@@ -19,4 +47,7 @@ export interface IWorktreeManager {
     createWorktree(projectRoot: string, branch: string, relativePath?: string): Promise<Worktree>;
     removeWorktree(projectRoot: string, worktreePath: string, force?: boolean): Promise<void>;
     pruneWorktrees(projectRoot: string): Promise<void>;
+    getWorktreeStatus(worktreePath: string): Promise<WorktreeStatus>;
+    getWorktreeDiff(worktreePath: string): Promise<WorktreeDiff>;
+    listWorktreeCommits(worktreePath: string, limit?: number): Promise<WorktreeCommit[]>;
 }

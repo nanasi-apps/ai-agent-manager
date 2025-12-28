@@ -1,6 +1,6 @@
 # Agent Manager - 決定事項まとめ
 
-*最終更新: 2025-12-28*
+*最終更新: 2025-12-29*
 
 ---
 
@@ -10,9 +10,10 @@
 3. [ライブラリ候補（ANSI処理）](#ライブラリ候補ansi処理)
 4. [ライブラリ候補（依存関係グラフ・静的解析）](#ライブラリ候補依存関係グラフ静的解析)
 5. [アーキテクチャ：Electron + ブラウザ共有](#アーキテクチャelectron--ブラウザ共有)
-6. [スコープアウト（MVPでは除外）](#スコープアウトmvpでは除外)
-7. [開発フェーズ](#開発フェーズ)
-8. [実装進捗](#実装進捗)
+6. [🆕 MCPホストアーキテクチャ](#mcpホストアーキテクチャ)
+7. [スコープアウト（MVPでは除外）](#スコープアウトmvpでは除外)
+8. [開発フェーズ](#開発フェーズ)
+9. [実装進捗](#実装進捗)
 
 ---
 
@@ -208,6 +209,124 @@ export const router = os.router({
 
 ---
 
+## MCPホストアーキテクチャ
+
+### 🎯 ビジョン
+
+ダッシュボードを**MCPホスト（Client）**として機能させ、各Agent.exeやローカルツール（ファイル操作、Git、DB）をMCPサーバーとして接続します。
+
+### アーキテクチャ図
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Electron Dashboard (MCP Host)                       │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐             │
+│  │   Vue Frontend  │←→│   MCP Hub       │←→│  Orchestrator   │             │
+│  │  (Single UI)    │  │  (Client/Host)  │  │  (Task Router)  │             │
+│  └─────────────────┘  └────────┬────────┘  └─────────────────┘             │
+└────────────────────────────────┼───────────────────────────────────────────┘
+                                 │ MCP Protocol
+         ┌───────────────────────┼───────────────────────────┐
+         │                       │                           │
+         ▼                       ▼                           ▼
+┌─────────────────┐  ┌───────────────────────┐  ┌─────────────────────────┐
+│  Agent Servers  │  │  Git Worktree Server  │  │  Internal Tool Server   │
+│  (Agent.exe)    │  │  (gtr wrapper)        │  │  (FS, DB, etc.)         │
+├─────────────────┤  ├───────────────────────┤  ├─────────────────────────┤
+│ Tools:          │  │ Resources:            │  │ Tools:                  │
+│  - code_edit    │  │  mcp://worktree/{id}  │  │  - fs_read              │
+│  - search       │  │  mcp://worktree/diff  │  │  - fs_write             │
+│  - run_command  │  │ Tools:                │  │  - db_query             │
+└─────────────────┘  │  - worktree_create    │  │  - commit_and_sync      │
+                     │  - worktree_merge     │  └─────────────────────────┘
+                     │  - worktree_rebase    │
+                     └───────────────────────┘
+```
+
+### 主要コンセプト
+
+#### 1. 単一のインターフェース
+フロントエンドのVueからは一つのMCPエンドポイントを叩くだけで、背後にいる「バグ修正エージェント」「テスト実行サーバー」「Git操作ツール」のすべてにアクセス可能になります。
+
+#### 2. 動的なサーバー追加
+新しいエージェント（Agent.exe）を追加する際も、そのエージェントがMCPに対応していれば、ダッシュボード側は設定を一行追加するだけで、そのエージェントの「特技（Tools）」を自動認識できます。
+
+#### 3. 「リソース」としてのGit WorktreeとDB
+MCPのResourcesという概念を使うと、ファイル管理が非常にスマートになります。
+
+| 機能 | 説明 |
+|------|------|
+| **コンテキストの共有** | 各Worktreeの状況や共通DBの内容を `mcp://worktree/1/diff` のようなURI形式でエージェントに提供 |
+| **リアルタイム監視** | エージェントはMCPを通じて「今、プロジェクトの他の場所で何が起きているか」をリソースとして購読（Subscribe）可能 |
+
+#### 4. 「ツール」としての同期・マージ機能
+「自主的な細かいコミットとマージ」を、MCPのToolsとして定義します。
+
+| ツール名 | 説明 |
+|----------|------|
+| `commit_and_sync` | エージェントがコード書き換え後に呼び出し。構文チェック・競合チェック実行後、Gitコマンド実行 |
+| `auto_rebase` | 自動リベース実行 |
+| `check_conflicts` | 競合のシミュレーション |
+
+#### 5. エージェント間連携（Orchestration）
+MCPを介することで、エージェント同士が「直接話す」必要がなくなります。
+
+| 機能 | 説明 |
+|------|------|
+| **役割分担** | ユーザーがダッシュボードに「機能を付けてバグも直して」と投げると、ダッシュボード（メインエージェント）がMCP経由で適切なエージェントにタスクを振り分け |
+| **情報の集約** | すべての意思疎通がMCPのプロトコルに則っているため、完全なトレースログが自動生成 |
+
+### ファイル構造（予定）
+
+```
+packages/electron/src/
+├── mcp-hub/
+│   ├── index.ts                    # 既存: McpHub (MCP Host)
+│   ├── filesystem.ts               # 既存: FileSystemProvider
+│   ├── providers/
+│   │   ├── git-worktree.ts         # 🆕 GitWorktreeProvider (gtr wrapper)
+│   │   ├── commit-sync.ts          # 🆕 CommitSyncProvider
+│   │   └── agent-orchestrator.ts   # 🆕 AgentOrchestrationProvider
+│   ├── resources/
+│   │   ├── worktree-resource.ts    # 🆕 mcp://worktree/{id} Resource
+│   │   └── diff-resource.ts        # 🆕 mcp://worktree/{id}/diff Resource
+│   └── types.ts                    # 🆕 MCP Hub Types
+```
+
+### プロバイダー詳細
+
+#### A. GitWorktreeProvider (`git-worktree-runner` wrapper)
+[CodeRabbit git-worktree-runner](https://github.com/coderabbitai/git-worktree-runner) をMCPツールとして公開
+
+| ツール | 対応コマンド | 説明 |
+|--------|--------------|------|
+| `worktree_create` | `git gtr new <branch>` | Worktree作成 |
+| `worktree_list` | `git gtr list --porcelain` | Worktree一覧 |
+| `worktree_remove` | `git gtr rm <branch>` | Worktree削除 |
+| `worktree_run` | `git gtr run <branch> <cmd>` | Worktree内でコマンド実行 |
+
+**Resources:**
+- `mcp://worktree/{branch}` - Worktree metadata
+- `mcp://worktree/{branch}/diff` - Current diff
+- `mcp://worktree/{branch}/status` - Git status
+
+#### B. CommitSyncProvider
+| ツール | 説明 |
+|--------|------|
+| `commit_and_sync` | 構文チェック → コミット → Push → 競合チェック |
+| `auto_rebase` | 自動リベース |
+| `check_conflicts` | 競合シミュレーション |
+
+#### C. AgentOrchestrationProvider
+| ツール | 説明 |
+|--------|------|
+| `dispatch_task` | エージェントへのタスク振り分け |
+| `get_agent_status` | エージェント状態取得 |
+| `broadcast_context` | コンテキスト共有 |
+
+---
+
 ## スコープアウト（MVPでは除外）
 
 以下の機能はMVPでは実装しない：
@@ -218,7 +337,6 @@ export const router = os.router({
 | ❌ 3-way Merge UI | 一旦不要 |
 | ❌ クラウド同期の競合処理 | 考慮しない |
 | ❌ オフライン動作 | 考慮しない |
-| ❌ MCPサーバーの動的追加・削除 | 考慮しない |
 | ❌ フォールバック処理 | 考慮しない |
 | ❌ 認証・認可 | 今は不要 |
 | ❌ マルチテナント | 今は不要 |
@@ -243,11 +361,38 @@ export const router = os.router({
 4. ✅ モデルホットスワップ（Agent Handoff & Summarization）
 5. ✅ Scroll Restoration & UI Improvements
 
-### Phase 3: Git Worktree 管理
-1. ⬜ Git Worktree 作成・削除機能
+### Phase 3: MCPホスト & Git Worktree 管理 🔄 進行中
+
+#### Phase 3.1: GitWorktreeProvider (`git-worktree-runner` wrapper)
+1. ⬜ `git-worktree-runner` のインストール・セットアップ（`scripts/setup-gtr.sh` 追加）
+2. ✅ `GitWorktreeProvider` 実装（`gtr` コマンドのMCPツール化）
+   - `worktree_create` - `git gtr new <branch>`
+   - `worktree_list` - `git gtr list --porcelain`
+   - `worktree_remove` - `git gtr rm <branch>`
+   - `worktree_run` - `git gtr run <branch> <cmd>`
+3. ✅ `McpHub` への `GitWorktreeProvider` 登録
+
+#### Phase 3.2: Worktree Resources 実装
+1. ⬜ MCP Resources スキーム定義
+   - `mcp://worktree/{branch}` - Worktree metadata
+   - `mcp://worktree/{branch}/diff` - Current diff
+   - `mcp://worktree/{branch}/status` - Git status
+2. ⬜ リアルタイム購読（Subscribe）機能
+
+#### Phase 3.3: CommitSyncProvider 実装
+1. ⬜ `commit_and_sync` ツール（構文チェック → コミット → 競合チェック）
+2. ⬜ `auto_rebase` ツール
+3. ⬜ `check_conflicts` ツール（Dependency Cruiser連携）
+
+#### Phase 3.4: AgentOrchestrationProvider 実装 (一旦不要)
+1. ⬜ `dispatch_task` ツール（タスク振り分け）
+2. ⬜ `get_agent_status` ツール
+3. ⬜ `broadcast_context` ツール（コンテキスト共有）
+
+#### Phase 3.5: フロントエンド統合
+1. ⬜ Worktree管理画面（Vue）
 2. ⬜ マイクロコミット・ログ表示
-3. ⬜ 自動Rebase実装
-4. ⬜ コンフリクトシミュレーター（Dependency Cruiser連携）
+3. ⬜ オーケストレーションダッシュボード
 
 ### Phase 4: バックエンド開発
 1. ⬜ Cloudflare Workers API 設計
@@ -268,7 +413,7 @@ export const router = os.router({
 
 ## 実装進捗
 
-### ✅ 完了した実装（2025-12-28現在）
+### ✅ 完了した実装（2025-12-29現在）
 
 | カテゴリ | 実装内容 |
 |----------|----------|
@@ -281,17 +426,33 @@ export const router = os.router({
 | **Agent Handoff** | エージェント切り替え時のコンテキスト要約と引き継ぎ機能 |
 | **UI UX** | スクロール位置の保持 (Scroll Restoration), サイドバーActionボタン改善 |
 | **プロジェクト管理** | プロジェクト作成フロー, コンバージョンとの関連付け |
+| **MCP Hub基盤** | McpHub (MCP Client)、FileSystemProvider (内部ツール) |
 
-### 🎯 次のアクション
+### 🎯 次のアクション（Phase 3: MCPホスト実装）
 
-1. **oRPC WebSocket対応**
+#### 優先度: 高
+1. **Phase 3.1: GitWorktreeProvider 実装**
+   - ⬜ `git-worktree-runner` のインストール・設定（`scripts/setup-gtr.sh`）
+   - ✅ `GitWorktreeProvider` クラスの実装
+   - ✅ `McpHub` への統合
+
+2. **Phase 3.2: Worktree Resources 実装**
+   - `mcp://worktree/*` URI スキームの定義
+   - リソース読み取りAPI
+
+#### 優先度: 中
+3. **Phase 3.3: CommitSyncProvider 実装**
+   - `commit_and_sync` ツール
+   - 構文チェック統合
+
+4. **oRPC WebSocket対応**
    - リアルタイムストリーミングをWebSocket経由に移行
    - ブラウザ版でも動作可能に
 
-2. **会話履歴の永続化**
+#### 優先度: 低
+5. **会話履歴の永続化**
    - メッセージ履歴の完全なストア保存
    - アプリ再起動後の履歴復元
 
-3. **Phase 3: Git Worktree統合**
-   - Worktree作成ロジックの実装（バックエンド） ✅ 完了
-   - フロントエンド管理画面の実装 ✅ 完了
+6. **Phase 3.4: AgentOrchestrationProvider 実装**
+   - エージェント間タスク振り分け

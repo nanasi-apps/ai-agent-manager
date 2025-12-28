@@ -15,6 +15,14 @@ export interface IAgentManager {
     getSessionMetadata?(sessionId: string): { geminiSessionId?: string; codexThreadId?: string } | undefined;
     setPendingHandover?(sessionId: string, context: string): void;
     consumePendingHandover?(sessionId: string): string | undefined;
+    requestWorktreeResume?(sessionId: string, request: WorktreeResumeRequest): boolean;
+}
+
+export interface WorktreeResumeRequest {
+    cwd: string;
+    branch: string;
+    repoPath: string;
+    resumeMessage?: string;
 }
 
 // Current active agent manager instance
@@ -66,5 +74,8 @@ export const agentManager = {
     },
     on(event: 'log', listener: (payload: AgentLogPayload) => void) {
         return getAgentManager().on(event, listener);
+    },
+    requestWorktreeResume(sessionId: string, request: WorktreeResumeRequest) {
+        return getAgentManager().requestWorktreeResume?.(sessionId, request) ?? false;
     },
 };

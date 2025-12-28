@@ -1,10 +1,21 @@
-import { exec } from 'node:child_process';
+import { exec, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import * as path from 'node:path';
-import type { Worktree } from '@agent-manager/shared';
+import type { Worktree, WorktreeCommit, WorktreeDiff, WorktreeStatus, WorktreeStatusEntry } from '@agent-manager/shared';
 import * as fs from 'node:fs/promises';
 
 const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
+
+async function runGit(cwd: string, args: string[]): Promise<string> {
+    const { stdout, stderr } = await execFileAsync("git", args, { cwd });
+    const out = stdout?.toString().trim();
+    const err = stderr?.toString().trim();
+    if (out && err) return `${out}\n${err}`;
+    if (out) return out;
+    if (err) return err;
+    return "";
+}
 
 export class WorktreeManager {
     
@@ -53,6 +64,46 @@ export class WorktreeManager {
         }
 
         return worktrees;
+    }
+
+    private parseStatusOutput(output: string): WorktreeStatus {
+        const lines = output.split('\n').filter(Boolean);
+        const header = lines.shift() ?? '';
+        let branch = 'unknown';
+        let upstream: string | undefined;
+        let ahead = 0;
+        let behind = 0;
+
+        if (header.startsWith('##')) {
+            const info = header.slice(2).trim();
+            const [branchPart, rest] = info.split('...');
+            branch = branchPart.trim() || branch;
+            if (rest) {
+                const [upstreamPart] = rest.trim().split(' ');
+                upstream = upstreamPart?.trim() || undefined;
+            }
+            const aheadMatch = info.match(/ahead (\d+)/);
+            const behindMatch = info.match(/behind (\d+)/);
+            if (aheadMatch) ahead = Number(aheadMatch[1]);
+            if (behindMatch) behind = Number(behindMatch[1]);
+        }
+
+        const entries: WorktreeStatusEntry[] = [];
+        for (const line of lines) {
+            const status = line.slice(0, 2).trim();
+            const path = line.slice(3).trim();
+            if (!path) continue;
+            entries.push({ status, path });
+        }
+
+        return {
+            branch,
+            upstream,
+            ahead,
+            behind,
+            entries,
+            raw: output.trim()
+        };
     }
 
     async createWorktree(projectRoot: string, branch: string, relativePath?: string): Promise<Worktree> {
@@ -108,6 +159,67 @@ export class WorktreeManager {
             await execAsync('git worktree prune', { cwd: projectRoot });
         } catch (error) {
             console.error('[WorktreeManager] Failed to prune worktrees:', error);
+            throw error;
+        }
+    }
+
+    async getWorktreeStatus(worktreePath: string): Promise<WorktreeStatus> {
+        try {
+            const output = await runGit(worktreePath, ['status', '--porcelain=v1', '-b']);
+            return this.parseStatusOutput(output);
+        } catch (error) {
+            console.error('[WorktreeManager] Failed to get worktree status:', error);
+            throw error;
+        }
+    }
+
+    async getWorktreeDiff(worktreePath: string): Promise<WorktreeDiff> {
+        try {
+            const diffText = await runGit(worktreePath, ['diff', 'HEAD']);
+            const untrackedOutput = await runGit(worktreePath, ['ls-files', '--others', '--exclude-standard']);
+            const untracked = untrackedOutput
+                .split('\n')
+                .map(line => line.trim())
+                .filter(Boolean);
+            const hasChanges = diffText.trim().length > 0 || untracked.length > 0;
+            return {
+                text: diffText,
+                hasChanges,
+                untracked
+            };
+        } catch (error) {
+            console.error('[WorktreeManager] Failed to get worktree diff:', error);
+            throw error;
+        }
+    }
+
+    async listWorktreeCommits(worktreePath: string, limit: number = 20): Promise<WorktreeCommit[]> {
+        try {
+            const format = '%H%x1f%h%x1f%an%x1f%ad%x1f%s%x1e';
+            const output = await runGit(worktreePath, [
+                'log',
+                `-n`,
+                String(limit),
+                '--date=iso',
+                `--pretty=format:${format}`
+            ]);
+            if (!output) return [];
+            return output
+                .split('\x1e')
+                .map(entry => entry.trim())
+                .filter(Boolean)
+                .map(entry => {
+                    const [hash, shortHash, author, date, subject] = entry.split('\x1f');
+                    return {
+                        hash: hash || '',
+                        shortHash: shortHash || '',
+                        author: author || '',
+                        date: date || '',
+                        subject: subject || ''
+                    };
+                });
+        } catch (error) {
+            console.error('[WorktreeManager] Failed to list worktree commits:', error);
             throw error;
         }
     }

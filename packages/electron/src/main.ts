@@ -1,7 +1,14 @@
-import { setAgentManager, setMcpManager, setNativeDialog, setStore, setWorktreeManager } from "@agent-manager/shared";
+import {
+	setAgentManager,
+	setMcpManager,
+	setNativeDialog,
+	setOrchestrationManager,
+	setStore,
+	setWorktreeManager
+} from "@agent-manager/shared";
 import { app, BrowserWindow, dialog } from "electron";
 import path from "path";
-import { oneShotAgentManager } from "./agents";
+import { oneShotAgentManager, setAgentManager as setElectronAgentManager } from "./agents";
 import { setupAgentLogs } from "./main/agent-logs";
 import { setupIpc } from "./main/ipc";
 import { loadMcpConfig } from "./main/mcp-config";
@@ -9,13 +16,17 @@ import { initializeWindowTheme, setupGlobalThemeHandlers } from "./main/theme";
 import { store } from "./store";
 import { mcpHub } from "./mcp-hub";
 import { worktreeManager } from "./main/worktree-manager";
+import { orchestrationManager } from "./main/orchestration-manager";
 import { startMcpServer } from "./server/mcp-server.js";
 
 // Set up dependencies for the router
 setAgentManager(oneShotAgentManager);
+setElectronAgentManager(oneShotAgentManager);
 setStore(store);
 setMcpManager(mcpHub);
 setWorktreeManager(worktreeManager);
+setOrchestrationManager(orchestrationManager);
+orchestrationManager.initialize();
 setNativeDialog({
 	selectDirectory: async () => {
 		const result = await dialog.showOpenDialog({

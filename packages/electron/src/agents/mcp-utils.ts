@@ -3,17 +3,43 @@ import { AgentConfig } from '@agent-manager/shared';
 
 export async function getMcpToolInstructions(): Promise<string> {
     try {
-        const tools = await mcpHub.listTools();
-        if (!tools || tools.length === 0) {
+        const [tools, resources, templates] = await Promise.all([
+            mcpHub.listTools(),
+            mcpHub.listResources(),
+            mcpHub.listResourceTemplates()
+        ]);
+        if ((!tools || tools.length === 0) && (!resources || resources.length === 0) && (!templates || templates.length === 0)) {
             return '';
         }
 
-        return `
+        const toolSection = tools && tools.length > 0
+            ? `
 
 [Available MCP Tools]
 You have access to the following tools via the Model Context Protocol (MCP). To use a tool, output a JSON object with the format: {"tool": "tool_name", "arguments": { ... }}.
 
-${JSON.stringify(tools, null, 2)}`;
+${JSON.stringify(tools, null, 2)}`
+            : '';
+
+        const resourceSection = resources && resources.length > 0
+            ? `
+
+[Available MCP Resources]
+Resources can be read by URI. Use them to fetch worktree metadata, status, or diff snapshots.
+
+${JSON.stringify(resources, null, 2)}`
+            : '';
+
+        const templateSection = templates && templates.length > 0
+            ? `
+
+[Available MCP Resource Templates]
+Templates describe dynamic resources. Substitute variables like {branch} when reading.
+
+${JSON.stringify(templates, null, 2)}`
+            : '';
+
+        return `${toolSection}${resourceSection}${templateSection}`;
     } catch (error) {
         console.error('Failed to fetch MCP tools', error);
         return '';

@@ -1,11 +1,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { McpTool } from '@agent-manager/shared';
-
-export interface InternalToolProvider {
-    listTools(): Promise<McpTool[]>;
-    callTool(name: string, args: any): Promise<any>;
-}
+import { InternalToolProvider } from './types';
 
 export class FileSystemProvider implements InternalToolProvider {
     async listTools(): Promise<McpTool[]> {
@@ -20,7 +16,7 @@ export class FileSystemProvider implements InternalToolProvider {
                     },
                     required: ['path']
                 },
-                serverName: 'internal-fs'
+                serverName: 'agents-manager-mcp'
             },
             {
                 name: 'write_file',
@@ -33,7 +29,7 @@ export class FileSystemProvider implements InternalToolProvider {
                     },
                     required: ['path', 'content']
                 },
-                serverName: 'internal-fs'
+                serverName: 'agents-manager-mcp'
             },
             {
                 name: 'replace_file_content',
@@ -47,7 +43,7 @@ export class FileSystemProvider implements InternalToolProvider {
                     },
                     required: ['path', 'target', 'replacement']
                 },
-                serverName: 'internal-fs'
+                serverName: 'agents-manager-mcp'
             },
             {
                 name: 'list_directory',
@@ -59,7 +55,37 @@ export class FileSystemProvider implements InternalToolProvider {
                     },
                     required: ['path']
                 },
-                serverName: 'internal-fs'
+                serverName: 'agents-manager-mcp'
+            },
+            {
+                name: 'pre_file_edit',
+                description: 'Signal intent to edit a file before performing the operation',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        path: { type: 'string', description: 'Absolute path to the file' },
+                        operation: { type: 'string', description: 'Operation name (write_file, replace_file_content, etc.)' },
+                        editId: { type: 'string', description: 'Optional identifier to correlate with post_file_edit' }
+                    },
+                    required: ['path', 'operation']
+                },
+                serverName: 'agents-manager-mcp'
+            },
+            {
+                name: 'post_file_edit',
+                description: 'Signal completion of a file edit operation',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        path: { type: 'string', description: 'Absolute path to the file' },
+                        operation: { type: 'string', description: 'Operation name (write_file, replace_file_content, etc.)' },
+                        editId: { type: 'string', description: 'Optional identifier to correlate with pre_file_edit' },
+                        success: { type: 'boolean', description: 'Whether the operation succeeded' },
+                        message: { type: 'string', description: 'Optional message about the operation outcome' }
+                    },
+                    required: ['path', 'operation']
+                },
+                serverName: 'agents-manager-mcp'
             }
         ];
     }
@@ -84,6 +110,13 @@ export class FileSystemProvider implements InternalToolProvider {
             case 'list_directory':
                 const files = await fs.readdir(args.path);
                 return files;
+            case 'pre_file_edit':
+                return `Pre-edit recorded for ${args.path} (${args.operation})`;
+            case 'post_file_edit': {
+                const status = args.success === false ? 'failed' : 'completed';
+                const message = args.message ? `: ${args.message}` : '';
+                return `Post-edit ${status} for ${args.path} (${args.operation})${message}`;
+            }
             default:
                 throw new Error(`Unknown tool: ${name}`);
         }

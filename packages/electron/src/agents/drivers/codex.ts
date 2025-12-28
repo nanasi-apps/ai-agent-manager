@@ -33,8 +33,8 @@ export class CodexDriver implements AgentDriver {
         if (context.mcpServerUrl) {
             // Codex allows injecting config via -c key=value
             // We inject nested keys for the MCP server definition
-            mcpArgs.push('-c', `mcp_servers.agent-manager-fs.url=${context.mcpServerUrl}`);
-            mcpArgs.push('-c', `mcp_servers.agent-manager-fs.enabled=true`);
+            mcpArgs.push('-c', `mcp_servers.agents-manager-mcp.url=${context.mcpServerUrl}`);
+            mcpArgs.push('-c', `mcp_servers.agents-manager-mcp.enabled=true`);
         }
 
         if (context.messageCount === 0) {
@@ -59,5 +59,4 @@ export class CodexDriver implements AgentDriver {
         };
     }
 }
-
 
