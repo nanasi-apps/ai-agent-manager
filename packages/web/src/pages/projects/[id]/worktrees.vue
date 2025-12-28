@@ -73,8 +73,11 @@ const loadWorktrees = async () => {
     worktrees.value = res
     if (res.length > 0) {
       const existing = selectedWorktree.value
-      const next = existing && res.find(wt => wt.path === existing.path)
-      await selectWorktree(next || res[0])
+      const found = existing ? res.find(wt => wt.path === existing.path) : undefined
+      const target = found || res[0]
+      if (target) {
+        await selectWorktree(target)
+      }
     } else {
       selectedWorktree.value = null
       worktreeStatus.value = null
