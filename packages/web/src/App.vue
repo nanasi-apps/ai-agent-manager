@@ -4,7 +4,7 @@ import DashboardLayout from "@/layouts/DashboardLayout.vue";
 import NewProjectDialog from '@/components/dialogs/NewProjectDialog.vue'
 import { useNewProjectDialog } from '@/composables/useNewProjectDialog'
 
-const { isOpen, close } = useNewProjectDialog()
+const { isOpen } = useNewProjectDialog()
 
 onMounted(async () => {
   const electronAPI = window.electronAPI;

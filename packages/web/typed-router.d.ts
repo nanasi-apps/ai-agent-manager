@@ -57,10 +57,18 @@ declare module 'vue-router/auto-routes' {
       { id: ParamValue<true> },
       { id: ParamValue<false> },
       | '/projects/[id]/settings'
+      | '/projects/[id]/worktrees'
     >,
     '/projects/[id]/settings': RouteRecordInfo<
       '/projects/[id]/settings',
       '/projects/:id/settings',
+      { id: ParamValue<true> },
+      { id: ParamValue<false> },
+      | never
+    >,
+    '/projects/[id]/worktrees': RouteRecordInfo<
+      '/projects/[id]/worktrees',
+      '/projects/:id/worktrees',
       { id: ParamValue<true> },
       { id: ParamValue<false> },
       | never
@@ -120,12 +128,19 @@ declare module 'vue-router/auto-routes' {
       routes:
         | '/projects/[id]'
         | '/projects/[id]/settings'
+        | '/projects/[id]/worktrees'
       views:
         | 'default'
     }
     'src/pages/projects/[id]/settings.vue': {
       routes:
         | '/projects/[id]/settings'
+      views:
+        | never
+    }
+    'src/pages/projects/[id]/worktrees.vue': {
+      routes:
+        | '/projects/[id]/worktrees'
       views:
         | never
     }

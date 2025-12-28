@@ -14,7 +14,7 @@ const { open } = useNewConversionDialog()
 
 // Safely access route param
 const projectId = computed(() => (route.params as any).id as string)
-const isSettingsRoute = computed(() => route.path.endsWith('/settings'))
+const isSubRoute = computed(() => route.path.endsWith('/settings') || route.path.endsWith('/worktrees'))
 const project = ref<{ id: string, name: string, rootPath?: string } | null>(null)
 const conversations = ref<any[]>([])
 const isLoading = ref(true)
@@ -46,8 +46,11 @@ const openConversation = (id: string) => {
 }
 
 const goSettings = (id:string) =>{
-  console.log("go settings", id)
   router.push(`/projects/${id}/settings`)
+}
+
+const goWorktrees = (id:string) =>{
+  router.push(`/projects/${id}/worktrees`)
 }
 
 watch(projectId, loadData, { immediate: true })
@@ -55,7 +58,7 @@ watch(projectId, loadData, { immediate: true })
 
 <template>
   <div class="p-6">
-    <router-view v-if="isSettingsRoute" />
+    <router-view v-if="isSubRoute" />
     <Transition v-else name="fade" mode="out-in">
       <div v-if="isLoading" class="flex items-center justify-center py-20">
         <Loader2 class="size-8 animate-spin text-muted-foreground" />
@@ -70,6 +73,9 @@ watch(projectId, loadData, { immediate: true })
              </p>
            </div>
            <div class="flex items-center gap-2">
+             <Button variant="secondary" @click="goWorktrees(projectId)">
+               Worktrees
+             </Button>
              <Button variant="secondary" @click="goSettings(projectId)">
                Settings
              </Button>

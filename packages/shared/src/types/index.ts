@@ -6,4 +6,8 @@ export type { ProjectConfig, ModelTemplate } from './project';
 export { availableAgents, getAgentTemplate } from './project';
 
 // Store types
-export type { Message, Conversation, Project, IStore } from './store';
+export * from './store';
+export * from './worktree';
+
+// MCP types
+export type { McpServerConfig, McpTool, IMcpManager } from './mcp';

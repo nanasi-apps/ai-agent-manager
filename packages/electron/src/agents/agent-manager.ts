@@ -8,10 +8,13 @@ export interface IAgentManager {
     startSession(sessionId: string, command: string, config?: Partial<AgentConfig>): void;
     resetSession(sessionId: string, command: string, config?: Partial<AgentConfig>): void;
     stopSession(sessionId: string): boolean;
-    sendToSession(sessionId: string, message: string): void;
+    sendToSession(sessionId: string, message: string): Promise<void>;
     isRunning(sessionId: string): boolean;
     listSessions(): string[];
     on(event: 'log', listener: (payload: AgentLogPayload) => void): void;
+    getSessionMetadata?(sessionId: string): { geminiSessionId?: string; codexThreadId?: string } | undefined;
+    setPendingHandover?(sessionId: string, context: string): void;
+    consumePendingHandover?(sessionId: string): string | undefined;
 }
 
 // Current active agent manager instance
@@ -52,7 +55,7 @@ export const agentManager = {
     stopSession(sessionId: string) {
         return getAgentManager().stopSession(sessionId);
     },
-    sendToSession(sessionId: string, message: string) {
+    async sendToSession(sessionId: string, message: string) {
         return getAgentManager().sendToSession(sessionId, message);
     },
     isRunning(sessionId: string) {

@@ -46,6 +46,18 @@ export interface ProjectRule {
 }
 
 /**
+ * Resource Lock
+ * Used to coordinate access to files or logical resources between agents
+ */
+export interface ResourceLock {
+    resourceId: string; // e.g., file path or logical identifier
+    agentId: string;    // e.g., conversation/session ID
+    intent: string;     // Description of what the agent is doing
+    timestamp: number;
+    expiresAt?: number; // Optional TTL
+}
+
+/**
  * Interface for store implementations
  */
 export interface IStore {
@@ -69,5 +81,11 @@ export interface IStore {
     listProjects(): Project[];
     updateProject(id: string, updates: Partial<Project>): void;
     deleteProject(id: string): void;
-}
 
+    // Lock methods
+    acquireLock(lock: ResourceLock): boolean;
+    releaseLock(resourceId: string, agentId: string): boolean;
+    getLock(resourceId: string): ResourceLock | undefined;
+    listLocks(): ResourceLock[];
+    forceReleaseLock(resourceId: string): void;
+}

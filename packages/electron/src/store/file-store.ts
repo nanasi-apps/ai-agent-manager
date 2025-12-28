@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import type { Conversation, Message, Project, IStore } from '@agent-manager/shared';
+import type { Conversation, Message, Project, IStore, ResourceLock } from '@agent-manager/shared';
 import { normalizeMessages, StoreData, tryMergeMessage } from './serialization';
 
 /**
@@ -10,6 +10,7 @@ import { normalizeMessages, StoreData, tryMergeMessage } from './serialization';
 export class FileStore implements IStore {
     private conversations: Map<string, Conversation> = new Map();
     private projects: Map<string, Project> = new Map();
+    private locks: Map<string, ResourceLock> = new Map();
     private dataPath: string | null = null;
     private saveTimeout: ReturnType<typeof setTimeout> | null = null;
 
@@ -45,7 +46,19 @@ export class FileStore implements IStore {
                     }
                 }
 
-                console.log(`[FileStore] Loaded ${this.conversations.size} conversations and ${this.projects.size} projects from ${this.dataPath}`);
+                if (data.locks) {
+                    this.locks.clear();
+                    const now = Date.now();
+                    for (const lock of data.locks) {
+                        // Filter out expired locks on load
+                        if (lock.expiresAt && lock.expiresAt < now) {
+                            continue;
+                        }
+                        this.locks.set(lock.resourceId, lock);
+                    }
+                }
+
+                console.log(`[FileStore] Loaded ${this.conversations.size} conversations, ${this.projects.size} projects, and ${this.locks.size} locks from ${this.dataPath}`);
                 this.scheduleSave();
             }
         } catch (err) {
@@ -75,7 +88,8 @@ export class FileStore implements IStore {
 
             const data: StoreData = {
                 conversations: Array.from(this.conversations.values()),
-                projects: Array.from(this.projects.values())
+                projects: Array.from(this.projects.values()),
+                locks: Array.from(this.locks.values())
             };
             fs.writeFileSync(this.dataPath, JSON.stringify(data, null, 2), 'utf-8');
             console.log(`[FileStore] Saved ${this.conversations.size} conversations to ${this.dataPath}`);
@@ -168,6 +182,78 @@ export class FileStore implements IStore {
     deleteProject(id: string) {
         this.projects.delete(id);
         this.scheduleSave();
+    }
+
+    // Lock methods
+    acquireLock(lock: ResourceLock): boolean {
+        const existing = this.locks.get(lock.resourceId);
+        const now = Date.now();
+
+        // Check if existing lock is expired
+        if (existing && existing.expiresAt && existing.expiresAt < now) {
+             this.locks.delete(lock.resourceId);
+             // Proceed to acquire
+        } else if (existing) {
+            // Already locked by someone else (or same agent)
+            if (existing.agentId === lock.agentId) {
+                 // Refresh lock
+                 this.locks.set(lock.resourceId, { ...lock, timestamp: now });
+                 this.scheduleSave();
+                 return true;
+            }
+            return false;
+        }
+
+        this.locks.set(lock.resourceId, lock);
+        this.scheduleSave();
+        return true;
+    }
+
+    releaseLock(resourceId: string, agentId: string): boolean {
+        const existing = this.locks.get(resourceId);
+        if (existing && existing.agentId === agentId) {
+            this.locks.delete(resourceId);
+            this.scheduleSave();
+            return true;
+        }
+        return false;
+    }
+
+    getLock(resourceId: string): ResourceLock | undefined {
+        const existing = this.locks.get(resourceId);
+        if (existing && existing.expiresAt && existing.expiresAt < Date.now()) {
+            this.locks.delete(resourceId);
+            this.scheduleSave();
+            return undefined;
+        }
+        return existing;
+    }
+
+    listLocks(): ResourceLock[] {
+        const now = Date.now();
+        const active: ResourceLock[] = [];
+        let changed = false;
+
+        for (const [key, lock] of this.locks) {
+            if (lock.expiresAt && lock.expiresAt < now) {
+                this.locks.delete(key);
+                changed = true;
+            } else {
+                active.push(lock);
+            }
+        }
+
+        if (changed) {
+            this.scheduleSave();
+        }
+        return active;
+    }
+
+    forceReleaseLock(resourceId: string): void {
+        if (this.locks.has(resourceId)) {
+            this.locks.delete(resourceId);
+            this.scheduleSave();
+        }
     }
 }
 

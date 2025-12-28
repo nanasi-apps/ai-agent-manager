@@ -39,8 +39,9 @@ const loadRules = async () => {
         rules.value = res
         // If we have a selected rule, refresh its content too if sticking to it? 
         // Or if nothing selected, select first?
-        if (!selectedRule.value && rules.value.length > 0) {
-            await selectRule(rules.value[0])
+        const first = rules.value[0]
+        if (!selectedRule.value && first) {
+            await selectRule(first)
         }
     } catch (e) {
         console.error(e)

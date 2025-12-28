@@ -1,15 +1,21 @@
-import { setAgentManager, setNativeDialog, setStore } from "@agent-manager/shared";
+import { setAgentManager, setMcpManager, setNativeDialog, setStore, setWorktreeManager } from "@agent-manager/shared";
 import { app, BrowserWindow, dialog } from "electron";
 import path from "path";
 import { oneShotAgentManager } from "./agents";
 import { setupAgentLogs } from "./main/agent-logs";
 import { setupIpc } from "./main/ipc";
+import { loadMcpConfig } from "./main/mcp-config";
 import { initializeWindowTheme, setupGlobalThemeHandlers } from "./main/theme";
 import { store } from "./store";
+import { mcpHub } from "./mcp-hub";
+import { worktreeManager } from "./main/worktree-manager";
+import { startMcpServer } from "./server/mcp-server.js";
 
 // Set up dependencies for the router
 setAgentManager(oneShotAgentManager);
 setStore(store);
+setMcpManager(mcpHub);
+setWorktreeManager(worktreeManager);
 setNativeDialog({
 	selectDirectory: async () => {
 		const result = await dialog.showOpenDialog({
@@ -47,6 +53,14 @@ app.whenReady().then(() => {
 	store.setDataPath(userDataPath);
 	console.log(`[Main] Store initialized with path: ${userDataPath}`);
 
+	// Initialize MCP Servers
+	const mcpConfig = loadMcpConfig();
+	for (const server of mcpConfig.servers) {
+		mcpHub.connectToServer(server).catch((err) => {
+			console.error(`[Main] Failed to connect to MCP server ${server.name}:`, err);
+		});
+	}
+
 	createWindow();
 
 	app.on("activate", () => {
@@ -58,6 +72,14 @@ app.whenReady().then(() => {
 	setupIpc();
 	setupGlobalThemeHandlers();
 	setupAgentLogs();
+
+	// Start internal MCP server
+	console.log("[Main] Starting internal MCP server...");
+	startMcpServer(3001).then(() => {
+		console.log("[Main] Internal MCP server started on port 3001");
+	}).catch((err) => {
+		console.error("[Main] Failed to start MCP server:", err);
+	});
 });
 
 app.on("window-all-closed", () => {

@@ -3,6 +3,8 @@ import { EventEmitter } from 'node:events';
 import type { AgentConfig, AgentLogPayload } from '@agent-manager/shared';
 import { AgentOutputParser } from './output-parser';
 import type { IAgentManager } from './agent-manager';
+import { mcpHub } from '../mcp-hub';
+import { getMcpToolInstructions, executeMcpTool } from './mcp-utils';
 
 interface SessionInfo {
     pty: pty.IPty;
@@ -148,6 +150,30 @@ export class PtyAgentManager extends EventEmitter implements IAgentManager {
 
                 for (const log of logs) {
                     this.emitLog(sessionId, log.data, log.type, log.raw);
+
+                    if (log.type === 'tool_call' && log.raw) {
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        const raw = log.raw as any;
+                        const toolName = raw.tool_name || raw.name || raw.tool;
+                        const args = raw.parameters || raw.arguments || raw.input || {};
+
+                        if (toolName) {
+                            this.emitLog(sessionId, `\n[Executing Tool: ${toolName}...]\n`, 'system');
+
+                            // Async execution
+                            executeMcpTool(toolName, args).then(result => {
+                                this.emitLog(sessionId, `[Tool Result]\n${result}\n`, 'tool_result');
+
+                                // Feed result back to PTY
+                                const toolResultMessage = `[Tool Result for ${toolName}]\n${result}`;
+                                session.pty.write(toolResultMessage + '\r');
+                                session.messageCount++;
+                            }).catch(err => {
+                                console.error(`[PtyAgentManager] Tool execution failed:`, err);
+                                this.emitLog(sessionId, `[Error executing tool: ${err}]\n`, 'error');
+                            });
+                        }
+                    }
                 }
             } catch {
                 // Not valid JSON, silently ignore
@@ -186,9 +212,24 @@ export class PtyAgentManager extends EventEmitter implements IAgentManager {
         return false;
     }
 
-    sendToSession(sessionId: string, message: string) {
+    async sendToSession(sessionId: string, message: string) {
         const session = this.sessions.get(sessionId);
         if (session) {
+            if (session.messageCount === 0) {
+                 try {
+                     const mcpInstructions = await getMcpToolInstructions();
+                     if (mcpInstructions) {
+                        if (session.config.rulesContent) {
+                             session.config.rulesContent += mcpInstructions;
+                        } else {
+                             session.config.rulesContent = mcpInstructions;
+                        }
+                     }
+                 } catch (e) {
+                     console.error('Failed to fetch MCP tools', e);
+                 }
+            }
+
             if (session.ready) {
                 console.log(`[PtyAgentManager] Sending message: ${message.substring(0, 50)}...`);
                 let finalMsg = message;

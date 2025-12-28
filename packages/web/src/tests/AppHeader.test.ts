@@ -1,11 +1,9 @@
 import { mount } from '@vue/test-utils'
 import { describe, it, expect, vi } from 'vitest'
 import AppHeader from '../components/layout/AppHeader.vue'
-import { useNewProjectDialog } from '../composables/useNewProjectDialog'
 
-// Mock the composable
-const open = vi.fn()
-vi.mock('../composables/useNewProjectDialog', () => ({
+// Mock composables
+vi.mock('@/composables/useNewProjectDialog', () => ({
   useNewProjectDialog: () => ({
     open,
   }),

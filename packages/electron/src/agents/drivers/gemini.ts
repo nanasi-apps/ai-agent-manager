@@ -3,26 +3,36 @@ import type { AgentDriver, AgentDriverCommand, AgentDriverContext } from "./inte
 import { splitCommand, shellEscape } from "./interface";
 
 export class GeminiDriver implements AgentDriver {
-    getCommand(context: AgentDriverContext, message: string, config: AgentConfig): AgentDriverCommand {
+    getCommand(context: AgentDriverContext, message: string, config: AgentConfig, systemPrompt?: string): AgentDriverCommand {
         let args: string[];
         const base = splitCommand(config.command || 'gemini');
         const modelArgs = config.model ? ['--model', config.model] : [];
 
         // Escape message for shell - handles newlines, special characters, brackets, etc.
-        const escapedMessage = shellEscape(message);
+        let finalMessage = message;
+        if (systemPrompt) {
+            finalMessage = `${systemPrompt}\n\n${message}`;
+        }
+        const escapedMessage = shellEscape(finalMessage);
+
+        // Initialize with base command arguments
+        const commonArgs: string[] = [...base.args];
+
+        // Gemini CLI does not support -c flags for config injection in the same way Codex does.
+        // We rely on settings.json configuration managed by OneShotAgentManager.
 
         if (context.messageCount === 0) {
             // First message: start fresh
-            args = [...base.args, ...modelArgs, escapedMessage];
+            args = [...commonArgs, ...modelArgs, escapedMessage];
         } else if (context.geminiSessionId) {
             // We have a valid session ID: resume it
-            args = ['--resume', context.geminiSessionId, ...base.args, ...modelArgs, escapedMessage];
+            args = ['--resume', context.geminiSessionId, ...commonArgs, ...modelArgs, escapedMessage];
         } else {
             // No session ID but not first message: 
             // This can happen if agent was swapped or session ID capture failed.
             // Start fresh rather than using dangerous '--resume latest'
             console.warn('[GeminiDriver] No geminiSessionId stored, starting fresh session');
-            args = [...base.args, ...modelArgs, escapedMessage];
+            args = [...commonArgs, ...modelArgs, escapedMessage];
         }
 
         return {

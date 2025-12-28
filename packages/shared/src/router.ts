@@ -5,9 +5,11 @@ import { readFile, writeFile, mkdir, readdir, unlink, stat } from "node:fs/promi
 import { join } from "node:path";
 import { homedir } from "node:os";
 import type { AgentConfig, AgentLogPayload, AgentType } from "./types/agent";
-import type { IStore, Project, Message } from "./types/store";
+import type { IStore, Project } from "./types/store";
 import { availableAgents, getAgentTemplate } from "./types/project";
 import type { ModelTemplate } from "./types/project";
+import type { IMcpManager } from "./types/mcp";
+import type { IWorktreeManager } from "./types/worktree";
 
 // Cross-platform UUID generation
 function generateUUID(): string {
@@ -52,58 +54,6 @@ const HARDCODED_MODELS: Record<string, string[]> = {
 
 const modelListCache = new Map<string, { expiresAt: number; models: ModelTemplate[] }>();
 
-function splitCommand(command: string): { command: string; args: string[] } {
-	const parts: string[] = [];
-	let current = '';
-	let quote: '"' | "'" | null = null;
-
-	for (let i = 0; i < command.length; i++) {
-		const char = command[i];
-
-		if (quote) {
-			if (char === quote) {
-				quote = null;
-				continue;
-			}
-			if (char === '\\' && i + 1 < command.length) {
-				current += command[i + 1];
-				i++;
-				continue;
-			}
-			current += char;
-			continue;
-		}
-
-		if (char === '"' || char === "'") {
-			quote = char;
-			continue;
-		}
-
-		if (/\s/.test(char)) {
-			if (current) {
-				parts.push(current);
-				current = '';
-			}
-			continue;
-		}
-
-		if (char === '\\' && i + 1 < command.length) {
-			current += command[i + 1];
-			i++;
-			continue;
-		}
-
-		current += char;
-	}
-
-	if (current) {
-		parts.push(current);
-	}
-
-	const cmd = parts.shift() || '';
-	return { command: cmd, args: parts };
-}
-
 function buildModelId(agentType: string, model?: string): string {
 	return `${agentType}${MODEL_ID_SEPARATOR}${model ?? ''}`;
 }
@@ -114,11 +64,6 @@ function parseModelId(modelId: string): { agentType: string; model?: string } | 
 	if (!agentType) return null;
 	const model = rest.join(MODEL_ID_SEPARATOR);
 	return { agentType, model: model || undefined };
-}
-
-function stripAnsi(value: string): string {
-	// eslint-disable-next-line no-control-regex
-	return value.replace(/\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g, '');
 }
 
 function getModelsForCliType(cliType: string): string[] {
@@ -161,7 +106,7 @@ export interface IAgentManager {
 	startSession(sessionId: string, command: string, config?: Partial<AgentConfig>): void;
 	resetSession(sessionId: string, command: string, config?: Partial<AgentConfig>): void;
 	stopSession(sessionId: string): boolean;
-	sendToSession(sessionId: string, message: string): void;
+	sendToSession(sessionId: string, message: string): Promise<void>;
 	isRunning(sessionId: string): boolean;
 	listSessions(): string[];
 	on(event: 'log', listener: (payload: AgentLogPayload) => void): void;
@@ -180,6 +125,8 @@ export interface INativeDialog {
 let agentManager: IAgentManager | null = null;
 let store: IStore | null = null;
 let nativeDialog: INativeDialog | null = null;
+let mcpManager: IMcpManager | null = null;
+let worktreeManager: IWorktreeManager | null = null;
 
 /**
  * Set the agent manager implementation
@@ -202,6 +149,16 @@ export function setNativeDialog(dialogImpl: INativeDialog | null): void {
 	console.log('[Router] Native dialog set');
 }
 
+export function setMcpManager(manager: IMcpManager): void {
+	mcpManager = manager;
+	console.log('[Router] MCP manager set');
+}
+
+export function setWorktreeManager(manager: IWorktreeManager): void {
+	worktreeManager = manager;
+	console.log('[Router] Worktree manager set');
+}
+
 function getAgentManagerOrThrow(): IAgentManager {
 	if (!agentManager) {
 		throw new Error('Agent manager not initialized. Call setAgentManager first.');
@@ -218,6 +175,20 @@ function getStoreOrThrow(): IStore {
 
 function getNativeDialog(): INativeDialog | null {
 	return nativeDialog;
+}
+
+function getMcpManagerOrThrow(): IMcpManager {
+	if (!mcpManager) {
+		throw new Error('MCP manager not initialized. Call setMcpManager first.');
+	}
+	return mcpManager;
+}
+
+function getWorktreeManagerOrThrow(): IWorktreeManager {
+	if (!worktreeManager) {
+		throw new Error('Worktree manager not initialized. Call setWorktreeManager first.');
+	}
+	return worktreeManager;
 }
 
 // Zod schema for agent type
@@ -879,7 +850,6 @@ export const appRouter = os.router({
 			const sameCli = currentTemplate?.agent.type === nextTemplate.agent.type;
 			const resolvedModel = parsedModel?.model || input.agentModel;
 			const nextModelLabel = resolvedModel;
-			const previousModelLabel = conv.agentModel;
 
 			const project = storeInstance.getProject(conv.projectId);
 			const cwd = project?.rootPath || nextTemplate.agent.cwd;
@@ -1056,6 +1026,167 @@ ${handoverSummary}
 			}
 
 			return { success: true, message: systemMessage };
+		}),
+
+	// MCP Management
+	listMcpServers: os
+		.output(z.array(z.object({
+			name: z.string(),
+			command: z.string(),
+			args: z.array(z.string()),
+			env: z.record(z.string(), z.string()).optional()
+		})))
+		.handler(async () => {
+			return getMcpManagerOrThrow().getConnectedServers();
+		}),
+
+	addMcpServer: os
+		.input(z.object({
+			name: z.string(),
+			command: z.string(),
+			args: z.array(z.string()),
+			env: z.record(z.string(), z.string()).optional()
+		}))
+		.output(z.object({ success: z.boolean() }))
+		.handler(async ({ input }) => {
+			await getMcpManagerOrThrow().connectToServer(input);
+			return { success: true };
+		}),
+
+	removeMcpServer: os
+		.input(z.object({ name: z.string() }))
+		.output(z.object({ success: z.boolean() }))
+		.handler(async ({ input }) => {
+			await getMcpManagerOrThrow().disconnectServer(input.name);
+			return { success: true };
+		}),
+
+	listMcpTools: os
+		.output(z.array(z.object({
+			name: z.string(),
+			description: z.string().optional(),
+			inputSchema: z.any().optional(),
+			serverName: z.string()
+		})))
+		.handler(async () => {
+			return getMcpManagerOrThrow().listTools();
+		}),
+
+	// Worktree Management
+	listWorktrees: os
+		.input(z.object({ projectId: z.string() }))
+		.output(z.array(z.object({
+			id: z.string(),
+			path: z.string(),
+			branch: z.string(),
+			isMain: z.boolean(),
+			isLocked: z.boolean(),
+			prunable: z.string().nullable()
+		})))
+		.handler(async ({ input }) => {
+			const project = getStoreOrThrow().getProject(input.projectId);
+			if (!project || !project.rootPath) throw new Error('Project has no root path');
+			return getWorktreeManagerOrThrow().getWorktrees(project.rootPath);
+		}),
+
+	createWorktree: os
+		.input(z.object({
+			projectId: z.string(),
+			branch: z.string(),
+			relativePath: z.string().optional()
+		}))
+		.output(z.object({
+			success: z.boolean(),
+			worktree: z.object({
+				id: z.string(),
+				path: z.string(),
+				branch: z.string(),
+				isMain: z.boolean(),
+				isLocked: z.boolean(),
+				prunable: z.string().nullable()
+			}).optional()
+		}))
+		.handler(async ({ input }) => {
+			const project = getStoreOrThrow().getProject(input.projectId);
+			if (!project || !project.rootPath) throw new Error('Project has no root path');
+			const wt = await getWorktreeManagerOrThrow().createWorktree(project.rootPath, input.branch, input.relativePath);
+			return { success: true, worktree: wt };
+		}),
+
+	removeWorktree: os
+		.input(z.object({
+			projectId: z.string(),
+			path: z.string(),
+			force: z.boolean().optional()
+		}))
+		.output(z.object({ success: z.boolean() }))
+		.handler(async ({ input }) => {
+			const project = getStoreOrThrow().getProject(input.projectId);
+			if (!project || !project.rootPath) throw new Error('Project has no root path');
+			await getWorktreeManagerOrThrow().removeWorktree(project.rootPath, input.path, input.force);
+			return { success: true };
+		}),
+
+	// Lock Management
+	acquireLock: os
+		.input(z.object({
+			resourceId: z.string(),
+			agentId: z.string(),
+			intent: z.string(),
+			ttlMs: z.number().optional()
+		}))
+		.output(z.boolean())
+		.handler(async ({ input }) => {
+			const expiresAt = input.ttlMs ? Date.now() + input.ttlMs : undefined;
+			return getStoreOrThrow().acquireLock({
+				resourceId: input.resourceId,
+				agentId: input.agentId,
+				intent: input.intent,
+				timestamp: Date.now(),
+				expiresAt
+			});
+		}),
+
+	releaseLock: os
+		.input(z.object({
+			resourceId: z.string(),
+			agentId: z.string()
+		}))
+		.output(z.boolean())
+		.handler(async ({ input }) => {
+			return getStoreOrThrow().releaseLock(input.resourceId, input.agentId);
+		}),
+
+	getLock: os
+		.input(z.object({ resourceId: z.string() }))
+		.output(z.object({
+			resourceId: z.string(),
+			agentId: z.string(),
+			intent: z.string(),
+			timestamp: z.number(),
+			expiresAt: z.number().optional()
+		}).optional())
+		.handler(async ({ input }) => {
+			return getStoreOrThrow().getLock(input.resourceId);
+		}),
+
+	listLocks: os
+		.output(z.array(z.object({
+			resourceId: z.string(),
+			agentId: z.string(),
+			intent: z.string(),
+			timestamp: z.number(),
+			expiresAt: z.number().optional()
+		})))
+		.handler(async () => {
+			return getStoreOrThrow().listLocks();
+		}),
+
+	forceReleaseLock: os
+		.input(z.object({ resourceId: z.string() }))
+		.output(z.void())
+		.handler(async ({ input }) => {
+			getStoreOrThrow().forceReleaseLock(input.resourceId);
 		})
 });
 

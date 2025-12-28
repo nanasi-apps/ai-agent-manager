@@ -10,10 +10,11 @@ export interface AgentDriverContext {
     messageCount: number;
     geminiSessionId?: string;
     codexThreadId?: string;
+    mcpServerUrl?: string; // URL for internal MCP server injection
 }
 
 export interface AgentDriver {
-    getCommand(context: AgentDriverContext, message: string, config: AgentConfig): AgentDriverCommand;
+    getCommand(context: AgentDriverContext, message: string, config: AgentConfig, systemPrompt?: string): AgentDriverCommand;
 }
 
 export function splitCommand(command: string): AgentDriverCommand {
