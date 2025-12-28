@@ -275,6 +275,36 @@ export async function startMcpServer(port: number = 3001) {
     );
 
     server.tool(
+        "worktree_complete",
+        {
+            repoPath: z.string().describe("Absolute path to the git repository root"),
+            branch: z.string().describe("Branch name to merge and remove"),
+        },
+        async ({ repoPath, branch }) => {
+            try {
+                // 1. Merge
+                await execFileAsync("git", ["merge", "--no-ff", branch], {
+                    cwd: repoPath,
+                });
+
+                // 2. Remove
+                const result = await runGtr(repoPath, ["rm", branch]);
+                return {
+                    content: [{ type: "text", text: result }],
+                };
+            } catch (error: any) {
+                const stdout = error?.stdout?.toString();
+                const stderr = error?.stderr?.toString();
+                const msg = stdout || stderr || error.message;
+                return {
+                    content: [{ type: "text", text: `Error completing worktree: ${msg}` }],
+                    isError: true,
+                };
+            }
+        }
+    );
+
+    server.tool(
         "worktree_run",
         {
             repoPath: z.string().describe("Absolute path to the git repository root"),

@@ -113,6 +113,19 @@ export class GitWorktreeProvider implements InternalToolProvider {
                 serverName: "agents-manager-mcp",
             },
             {
+                name: "worktree_complete",
+                description: "Merge a worktree branch into main and remove the worktree (git merge <branch> && git gtr rm <branch>)",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        repoPath: { type: "string", description: "Absolute path to the git repository root" },
+                        branch: { type: "string", description: "Branch name to merge and remove" },
+                    },
+                    required: ["repoPath", "branch"],
+                },
+                serverName: "agents-manager-mcp",
+            },
+            {
                 name: "worktree_run",
                 description: "Run a command in a worktree using git-worktree-runner (git gtr run <branch> <cmd>)",
                 inputSchema: {
@@ -148,6 +161,23 @@ export class GitWorktreeProvider implements InternalToolProvider {
                 if (!args.branch) {
                     throw new Error("branch is required.");
                 }
+                return await runGtr(args.repoPath, ["rm", args.branch]);
+            }
+            case "worktree_complete": {
+                if (!args.branch) {
+                    throw new Error("branch is required.");
+                }
+                // 1. Merge
+                try {
+                    await execFileAsync("git", ["merge", "--no-ff", args.branch], {
+                        cwd: args.repoPath,
+                    });
+                } catch (error: any) {
+                    const stdout = error?.stdout?.toString();
+                    const stderr = error?.stderr?.toString();
+                    throw new Error(`Merge failed: ${formatOutput(stdout, stderr)}`);
+                }
+                // 2. Remove
                 return await runGtr(args.repoPath, ["rm", args.branch]);
             }
             case "worktree_run": {
