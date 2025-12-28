@@ -131,6 +131,18 @@ export class GitWorktreeProvider implements InternalToolProvider {
                 serverName: "agents-manager-mcp",
             },
             {
+                name: "worktree_cleanup",
+                description: "Prune worktree information using 'git worktree prune'",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        repoPath: { type: "string", description: "Absolute path to the git repository root" },
+                    },
+                    required: ["repoPath"],
+                },
+                serverName: "agents-manager-mcp",
+            },
+            {
                 name: "worktree_run",
                 description: "Run a command in a worktree using git-worktree-runner (git gtr run <branch> <cmd>)",
                 inputSchema: {
@@ -202,6 +214,18 @@ export class GitWorktreeProvider implements InternalToolProvider {
                 }
                 // 2. Remove
                 return await runGtr(args.repoPath, ["rm", args.branch]);
+            }
+            case "worktree_cleanup": {
+                try {
+                    await execFileAsync("git", ["worktree", "prune"], {
+                        cwd: args.repoPath,
+                    });
+                    return "Worktrees pruned successfully.";
+                } catch (error: any) {
+                    const stdout = error?.stdout?.toString();
+                    const stderr = error?.stderr?.toString();
+                    throw new Error(`Prune failed: ${formatOutput(stdout, stderr)}`);
+                }
             }
             case "worktree_run": {
                 const runArgs = args as WorktreeRunArgs;
