@@ -68,14 +68,15 @@ const fetchBranch = async () => {
     if (!targetProjectId) {
         // Fallback: list projects and take the first one if we're in a project context
         // This is not perfect but better than nothing.
-        try {
-            const projects = await orpc.listProjects();
-            if (projects.length > 0 && projects[0]) {
-                targetProjectId = projects[0].id;
-            }
-        } catch (e) {
-            // ignore
-        }
+        // REMOVED: Implicit fallback causes branch to show on Dashboard (root) which is annoying.
+        // try {
+        //     const projects = await orpc.listProjects();
+        //     if (projects.length > 0 && projects[0]) {
+        //         targetProjectId = projects[0].id;
+        //     }
+        // } catch (e) {
+        //     // ignore
+        // }
     }
 
     if (targetProjectId) {
