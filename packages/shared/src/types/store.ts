@@ -23,6 +23,8 @@ export interface Conversation {
     messages: Message[];
     agentType?: string;
     agentModel?: string;
+    /** Current working directory for the agent */
+    cwd?: string;
 }
 
 /**

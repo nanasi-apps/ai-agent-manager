@@ -251,6 +251,18 @@ const appendAgentLog = (payload: AgentLogPayload) => {
   const content = payload.data
   if (!content.trim()) return
 
+  // Detect worktree-related changes and refresh branch info
+  // This handles cases where the agent creates a worktree and the UI needs to update
+  if (content.includes('Scheduled resume in worktree') || 
+      content.includes('Worktree created') ||
+      content.includes('[Agent Manager] Scheduled resume') ||
+      content.includes('Switching to worktree')) {
+    // Refresh branch info after a short delay to allow backend state to update
+    setTimeout(() => {
+      loadBranchInfo(sessionId.value, projectId.value ?? undefined)
+    }, 500)
+  }
+
   // Determine effective type and role for the INCOMING chunk
   const incomingType = payload.type || 'text'
   const incomingRole = incomingType === 'system' ? 'system' : 'agent'

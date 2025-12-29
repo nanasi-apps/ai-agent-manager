@@ -30,6 +30,7 @@ export interface IAgentManager {
 		sessionId: string,
 		request: WorktreeResumeRequest,
 	): boolean;
+	getSessionCwd?(sessionId: string): string | undefined;
 }
 
 export interface WorktreeResumeRequest {
@@ -106,5 +107,8 @@ export const agentManager = {
 		return (
 			getAgentManager().requestWorktreeResume?.(sessionId, request) ?? false
 		);
+	},
+	getSessionCwd(sessionId: string): string | undefined {
+		return getAgentManager().getSessionCwd?.(sessionId);
 	},
 };

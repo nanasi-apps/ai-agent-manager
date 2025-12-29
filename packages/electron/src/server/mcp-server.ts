@@ -11,6 +11,7 @@ import { z } from "zod";
 import { splitCommand } from "../agents/drivers/interface";
 import { getAgentManager } from "../agents/agent-manager";
 import { worktreeManager } from "../main/worktree-manager";
+import { getStoreOrThrow } from "@agent-manager/shared";
 
 const execFileAsync = promisify(execFile);
 
@@ -217,7 +218,7 @@ export async function startMcpServer(port: number = 3001) {
                     console.log(`[McpServer] Available worktrees: ${worktrees.map(wt => `${wt.branch}:${wt.path}`).join(', ')}`);
                     // Filter out prunable worktrees (directories that might have been deleted)
                     worktreePath = worktrees.find((wt) => wt.branch === normalizedBranch && !wt.prunable)?.path;
-                    
+
                     if (worktreePath) {
                         try {
                             await fs.access(worktreePath);
@@ -255,6 +256,13 @@ export async function startMcpServer(port: number = 3001) {
                             });
                             if (!resumeScheduled) {
                                 resumeError = "Failed to schedule worktree resume.";
+                            } else {
+                                // Update the persisted conversation's cwd so it survives restarts
+                                try {
+                                    getStoreOrThrow().updateConversation(sessionId, { cwd: worktreePath });
+                                } catch (e) {
+                                    console.warn('[McpServer] Failed to persist cwd to conversation:', e);
+                                }
                             }
                         }
                     } catch (error: any) {
@@ -342,45 +350,46 @@ export async function startMcpServer(port: number = 3001) {
                         cwd: repoPath,
                     });
                 } catch (error: any) {
-                     const stdout = error?.stdout?.toString() || "";
-                     if (!stdout.includes("CONFLICT")) {
-                          throw error;
-                     }
+                    const stdout = error?.stdout?.toString() || "";
+                    if (!stdout.includes("CONFLICT")) {
+                        throw error;
+                    }
 
-                     // 1. Abort
-                     await execFileAsync("git", ["merge", "--abort"], { cwd: repoPath });
+                    // 1. Abort
+                    await execFileAsync("git", ["merge", "--abort"], { cwd: repoPath });
 
-                     // 2. Identify worktree
-                     const worktreePath = path.join(repoPath, ".worktrees", branch);
-                     if (!existsSync(worktreePath)) {
-                         throw new Error(`Merge conflict detected and worktree ${worktreePath} not found to resolve it.`);
-                     }
+                    // 2. Identify worktree
+                    const worktreePath = path.join(repoPath, ".worktrees", branch);
+                    if (!existsSync(worktreePath)) {
+                        throw new Error(`Merge conflict detected and worktree ${worktreePath} not found to resolve it.`);
+                    }
 
-                     const targetBranch = await getCurrentBranch(repoPath);
+                    const targetBranch = await getCurrentBranch(repoPath);
 
-                     // 3. Reverse Merge
-                     try {
-                         await execFileAsync("git", ["merge", targetBranch], { cwd: worktreePath });
-                         
-                         // 4. Retry original merge
-                         await execFileAsync("git", ["merge", "--no-ff", branch], {
-                             cwd: repoPath,
-                         });
-                     } catch (reverseError: any) {
-                         const reverseStdout = reverseError?.stdout?.toString() || "";
-                         if (reverseStdout.includes("CONFLICT")) {
-                             const conflicts = await getConflictedFiles(worktreePath);
-                             return {
-                                content: [{ type: "text", text: 
-                                    `Merge conflict detected. I have attempted to merge '${targetBranch}' into your worktree to resolve this, but conflicts were found.\n\n` +
-                                    `Conflicted files in worktree:\n${conflicts.map(c => `- ${c}`).join("\n")}\n\n` +
-                                    `Action Required: Please resolve these conflicts inside your worktree, commit the changes, and then run 'worktree_complete' again.`
+                    // 3. Reverse Merge
+                    try {
+                        await execFileAsync("git", ["merge", targetBranch], { cwd: worktreePath });
+
+                        // 4. Retry original merge
+                        await execFileAsync("git", ["merge", "--no-ff", branch], {
+                            cwd: repoPath,
+                        });
+                    } catch (reverseError: any) {
+                        const reverseStdout = reverseError?.stdout?.toString() || "";
+                        if (reverseStdout.includes("CONFLICT")) {
+                            const conflicts = await getConflictedFiles(worktreePath);
+                            return {
+                                content: [{
+                                    type: "text", text:
+                                        `Merge conflict detected. I have attempted to merge '${targetBranch}' into your worktree to resolve this, but conflicts were found.\n\n` +
+                                        `Conflicted files in worktree:\n${conflicts.map(c => `- ${c}`).join("\n")}\n\n` +
+                                        `Action Required: Please resolve these conflicts inside your worktree, commit the changes, and then run 'worktree_complete' again.`
                                 }],
                                 isError: true
-                             }
-                         }
-                         throw reverseError;
-                     }
+                            }
+                        }
+                        throw reverseError;
+                    }
                 }
 
                 // 2. Remove

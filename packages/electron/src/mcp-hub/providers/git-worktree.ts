@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import * as path from "node:path";
 import { existsSync } from "node:fs";
-import { McpTool } from "@agent-manager/shared";
+import { McpTool, getStoreOrThrow } from "@agent-manager/shared";
 import { splitCommand } from "../../agents/drivers/interface";
 import { InternalToolProvider } from "../types";
 import { getAgentManager } from "../../agents/agent-manager";
@@ -185,12 +185,37 @@ export class GitWorktreeProvider implements InternalToolProvider {
                 if (!args.branch) {
                     throw new Error("branch is required.");
                 }
+                console.log(`[GitWorktreeProvider] worktree_create called: branch=${args.branch}, sessionId=${args.sessionId}, resume=${args.resume}`);
+
                 const result = await runGtr(args.repoPath, ["new", args.branch]);
+                console.log(`[GitWorktreeProvider] Worktree created: ${result}`);
 
                 if (args.resume && args.sessionId) {
+                    // Parse the actual worktree path from git gtr output
+                    // The output contains "Location: /path/to/worktree" or "Worktree path: /path/to/worktree"
+                    let targetCwd: string | undefined;
+
+                    const locationMatch = result.match(/Location:\s*(.+)/);
+                    if (locationMatch) {
+                        targetCwd = locationMatch[1].trim();
+                    }
+
+                    if (!targetCwd) {
+                        const worktreePathMatch = result.match(/Worktree (?:path|created):\s*(.+)/);
+                        if (worktreePathMatch) {
+                            targetCwd = worktreePathMatch[1].trim();
+                        }
+                    }
+
+                    if (!targetCwd) {
+                        // Fallback to the old assumption
+                        targetCwd = path.join(args.repoPath, ".worktrees", args.branch);
+                        console.warn(`[GitWorktreeProvider] Could not parse worktree path from output, falling back to: ${targetCwd}`);
+                    }
+
+                    console.log(`[GitWorktreeProvider] Requesting worktree resume: sessionId=${args.sessionId}, cwd=${targetCwd}`);
+
                     const manager = getAgentManager();
-                    const targetCwd = path.join(args.repoPath, ".worktrees", args.branch);
-                    
                     const scheduled = manager.requestWorktreeResume?.(args.sessionId, {
                         cwd: targetCwd,
                         branch: args.branch,
@@ -198,11 +223,19 @@ export class GitWorktreeProvider implements InternalToolProvider {
                         resumeMessage: args.resumeMessage
                     });
 
+                    console.log(`[GitWorktreeProvider] Resume scheduled: ${scheduled}`);
+
                     if (scheduled) {
+                        // Update the persisted conversation's cwd so it survives restarts
+                        try {
+                            getStoreOrThrow().updateConversation(args.sessionId, { cwd: targetCwd });
+                        } catch (e) {
+                            console.warn('[GitWorktreeProvider] Failed to persist cwd to conversation:', e);
+                        }
                         return `${result}\n\n[Agent Manager] Scheduled resume in worktree ${args.branch}`;
                     }
                 }
-                
+
                 return result;
             }
             case "worktree_list":
@@ -233,7 +266,7 @@ export class GitWorktreeProvider implements InternalToolProvider {
                     try {
                         const stdout = error?.stdout?.toString() || "";
                         if (!stdout.includes("CONFLICT")) {
-                             throw error; // Rethrow if it's not a conflict
+                            throw error; // Rethrow if it's not a conflict
                         }
 
                         // 1. Abort
@@ -251,7 +284,7 @@ export class GitWorktreeProvider implements InternalToolProvider {
                         // 3. Reverse Merge
                         try {
                             await execFileAsync("git", ["merge", targetBranch], { cwd: worktreePath });
-                            
+
                             // 4. Retry original merge
                             // Now that worktree has merged main, merging worktree into main should be clean.
                             await execFileAsync("git", ["merge", "--no-ff", args.branch], {
@@ -272,16 +305,16 @@ export class GitWorktreeProvider implements InternalToolProvider {
                         }
 
                     } catch (innerError: any) {
-                         // Fallback to original error if our strategy failed unexpectedly or we rethrew
-                         const stdout = innerError?.stdout?.toString() || error?.stdout?.toString();
-                         const stderr = innerError?.stderr?.toString() || error?.stderr?.toString();
-                         const message = innerError.message || `Merge failed: ${formatOutput(stdout, stderr)}`;
-                         
-                         // Ensure we don't wrap the detailed error we just threw
-                         if (innerError.message && innerError.message.includes("Action Required")) {
-                             throw innerError;
-                         }
-                         throw new Error(message);
+                        // Fallback to original error if our strategy failed unexpectedly or we rethrew
+                        const stdout = innerError?.stdout?.toString() || error?.stdout?.toString();
+                        const stderr = innerError?.stderr?.toString() || error?.stderr?.toString();
+                        const message = innerError.message || `Merge failed: ${formatOutput(stdout, stderr)}`;
+
+                        // Ensure we don't wrap the detailed error we just threw
+                        if (innerError.message && innerError.message.includes("Action Required")) {
+                            throw innerError;
+                        }
+                        throw new Error(message);
                     }
                 }
                 // 2. Remove

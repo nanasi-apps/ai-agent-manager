@@ -237,6 +237,8 @@ export interface IAgentManager {
 		sessionId: string,
 		request: { cwd: string; branch: string; repoPath: string; resumeMessage?: string }
 	): boolean;
+	/** Get the current working directory for a session */
+	getSessionCwd?(sessionId: string): string | undefined;
 }
 
 export interface INativeDialog {
@@ -294,7 +296,7 @@ function getAgentManagerOrThrow(): IAgentManager {
 	return agentManager;
 }
 
-function getStoreOrThrow(): IStore {
+export function getStoreOrThrow(): IStore {
 	if (!store) {
 		throw new Error('Store not initialized. Call setStore first.');
 	}
@@ -920,6 +922,9 @@ export const appRouter = os.router({
 			}
 			const resolvedModel = parsedModel?.model || input.agentModel;
 
+			// Determine the cwd for the agent
+			const agentCwd = project.rootPath || agentTemplate.agent.cwd;
+
 			// Save to store with initialMessage and messages array
 			storeInstance.addConversation({
 				id: sessionId,
@@ -930,6 +935,7 @@ export const appRouter = os.router({
 				updatedAt: now,
 				agentType: resolvedAgentType,
 				agentModel: resolvedModel,
+				cwd: agentCwd,
 				messages: [{
 					id: generateUUID(),
 					role: 'user',
@@ -971,7 +977,7 @@ export const appRouter = os.router({
 				agentManagerInstance.startSession(sessionId, agentTemplate.agent.command, {
 					...agentTemplate.agent,
 					model: resolvedModel,
-					cwd: project.rootPath || agentTemplate.agent.cwd,
+					cwd: agentCwd,
 					rulesContent,
 					env: { ...agentTemplate.agent.env, ...agentEnv },
 				});
@@ -994,6 +1000,7 @@ export const appRouter = os.router({
 			updatedAt: z.number(),
 			agentType: z.string().optional(),
 			agentModel: z.string().optional(),
+			cwd: z.string().optional(),
 		}).nullable())
 		.handler(async ({ input }) => {
 			const conv = getStoreOrThrow().getConversation(input.sessionId);
@@ -1639,13 +1646,42 @@ ${handoverSummary}
 		}),
 
 	getCurrentBranch: os
-		.input(z.object({ projectId: z.string() }))
+		.input(z.object({
+			projectId: z.string().optional(),
+			sessionId: z.string().optional(),
+		}))
 		.output(z.string().nullable())
 		.handler(async ({ input }) => {
-			const project = getStoreOrThrow().getProject(input.projectId);
-			if (!project || !project.rootPath) return null;
+			let targetPath: string | null = null;
+
+			// Priority 1: If sessionId is provided, try to get the session's cwd from agent manager (live session)
+			if (input.sessionId) {
+				const sessionCwd = getAgentManagerOrThrow().getSessionCwd?.(input.sessionId);
+				if (sessionCwd) {
+					targetPath = sessionCwd;
+				}
+			}
+
+			// Priority 2: If no live session cwd, try to get from persisted conversation
+			if (!targetPath && input.sessionId) {
+				const conv = getStoreOrThrow().getConversation(input.sessionId);
+				if (conv?.cwd) {
+					targetPath = conv.cwd;
+				}
+			}
+
+			// Priority 3: Fallback to project's rootPath
+			if (!targetPath && input.projectId) {
+				const project = getStoreOrThrow().getProject(input.projectId);
+				if (project?.rootPath) {
+					targetPath = project.rootPath;
+				}
+			}
+
+			if (!targetPath) return null;
+
 			try {
-				const status = await getWorktreeManagerOrThrow().getWorktreeStatus(project.rootPath);
+				const status = await getWorktreeManagerOrThrow().getWorktreeStatus(targetPath);
 				return status.branch;
 			} catch (e) {
 				console.error('[Router] Failed to get current branch:', e);

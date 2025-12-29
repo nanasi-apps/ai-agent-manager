@@ -129,6 +129,11 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
         return session?.consumePendingHandover();
     }
 
+    getSessionCwd(sessionId: string): string | undefined {
+        const session = this.sessions.get(sessionId);
+        return session?.config.cwd;
+    }
+
     private emitLog(
         sessionId: string,
         data: string,

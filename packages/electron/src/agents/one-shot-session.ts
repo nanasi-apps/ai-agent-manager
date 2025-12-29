@@ -76,7 +76,29 @@ export class OneShotSession extends EventEmitter {
             resumeMessage,
         });
 
-        this.emitLog(`\n[System] Worktree resume scheduled for branch ${request.branch}.\n`, 'system');
+        this.emitLog(`\n[System] Worktree resume scheduled for branch ${request.branch}. Forcing agent restart...\n`, 'system');
+
+        // Force kill the current process to trigger immediate resume in the new worktree
+        // Use setTimeout to allow the MCP tool response to be sent before killing
+        // handleProcessClose will call handlePendingWorktreeResume which respawns with the new cwd
+        const currentProcess = this.state.currentProcess;
+        if (currentProcess && currentProcess.pid) {
+            setTimeout(() => {
+                // Double-check the process is still the same one we intended to kill
+                if (this.state.currentProcess === currentProcess && currentProcess.pid) {
+                    console.log(`[OneShotSession ${this.sessionId}] Killing process (pid=${currentProcess.pid}) for worktree switch`);
+                    // Use SIGKILL to force-kill since SIGTERM may be ignored by some CLIs
+                    try {
+                        // Kill the entire process group
+                        process.kill(-currentProcess.pid, 'SIGKILL');
+                    } catch {
+                        // Fallback to regular kill if process group kill fails
+                        currentProcess.kill('SIGKILL');
+                    }
+                }
+            }, 500);
+        }
+
         return true;
     }
 
@@ -153,7 +175,8 @@ export class OneShotSession extends EventEmitter {
             const child = spawn(cmd.command, cmd.args, {
                 cwd: finalCwd,
                 env: spawnEnv,
-                shell: true
+                shell: true,
+                detached: true, // Create new process group for proper killing
             });
 
             this.stateManager.startProcessing(child, message);
@@ -249,12 +272,20 @@ export class OneShotSession extends EventEmitter {
     }
 
     private handleProcessClose(child: ChildProcess, code: number | null) {
-        if (this.state.currentProcess !== child) return;
+        console.log(`[OneShotSession ${this.sessionId}] handleProcessClose called, code=${code}, hasPending=${!!this.state.pendingWorktreeResume}`);
+
+        if (this.state.currentProcess !== child) {
+            console.log(`[OneShotSession ${this.sessionId}] Ignoring close event - process mismatch`);
+            return;
+        }
+
+        // Capture pending before stopProcessing clears currentProcess
+        const hasPendingResume = !!this.state.pendingWorktreeResume;
 
         this.stateManager.stopProcessing();
-        console.log(`[OneShotSession ${this.sessionId}] Process exited with code ${code}`);
+        console.log(`[OneShotSession ${this.sessionId}] Process exited with code ${code}, hasPendingResume=${hasPendingResume}`);
 
-        if (!this.state.pendingWorktreeResume) {
+        if (!hasPendingResume) {
             this.emitLog(`\n[Process exited with code ${code}]\n`, 'system');
         }
         this.handlePendingWorktreeResume();
@@ -324,7 +355,14 @@ export class OneShotSession extends EventEmitter {
 
     private handlePendingWorktreeResume() {
         const pending = this.state.pendingWorktreeResume;
-        if (!pending) return;
+        console.log(`[OneShotSession ${this.sessionId}] handlePendingWorktreeResume called, hasPending=${!!pending}`);
+
+        if (!pending) {
+            console.log(`[OneShotSession ${this.sessionId}] No pending worktree resume, skipping`);
+            return;
+        }
+
+        console.log(`[OneShotSession ${this.sessionId}] Activating worktree: branch=${pending.request.branch}, cwd=${pending.request.cwd}`);
 
         this.stateManager.clearWorktreeResume();
         this.stateManager.activateWorktree({
@@ -334,6 +372,8 @@ export class OneShotSession extends EventEmitter {
         });
 
         this.emitLog(`\n[System] Switching to worktree ${pending.request.branch} at ${pending.request.cwd}\n`, 'system');
+
+        console.log(`[OneShotSession ${this.sessionId}] Calling processMessage with resume message`);
         void this.processMessage(pending.resumeMessage);
     }
 

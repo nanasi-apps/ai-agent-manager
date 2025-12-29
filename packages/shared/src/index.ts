@@ -9,6 +9,7 @@ export {
     setNativeDialog,
     setMcpManager,
     setWorktreeManager,
-    setOrchestrationManager
+    setOrchestrationManager,
+    getStoreOrThrow
 } from "./router";
 export type { AppRouter, IAgentManager } from "./router";
