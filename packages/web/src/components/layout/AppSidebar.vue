@@ -67,13 +67,10 @@ const { open: openNewConversion } = useNewConversionDialog()
 
 const refreshData = async () => {
   try {
-    const [fetchedProjects, fetchedConversations, agentStatuses] = await Promise.all([
+    const [fetchedProjects, fetchedConversations] = await Promise.all([
       orpc.listProjects(),
-      orpc.listConversations({}),
-      orpc.getAgentStatuses()
+      orpc.listConversations({})
     ]);
-
-    const runningSessions = new Set(agentStatuses.filter(s => s.isRunning).map(s => s.sessionId));
 
     projects.value = fetchedProjects.map((p: { id: string; name: string }) => ({
       id: p.id,
@@ -84,7 +81,7 @@ const refreshData = async () => {
         .map((c: { id: string; title: string }) => ({
           id: c.id,
           title: c.title,
-          isRunning: runningSessions.has(c.id)
+          isRunning: false
         }))
     }));
   } catch (e) {

@@ -85,9 +85,15 @@ function createWindow() {
 	});
 
 	const devUrl = "http://localhost:5173";
-	win.loadURL(devUrl).catch((err) => {
-		console.error("Failed to load URL:", err);
-	});
+	if (app.isPackaged) {
+		win.loadFile(path.join(__dirname, "renderer/index.html")).catch((err) => {
+			console.error("Failed to load local file:", err);
+		});
+	} else {
+		win.loadURL(devUrl).catch((err) => {
+			console.error("Failed to load URL:", err);
+		});
+	}
 
 	win.webContents.openDevTools();
 

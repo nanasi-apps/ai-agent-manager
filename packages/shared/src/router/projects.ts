@@ -1,6 +1,6 @@
 import { os } from "@orpc/server";
 import { z } from "zod";
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { getStoreOrThrow } from "../services/dependency-container";
 import { RULES_DIR } from "../services/rules-resolver";
@@ -134,9 +134,8 @@ export const projectsRouter = {
 
                     /*
                     const finalContent = `${globalRulesContent}\n\n<!-- Project Specific Rules -->\n${projectRulesContent}`.trim();
-
-                    await writeFile(join(updatedProject.rootPath, 'Agents.md'), finalContent, 'utf-8');
-                    await writeFile(join(updatedProject.rootPath, 'Claude.md'), finalContent, 'utf-8');
+                    // await writeFile(join(updatedProject.rootPath, 'Agents.md'), finalContent, 'utf-8');
+                    // await writeFile(join(updatedProject.rootPath, 'Claude.md'), finalContent, 'utf-8');
                     */
                 } catch (e) {
                     console.error("Failed to generate rule files", e);

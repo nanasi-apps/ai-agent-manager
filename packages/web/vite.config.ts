@@ -4,7 +4,8 @@ import tailwindcss from '@tailwindcss/vite'
 import vue from '@vitejs/plugin-vue'
 import VueRouter from 'unplugin-vue-router/vite'
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
+	base: command === 'build' ? './' : '/',
 	plugins: [
 		VueRouter({
 			routesFolder: 'src/pages',
@@ -17,4 +18,4 @@ export default defineConfig({
 			'@': path.resolve(__dirname, './src'),
 		},
 	},
-})
+}))
