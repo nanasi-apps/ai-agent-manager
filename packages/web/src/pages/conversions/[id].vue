@@ -14,7 +14,8 @@ import {
   ChevronRight, 
   ChevronDown,
   Terminal,
-  GitBranch
+  GitBranch,
+  Settings2
 } from 'lucide-vue-next'
 import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
@@ -71,6 +72,7 @@ const formatModelLabel = (model: ModelTemplate) => {
 
 const scrollAreaRef = ref<InstanceType<typeof ScrollArea> | null>(null)
 const messagesEndRef = ref<HTMLElement | null>(null)
+const showSystemLogs = ref(true)
 
 const toggleMessage = (id: string) => {
   if (expandedMessageIds.value.has(id)) {
@@ -581,6 +583,19 @@ const formatTime = (timestamp: number) => {
           </div>
         </div>
       </div>
+
+      <div class="flex items-center gap-2">
+        <Button
+          variant="ghost"
+          size="icon"
+          class="h-8 w-8 text-muted-foreground"
+          :class="{ 'bg-accent text-accent-foreground': showSystemLogs }"
+          @click="showSystemLogs = !showSystemLogs"
+          :title="showSystemLogs ? 'Hide logs' : 'Show logs'"
+        >
+          <Settings2 class="size-4" />
+        </Button>
+      </div>
     </div>
 
     <div class="flex-1 flex flex-col min-h-0">
@@ -642,7 +657,7 @@ const formatTime = (timestamp: number) => {
               </div>
 
               <!-- Type 2: System / Tool / Thinking Log (Minimal Timeline Style) -->
-              <div v-else class="flex flex-col gap-0.5 py-0.5 px-4 group">
+              <div v-else-if="showSystemLogs || msg.logType === 'error'" class="flex flex-col gap-0.5 py-0.5 px-4 group">
                  <!-- Collapsible Header -->
                 <div 
                   @click="toggleMessage(msg.id)"
