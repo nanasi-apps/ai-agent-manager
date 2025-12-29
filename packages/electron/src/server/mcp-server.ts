@@ -59,10 +59,13 @@ export async function startMcpServer(port: number = 3001) {
     };
 
     // Register FS tools
-    server.tool(
+    server.registerTool(
         "read_file",
         {
-            path: z.string().describe("Absolute path to the file"),
+            description: "Read file contents",
+            inputSchema: {
+                path: z.string().describe("Absolute path to the file"),
+            },
         },
         async ({ path: filePath }) => {
             try {
@@ -79,11 +82,14 @@ export async function startMcpServer(port: number = 3001) {
         }
     );
 
-    server.tool(
+    server.registerTool(
         "write_file",
         {
-            path: z.string().describe("Absolute path to the file"),
-            content: z.string().describe("Content to write"),
+            description: "Write content to a file",
+            inputSchema: {
+                path: z.string().describe("Absolute path to the file"),
+                content: z.string().describe("Content to write"),
+            },
         },
         async ({ path: filePath, content }) => {
             try {
@@ -101,12 +107,15 @@ export async function startMcpServer(port: number = 3001) {
         }
     );
 
-    server.tool(
+    server.registerTool(
         "replace_file_content",
         {
-            path: z.string().describe("Absolute path to the file"),
-            target: z.string().describe("String to replace"),
-            replacement: z.string().describe("New string"),
+            description: "Replace content in a file",
+            inputSchema: {
+                path: z.string().describe("Absolute path to the file"),
+                target: z.string().describe("String to replace"),
+                replacement: z.string().describe("New string"),
+            },
         },
         async ({ path: filePath, target, replacement }) => {
             try {
@@ -131,12 +140,15 @@ export async function startMcpServer(port: number = 3001) {
         }
     );
 
-    server.tool(
+    server.registerTool(
         "pre_file_edit",
         {
-            path: z.string().describe("Absolute path to the file"),
-            operation: z.string().describe("Operation name (write_file, replace_file_content, etc.)"),
-            editId: z.string().optional().describe("Optional identifier to correlate with post_file_edit"),
+            description: "Pre-edit hook for file operations",
+            inputSchema: {
+                path: z.string().describe("Absolute path to the file"),
+                operation: z.string().describe("Operation name (write_file, replace_file_content, etc.)"),
+                editId: z.string().optional().describe("Optional identifier to correlate with post_file_edit"),
+            },
         },
         async ({ path: filePath, operation }) => {
             return {
@@ -145,14 +157,17 @@ export async function startMcpServer(port: number = 3001) {
         }
     );
 
-    server.tool(
+    server.registerTool(
         "post_file_edit",
         {
-            path: z.string().describe("Absolute path to the file"),
-            operation: z.string().describe("Operation name (write_file, replace_file_content, etc.)"),
-            editId: z.string().optional().describe("Optional identifier to correlate with pre_file_edit"),
-            success: z.boolean().optional().describe("Whether the operation succeeded"),
-            message: z.string().optional().describe("Optional message about the operation outcome"),
+            description: "Post-edit hook for file operations",
+            inputSchema: {
+                path: z.string().describe("Absolute path to the file"),
+                operation: z.string().describe("Operation name (write_file, replace_file_content, etc.)"),
+                editId: z.string().optional().describe("Optional identifier to correlate with pre_file_edit"),
+                success: z.boolean().optional().describe("Whether the operation succeeded"),
+                message: z.string().optional().describe("Optional message about the operation outcome"),
+            },
         },
         async ({ path: filePath, operation, success, message }) => {
             const status = success === false ? "failed" : "completed";
@@ -163,14 +178,17 @@ export async function startMcpServer(port: number = 3001) {
         }
     );
 
-    server.tool(
+    server.registerTool(
         "worktree_create",
         {
-            repoPath: z.string().describe("Absolute path to the git repository root"),
-            branch: z.string().describe("Branch name to create or checkout"),
-            sessionId: z.string().optional().describe("Optional agent session ID to resume in the worktree"),
-            resume: z.boolean().optional().describe("Schedule a resume in the created worktree"),
-            resumeMessage: z.string().optional().describe("Optional message to send on resume"),
+            description: "Create a git worktree for a branch",
+            inputSchema: {
+                repoPath: z.string().describe("Absolute path to the git repository root"),
+                branch: z.string().describe("Branch name to create or checkout"),
+                sessionId: z.string().optional().describe("Optional agent session ID to resume in the worktree"),
+                resume: z.boolean().optional().describe("Schedule a resume in the created worktree"),
+                resumeMessage: z.string().optional().describe("Optional message to send on resume"),
+            },
         },
         async ({ repoPath, branch, sessionId, resume, resumeMessage }) => {
             const normalizedBranch = branch.replace(/^refs\/heads\//, "");
@@ -260,10 +278,13 @@ export async function startMcpServer(port: number = 3001) {
         }
     );
 
-    server.tool(
+    server.registerTool(
         "worktree_list",
         {
-            repoPath: z.string().describe("Absolute path to the git repository root"),
+            description: "List all git worktrees",
+            inputSchema: {
+                repoPath: z.string().describe("Absolute path to the git repository root"),
+            },
         },
         async ({ repoPath }) => {
             try {
@@ -280,11 +301,14 @@ export async function startMcpServer(port: number = 3001) {
         }
     );
 
-    server.tool(
+    server.registerTool(
         "worktree_remove",
         {
-            repoPath: z.string().describe("Absolute path to the git repository root"),
-            branch: z.string().describe("Branch name to remove"),
+            description: "Remove a git worktree",
+            inputSchema: {
+                repoPath: z.string().describe("Absolute path to the git repository root"),
+                branch: z.string().describe("Branch name to remove"),
+            },
         },
         async ({ repoPath, branch }) => {
             try {
@@ -301,11 +325,14 @@ export async function startMcpServer(port: number = 3001) {
         }
     );
 
-    server.tool(
+    server.registerTool(
         "worktree_complete",
         {
-            repoPath: z.string().describe("Absolute path to the git repository root"),
-            branch: z.string().describe("Branch name to merge and remove"),
+            description: "Merge worktree branch and remove it",
+            inputSchema: {
+                repoPath: z.string().describe("Absolute path to the git repository root"),
+                branch: z.string().describe("Branch name to merge and remove"),
+            },
         },
         async ({ repoPath, branch }) => {
             try {
@@ -373,13 +400,16 @@ export async function startMcpServer(port: number = 3001) {
         }
     );
 
-    server.tool(
+    server.registerTool(
         "worktree_run",
         {
-            repoPath: z.string().describe("Absolute path to the git repository root"),
-            branch: z.string().describe("Branch name to run the command in"),
-            command: z.string().describe("Command to run (e.g. \"pnpm test\")"),
-            args: z.array(z.string()).optional().describe("Optional command arguments"),
+            description: "Run a command in a worktree",
+            inputSchema: {
+                repoPath: z.string().describe("Absolute path to the git repository root"),
+                branch: z.string().describe("Branch name to run the command in"),
+                command: z.string().describe("Command to run (e.g. \"pnpm test\")"),
+                args: z.array(z.string()).optional().describe("Optional command arguments"),
+            },
         },
         async ({ repoPath, branch, command, args }) => {
             try {
@@ -405,10 +435,13 @@ export async function startMcpServer(port: number = 3001) {
         }
     );
 
-    server.tool(
+    server.registerTool(
         "list_directory",
         {
-            path: z.string().describe("Absolute path to the directory"),
+            description: "List directory contents",
+            inputSchema: {
+                path: z.string().describe("Absolute path to the directory"),
+            },
         },
         async ({ path: dirPath }) => {
             try {
