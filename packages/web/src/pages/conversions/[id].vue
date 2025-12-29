@@ -712,13 +712,16 @@ const formatTime = (timestamp: number) => {
               <div v-else-if="showSystemLogs || msg.logType === 'error'" class="flex flex-col gap-0.5 py-0.5 px-4 group">
                  <!-- Collapsible Header -->
                 <div 
-                  @click="toggleMessage(msg.id)"
-                  class="flex items-center gap-2 cursor-pointer select-none px-2 py-1.5 rounded-md hover:bg-black/5 dark:hover:bg-white/5 transition-colors opacity-80 hover:opacity-100"
+                  @click="hasContent(msg) && toggleMessage(msg.id)"
+                  class="flex items-center gap-2 select-none px-2 py-1.5 rounded-md transition-colors opacity-80 hover:opacity-100"
+                  :class="hasContent(msg) ? 'cursor-pointer hover:bg-black/5 dark:hover:bg-white/5' : 'cursor-default'"
                 >
                   <component 
+                    v-if="hasContent(msg)"
                     :is="expandedMessageIds.has(msg.id) ? ChevronDown : ChevronRight" 
                     class="size-3.5 opacity-50 shrink-0"
                   />
+                  <div v-else class="size-3.5" /> <!-- Spacer -->
                   
                   <!-- Icon based on type -->
                   <Terminal v-if="msg.logType === 'tool_call' || msg.logType === 'tool_result'" class="size-3.5 text-blue-500 shrink-0" />
