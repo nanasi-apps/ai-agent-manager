@@ -15,7 +15,8 @@ import {
   ChevronDown,
   Terminal,
   GitBranch,
-  Settings2
+  Settings2,
+  Cpu
 } from 'lucide-vue-next'
 import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
@@ -200,6 +201,10 @@ const sanitizeLogContent = (content: string, logType?: LogType) => {
   }
   
   return clean
+}
+
+const hasContent = (msg: Message) => {
+  return sanitizeLogContent(msg.content, msg.logType).trim().length > 0
 }
 
 const loadModelTemplates = async () => {
@@ -719,6 +724,7 @@ const formatTime = (timestamp: number) => {
                   <Terminal v-if="msg.logType === 'tool_call' || msg.logType === 'tool_result'" class="size-3.5 text-blue-500 shrink-0" />
                   <AlertCircle v-else-if="msg.logType === 'error'" class="size-3.5 text-red-500 shrink-0" />
                   <Sparkles v-else-if="msg.logType === 'thinking'" class="size-3.5 text-purple-500 shrink-0" />
+                  <Cpu v-else-if="msg.logType === 'system'" class="size-3.5 text-green-500 shrink-0" />
                   <AlertCircle v-else class="size-3.5 text-yellow-500 shrink-0" />
 
                   <span class="text-xs font-medium font-mono uppercase text-muted-foreground truncate max-w-[200px]">
