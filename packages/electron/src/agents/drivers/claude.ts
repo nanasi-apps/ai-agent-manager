@@ -4,7 +4,7 @@ import type {
 	AgentDriverCommand,
 	AgentDriverContext,
 } from "./interface";
-import { shellEscape, splitCommand } from "./interface";
+import { buildFullMessage, shellEscape, splitCommand } from "./interface";
 
 export class ClaudeDriver implements AgentDriver {
 	getCommand(
@@ -16,10 +16,8 @@ export class ClaudeDriver implements AgentDriver {
 		const base = splitCommand(config.command || "claude");
 		const modelArgs = config.model ? ["--model", config.model] : [];
 
-		// Prepend system prompt to message if present (fallback for Claude CLI)
-		const fullMessage = systemPrompt
-			? `${systemPrompt}\n\n${message}`
-			: message;
+		// Combine system prompt and message
+		const fullMessage = buildFullMessage(message, systemPrompt);
 
 		// Escape message for shell - handles newlines, special characters, brackets, etc.
 		const escapedMessage = shellEscape(fullMessage);

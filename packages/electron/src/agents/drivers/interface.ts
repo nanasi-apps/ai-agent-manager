@@ -22,6 +22,20 @@ export interface AgentDriver {
 	): AgentDriverCommand;
 }
 
+/**
+ * Combine system prompt and user message into a single message.
+ * Used by drivers that don't have native system prompt support.
+ */
+export function buildFullMessage(
+	message: string,
+	systemPrompt?: string,
+): string {
+	if (systemPrompt) {
+		return `${systemPrompt}\n\n${message}`;
+	}
+	return message;
+}
+
 export function splitCommand(command: string): AgentDriverCommand {
 	const parts: string[] = [];
 	let current = "";
@@ -83,4 +97,13 @@ export function shellEscape(arg: string): string {
 	// Replace single quotes with '\'' (end quote, escaped quote, start quote)
 	const escaped = arg.replace(/'/g, "'\\''");
 	return `'${escaped}'`;
+}
+
+/**
+ * Strip ANSI escape sequences from a string.
+ * Useful for cleaning terminal output for parsing.
+ */
+export function stripAnsi(str: string): string {
+	// biome-ignore lint/suspicious/noControlCharactersInRegex: Intentional ANSI escape sequence pattern
+	return str.replace(/\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g, "");
 }

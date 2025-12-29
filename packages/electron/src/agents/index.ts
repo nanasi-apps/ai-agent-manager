@@ -7,7 +7,11 @@ export {
 	setAgentManager,
 } from "./agent-manager";
 export type { AgentTypeDetection } from "./agent-type-utils";
-export { detectAgentType, supportsMcpIntegration } from "./agent-type-utils";
+export {
+	detectAgentType,
+	isAgentType,
+	supportsMcpIntegration,
+} from "./agent-type-utils";
 // Utilities
 export { AGENT_TYPES, MCP_SERVER_URL } from "./constants";
 // Agent implementations

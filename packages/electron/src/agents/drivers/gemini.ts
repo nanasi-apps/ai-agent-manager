@@ -4,7 +4,7 @@ import type {
 	AgentDriverCommand,
 	AgentDriverContext,
 } from "./interface";
-import { shellEscape, splitCommand } from "./interface";
+import { buildFullMessage, shellEscape, splitCommand } from "./interface";
 
 export class GeminiDriver implements AgentDriver {
 	getCommand(
@@ -17,11 +17,8 @@ export class GeminiDriver implements AgentDriver {
 		const base = splitCommand(config.command || "gemini");
 		const modelArgs = config.model ? ["--model", config.model] : [];
 
-		// Escape message for shell - handles newlines, special characters, brackets, etc.
-		let finalMessage = message;
-		if (systemPrompt) {
-			finalMessage = `${systemPrompt}\n\n${message}`;
-		}
+		// Combine system prompt and message, then escape for shell
+		const finalMessage = buildFullMessage(message, systemPrompt);
 		const escapedMessage = shellEscape(finalMessage);
 
 		// Initialize with base command arguments
