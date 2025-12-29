@@ -4,6 +4,7 @@ import * as pty from "node-pty";
 import type { IAgentManager, WorktreeResumeRequest } from "./agent-manager";
 import { detectAgentType } from "./agent-type-utils";
 import { MCP_SERVER_URL } from "./constants";
+import { stripAnsi } from "./drivers";
 import { prepareClaudeEnv, prepareGeminiEnv } from "./env-utils";
 import { executeMcpTool, getMcpToolInstructions } from "./mcp-utils";
 import { AgentOutputParser } from "./output-parser";
@@ -245,7 +246,7 @@ export class PtyAgentManager extends EventEmitter implements IAgentManager {
 		data: string,
 		session: SessionInfo,
 	) {
-		const cleanData = this.stripAnsi(data);
+		const cleanData = stripAnsi(data);
 		session.buffer += cleanData;
 
 		const lines = session.buffer.split("\n");
@@ -308,11 +309,6 @@ export class PtyAgentManager extends EventEmitter implements IAgentManager {
 				// Not valid JSON, silently ignore
 			}
 		}
-	}
-
-	private stripAnsi(str: string): string {
-		// biome-ignore lint/suspicious/noControlCharactersInRegex: Intentional ANSI escape sequence pattern
-		return str.replace(/\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g, "");
 	}
 
 	private emitLog(

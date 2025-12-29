@@ -4,7 +4,7 @@ import type {
 	AgentDriverCommand,
 	AgentDriverContext,
 } from "./interface";
-import { shellEscape, splitCommand } from "./interface";
+import { buildFullMessage, shellEscape, splitCommand } from "./interface";
 
 export class CodexDriver implements AgentDriver {
 	getCommand(
@@ -15,10 +15,8 @@ export class CodexDriver implements AgentDriver {
 	): AgentDriverCommand {
 		const base = splitCommand(config.command || "codex");
 
-		// Prepend system prompt if present
-		const fullMessage = systemPrompt
-			? `${systemPrompt}\n\n${message}`
-			: message;
+		// Combine system prompt and message
+		const fullMessage = buildFullMessage(message, systemPrompt);
 
 		// Escape message for shell - handles newlines, special characters, brackets, etc.
 		const escapedMessage = shellEscape(fullMessage);
