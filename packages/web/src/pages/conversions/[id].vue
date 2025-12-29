@@ -383,9 +383,10 @@ const saveTitle = async () => {
   }
 }
 
-const loadBranchInfo = async (pid: string) => {
+const loadBranchInfo = async (sid: string, pid?: string) => {
   try {
-    currentBranch.value = await orpc.getCurrentBranch({ projectId: pid })
+    // Pass both sessionId and projectId - backend will prefer sessionId's cwd, fallback to projectId
+    currentBranch.value = await orpc.getCurrentBranch({ sessionId: sid, projectId: pid })
   } catch (e) {
     console.error('Failed to load branch info:', e)
     currentBranch.value = null
@@ -400,9 +401,8 @@ const loadConversationMeta = async (id: string) => {
       titleDraft.value = conv.title
       projectId.value = conv.projectId
       setModelFromConversation(conv.agentType, conv.agentModel)
-      if (conv.projectId) {
-        loadBranchInfo(conv.projectId)
-      }
+      // Load branch info using sessionId (for agent's cwd) with projectId as fallback
+      loadBranchInfo(id, conv.projectId)
     } else {
       conversationTitle.value = 'Untitled Session'
       titleDraft.value = conversationTitle.value
@@ -699,7 +699,7 @@ const formatTime = (timestamp: number) => {
         <div class="border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shrink-0">
           <div class="max-w-3xl mx-auto p-4 flex flex-col gap-2">
             <form @submit.prevent="sendMessage">
-              <div class="flex items-end gap-2">
+              <div class="flex items-center gap-2">
                 <div class="flex-1 bg-card rounded-2xl border shadow-sm focus-within:ring-2 focus-within:ring-ring focus-within:border-transparent transition-all">
                   <Textarea 
                     v-model="input" 
