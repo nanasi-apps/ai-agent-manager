@@ -224,6 +224,7 @@ export interface IAgentManager {
 	stopSession(sessionId: string): boolean;
 	sendToSession(sessionId: string, message: string): Promise<void>;
 	isRunning(sessionId: string): boolean;
+	isProcessing?(sessionId: string): boolean;
 	listSessions(): string[];
 	on(event: 'log', listener: (payload: AgentLogPayload) => void): void;
 	getSessionMetadata(sessionId: string): { geminiSessionId?: string; codexThreadId?: string } | undefined;
@@ -780,7 +781,11 @@ export const appRouter = os.router({
 		.input(z.object({ sessionId: z.string() }))
 		.output(z.boolean())
 		.handler(async ({ input }) => {
-			return getAgentManagerOrThrow().isRunning(input.sessionId);
+			const manager = getAgentManagerOrThrow();
+			if (manager.isProcessing) {
+				return manager.isProcessing(input.sessionId);
+			}
+			return manager.isRunning(input.sessionId);
 		}),
 
 	// List all active sessions

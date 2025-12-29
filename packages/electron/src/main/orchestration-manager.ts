@@ -45,7 +45,7 @@ export class OrchestrationManager {
         const manager = getAgentManager();
         return manager.listSessions().map((sessionId) => ({
             sessionId,
-            isRunning: manager.isRunning(sessionId),
+            isRunning: manager.isProcessing?.(sessionId) ?? manager.isRunning(sessionId),
             lastSeenAt: this.lastSeen.get(sessionId)
         }));
     }

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch } from "vue"
 import { useRoute } from "vue-router"
-import { Home, Settings, Bot, Inbox, Search, PanelLeft, Plus, Folder, BookOpen } from "lucide-vue-next"
+import { Home, Settings, Bot, Inbox, Search, PanelLeft, Plus, Folder, BookOpen, Loader2 } from "lucide-vue-next"
 import {
   Sidebar,
   SidebarContent,
@@ -54,6 +54,7 @@ interface ProjectWithConversations {
   conversations: {
     id: string;
     title: string;
+    isRunning?: boolean;
   }[];
 }
 
@@ -66,19 +67,24 @@ const { open: openNewConversion } = useNewConversionDialog()
 
 const refreshData = async () => {
   try {
-    const [fetchedProjects, fetchedConversations] = await Promise.all([
+    const [fetchedProjects, fetchedConversations, agentStatuses] = await Promise.all([
       orpc.listProjects(),
-      orpc.listConversations({})
+      orpc.listConversations({}),
+      orpc.getAgentStatuses()
     ]);
+
+    const runningSessions = new Set(agentStatuses.filter(s => s.isRunning).map(s => s.sessionId));
 
     projects.value = fetchedProjects.map((p: { id: string; name: string }) => ({
       id: p.id,
       name: p.name,
       conversations: fetchedConversations
         .filter((c: { projectId: string }) => c.projectId === p.id)
+        .sort((a: any, b: any) => (b.updatedAt || 0) - (a.updatedAt || 0))
         .map((c: { id: string; title: string }) => ({
           id: c.id,
-          title: c.title
+          title: c.title,
+          isRunning: runningSessions.has(c.id)
         }))
     }));
   } catch (e) {
@@ -86,13 +92,17 @@ const refreshData = async () => {
   }
 }
 
+let refreshInterval: any = null
+
 onMounted(() => {
   refreshData()
   window.addEventListener('agent-manager:data-change', refreshData)
+  refreshInterval = setInterval(refreshData, 3000)
 });
 
 onUnmounted(() => {
   window.removeEventListener('agent-manager:data-change', refreshData)
+  if (refreshInterval) clearInterval(refreshInterval)
 });
 
 // Update active item based on route
@@ -249,16 +259,24 @@ function handleMouseUp() {
 
                  <CollapsibleContent>
                    <SidebarMenuSub v-if="project.conversations.length">
-                     <SidebarMenuSubItem v-for="conv in project.conversations" :key="conv.id">
+                     <SidebarMenuSubItem v-for="conv in project.conversations.slice(0, 5)" :key="conv.id">
                        <SidebarMenuSubButton 
                          as-child 
                          :isActive="activeItem === conv.id"
                          @click="handleItemClick(conv.id)"
                        >
-                         <router-link :to="`/conversions/${conv.id}`">
-                           <span>{{ conv.title }}</span>
+                         <router-link :to="`/conversions/${conv.id}`" class="flex items-center justify-between gap-1 w-full overflow-hidden">
+                           <span class="truncate">{{ conv.title }}</span>
+                           <Loader2 v-if="conv.isRunning" class="size-3 animate-spin shrink-0 text-muted-foreground mr-1" />
                          </router-link>
                        </SidebarMenuSubButton>
+                     </SidebarMenuSubItem>
+                     <SidebarMenuSubItem v-if="project.conversations.length > 5">
+                        <SidebarMenuSubButton as-child>
+                           <router-link :to="`/projects/${project.id}`" class="text-xs text-muted-foreground hover:text-foreground">
+                              View all...
+                           </router-link>
+                        </SidebarMenuSubButton>
                      </SidebarMenuSubItem>
                    </SidebarMenuSub>
                    <SidebarMenuSub v-else>
@@ -272,31 +290,25 @@ function handleMouseUp() {
           </SidebarMenu>
         </SidebarGroupContent>
       </SidebarGroup>
-
-      <SidebarGroup class="mt-auto">
-        <SidebarGroupContent>
-          <SidebarMenu>
-            <SidebarMenuItem v-for="item in bottomItems" :key="item.title">
-              <SidebarMenuButton 
-                as-child 
-                :tooltip="item.title"
-                :isActive="activeItem === item.title"
-                @click="handleItemClick(item.title)"
-                class="transition-all duration-200 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground data-[active=true]:border data-[active=true]:border-sidebar-border data-[active=true]:shadow-sm"
-              >
-                <router-link :to="item.url" class="flex items-center gap-2 !text-inherit">
-                  <component :is="item.icon" class="size-4" />
-                  <span class="font-medium">{{ item.title }}</span>
-                </router-link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
-        </SidebarGroupContent>
-      </SidebarGroup>
     </SidebarContent>
     
     <SidebarFooter class="border-t p-2">
       <SidebarMenu>
+        <SidebarMenuItem v-for="item in bottomItems" :key="item.title">
+          <SidebarMenuButton 
+            as-child 
+            :tooltip="item.title"
+            :isActive="activeItem === item.title"
+            @click="handleItemClick(item.title)"
+            class="transition-all duration-200 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground data-[active=true]:border data-[active=true]:border-sidebar-border data-[active=true]:shadow-sm"
+          >
+            <router-link :to="item.url" class="flex items-center gap-2 !text-inherit">
+              <component :is="item.icon" class="size-4" />
+              <span class="font-medium">{{ item.title }}</span>
+            </router-link>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+        
         <SidebarMenuItem>
           <SidebarMenuButton 
             @click="toggleSidebar"

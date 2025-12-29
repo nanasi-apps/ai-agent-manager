@@ -2,7 +2,8 @@
 import { ref, watch, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Button } from '@/components/ui/button'
-import { Plus, MessageSquare, Loader2 } from 'lucide-vue-next'
+import { Plus, MessageSquare, Loader2, Settings, GitBranch } from 'lucide-vue-next'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import ConversionCard from '@/components/ConversionCard.vue'
 import { useNewConversionDialog } from '@/composables/useNewConversionDialog'
 import { orpc } from '@/services/orpc'
@@ -73,16 +74,40 @@ watch(projectId, loadData, { immediate: true })
              </p>
            </div>
            <div class="flex items-center gap-2">
-             <Button variant="secondary" @click="goWorktrees(projectId)">
-               Worktrees
-             </Button>
-             <Button variant="secondary" @click="goSettings(projectId)">
-               Settings
-             </Button>
-             <Button @click="open">
-               <Plus class="w-4 h-4 mr-2" />
-               New Conversion
-             </Button>
+             <TooltipProvider :delay-duration="0">
+                <Tooltip>
+                  <TooltipTrigger as-child>
+                    <Button variant="secondary" size="icon" @click="goWorktrees(projectId)">
+                      <GitBranch class="size-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    Worktrees
+                  </TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger as-child>
+                    <Button variant="secondary" size="icon" @click="goSettings(projectId)">
+                      <Settings class="size-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    Settings
+                  </TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger as-child>
+                    <Button size="icon" @click="open">
+                      <Plus class="size-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    New Conversion
+                  </TooltipContent>
+                </Tooltip>
+             </TooltipProvider>
            </div>
         </div>
 

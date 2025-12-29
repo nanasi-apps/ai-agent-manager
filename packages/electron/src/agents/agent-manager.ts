@@ -10,6 +10,7 @@ export interface IAgentManager {
     stopSession(sessionId: string): boolean;
     sendToSession(sessionId: string, message: string): Promise<void>;
     isRunning(sessionId: string): boolean;
+    isProcessing?(sessionId: string): boolean;
     listSessions(): string[];
     on(event: 'log', listener: (payload: AgentLogPayload) => void): void;
     getSessionMetadata?(sessionId: string): { geminiSessionId?: string; codexThreadId?: string } | undefined;
@@ -68,6 +69,9 @@ export const agentManager = {
     },
     isRunning(sessionId: string) {
         return getAgentManager().isRunning(sessionId);
+    },
+    isProcessing(sessionId: string) {
+        return getAgentManager().isProcessing?.(sessionId) ?? false;
     },
     listSessions() {
         return getAgentManager().listSessions();

@@ -34,6 +34,10 @@ export class UnifiedAgentManager extends EventEmitter implements IAgentManager {
         return oneShotAgentManager.stopSession(sessionId);
     }
 
+    isProcessing(sessionId: string): boolean {
+        return oneShotAgentManager.isProcessing(sessionId);
+    }
+
     isRunning(sessionId: string): boolean {
         return oneShotAgentManager.isRunning(sessionId);
     }

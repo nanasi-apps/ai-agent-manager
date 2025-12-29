@@ -40,6 +40,8 @@ interface SessionInfo extends AgentDriverContext {
     activeWorktree?: ActiveWorktreeContext;
     geminiHome?: string;
     claudeHome?: string;
+    /** Flag to prevent re-capturing invalid Gemini session IDs from stdout */
+    invalidGeminiSession?: boolean;
 }
 
 /**
@@ -138,6 +140,8 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
 
         let systemPrompt = '';
         if (session.messageCount === 0) {
+            // Reset invalidGeminiSession flag on fresh start so new session IDs can be captured
+            session.invalidGeminiSession = false;
             const baseRules = session.config.rulesContent ?? '';
             const worktreeInstructions = this.buildWorktreeInstructions(session);
             const parts = [baseRules, worktreeInstructions].filter(Boolean);
@@ -270,6 +274,11 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
                             console.warn(`[OneShotAgentManager ${sessionId}] Gemini session ${session.geminiSessionId} is invalid, clearing it.`);
                             session.geminiSessionId = undefined;
                         }
+                        // Set flag to prevent re-capturing invalid ID from stdout and reset messageCount
+                        session.invalidGeminiSession = true;
+                        session.messageCount = 0;
+                        // Notify UI that session was reset - this will start fresh on next user message
+                        this.emitLog(sessionId, '\n[Session Error] Previous session was invalid. Session will restart fresh on next message.\n', 'error');
                     }
 
                     // Detect Gemini API connection errors - clear session ID to allow fresh start
@@ -285,6 +294,9 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
                                 console.warn(`[OneShotAgentManager ${sessionId}] Gemini API error during session ${session.geminiSessionId}, clearing session ID for retry.`);
                                 session.geminiSessionId = undefined;
                             }
+                            // Also prevent ID recapture and reset message count for generic API errors
+                            session.invalidGeminiSession = true;
+                            session.messageCount = 0;
                             this.emitLog(sessionId, '\n[Gemini API Error] Connection to Gemini API failed. Please check your network connection and authentication.\n', 'error');
                         }
                     }
@@ -517,7 +529,8 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
                 const logs = this.parser.processJsonEvent(json, session.config.type);
 
                 for (const log of logs) {
-                    if (log.metadata?.geminiSessionId) {
+                    // Only capture Gemini session ID if not marked as invalid
+                    if (log.metadata?.geminiSessionId && !session.invalidGeminiSession) {
                         session.geminiSessionId = log.metadata.geminiSessionId;
                         console.log(`[OneShotAgentManager] Captured Gemini session ID: ${session.geminiSessionId}`);
                     }
@@ -555,12 +568,18 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
         if (session) {
             if (session.currentProcess) {
                 session.currentProcess.kill();
-                session.isProcessing = false;
             }
+            session.isProcessing = false;
+            session.pendingWorktreeResume = undefined;
             this.emitLog(sessionId, '\n[Generation stopped by user]\n', 'system');
             return true;
         }
         return false;
+    }
+
+    isProcessing(sessionId: string): boolean {
+        const session = this.sessions.get(sessionId);
+        return session?.isProcessing ?? false;
     }
 
     isRunning(sessionId: string): boolean {
