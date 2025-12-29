@@ -200,6 +200,20 @@ const sanitizeLogContent = (content: string, logType?: LogType) => {
     clean = clean.replace(p, '')
   }
   
+  clean = clean.trim()
+  
+  if (!clean) return '_No content_'
+
+  if (logType === 'tool_call') {
+    return '```json\n' + clean + '\n```'
+  }
+
+  if (logType === 'tool_result') {
+    // If it looks like it already has markdown code fences, leave it.
+    if (clean.startsWith('```')) return clean
+    return '```\n' + clean + '\n```'
+  }
+  
   return clean
 }
 
