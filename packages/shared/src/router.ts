@@ -12,7 +12,7 @@ import type { IMcpManager } from "./types/mcp";
 import type { IWorktreeManager } from "./types/worktree";
 import type { IOrchestrationManager } from "./types/orchestration";
 import OpenAI from "openai";
-import { GoogleGenAI, GoogleGenAIOptions } from "@google/genai";
+import { GoogleGenAI, type GoogleGenAIOptions } from "@google/genai";
 
 // Cross-platform UUID generation
 function generateUUID(): string {
@@ -171,7 +171,7 @@ async function fetchGeminiModels(apiKey: string, baseUrl?: string): Promise<stri
 		models.sort((a, b) => {
 			const getVersion = (s: string) => {
 				const match = s.match(/gemini-(\d+\.?\d*)/);
-				return match ? parseFloat(match[1]) : 0;
+				return match && match[1] ? parseFloat(match[1]) : 0;
 			};
 			return getVersion(b) - getVersion(a);
 		});
@@ -1636,7 +1636,22 @@ ${handoverSummary}
 		.output(z.void())
 		.handler(async ({ input }) => {
 			getStoreOrThrow().forceReleaseLock(input.resourceId);
-		})
+		}),
+
+	getCurrentBranch: os
+		.input(z.object({ projectId: z.string() }))
+		.output(z.string().nullable())
+		.handler(async ({ input }) => {
+			const project = getStoreOrThrow().getProject(input.projectId);
+			if (!project || !project.rootPath) return null;
+			try {
+				const status = await getWorktreeManagerOrThrow().getWorktreeStatus(project.rootPath);
+				return status.branch;
+			} catch (e) {
+				console.error('[Router] Failed to get current branch:', e);
+				return null;
+			}
+		}),
 });
 
 export type AppRouter = typeof appRouter;

@@ -13,7 +13,8 @@ import {
   Square, 
   ChevronRight, 
   ChevronDown,
-  Terminal
+  Terminal,
+  GitBranch
 } from 'lucide-vue-next'
 import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
@@ -58,6 +59,8 @@ const currentModelId = ref('')
 const conversationAgentType = ref<string | null>(null)
 const conversationAgentModel = ref<string | null>(null)
 const isSwappingModel = ref(false)
+const currentBranch = ref<string | null>(null)
+const projectId = ref<string | null>(null)
 
 const formatModelLabel = (model: ModelTemplate) => {
   if (!model.agentName || model.name.includes(model.agentName)) {
@@ -380,16 +383,30 @@ const saveTitle = async () => {
   }
 }
 
+const loadBranchInfo = async (pid: string) => {
+  try {
+    currentBranch.value = await orpc.getCurrentBranch({ projectId: pid })
+  } catch (e) {
+    console.error('Failed to load branch info:', e)
+    currentBranch.value = null
+  }
+}
+
 const loadConversationMeta = async (id: string) => {
   try {
     const conv = await orpc.getConversation({ sessionId: id })
     if (conv) {
       conversationTitle.value = conv.title
       titleDraft.value = conv.title
+      projectId.value = conv.projectId
       setModelFromConversation(conv.agentType, conv.agentModel)
+      if (conv.projectId) {
+        loadBranchInfo(conv.projectId)
+      }
     } else {
       conversationTitle.value = 'Untitled Session'
       titleDraft.value = conversationTitle.value
+      projectId.value = null
       setModelFromConversation(undefined, undefined)
     }
   } catch (err) {
@@ -530,7 +547,6 @@ const formatTime = (timestamp: number) => {
     <!-- Header -->
     <div class="border-b px-6 py-3 flex items-center justify-between bg-card/80 backdrop-blur-xl sticky top-0 z-10 shrink-0">
       <div class="flex items-center gap-3">
-
         <div>
           <input
             v-model="titleDraft"
@@ -540,29 +556,15 @@ const formatTime = (timestamp: number) => {
             @blur="saveTitle"
             @keydown.enter.prevent="saveTitle"
           />
-          <div class="flex items-center gap-1.5">
-            <span class="size-1.5 rounded-full" :class="isConnected ? 'bg-green-500' : 'bg-red-500'" />
-            <span class="text-xs text-muted-foreground">{{ isConnected ? 'Connected' : 'Disconnected' }}</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="flex items-center gap-2">
-        <div class="flex flex-col items-end gap-1">
-          <span class="text-[10px] uppercase tracking-wide text-muted-foreground">Model</span>
-          <div class="relative">
-            <select
-              v-model="modelIdDraft"
-              class="h-8 rounded-md border border-input bg-transparent px-2.5 py-1 text-xs shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 appearance-none pr-7"
-              :disabled="isSwappingModel || isLoading || modelTemplates.length === 0"
-            >
-              <option v-for="m in modelTemplates" :key="m.id" :value="m.id">
-                {{ formatModelLabel(m) }}
-              </option>
-            </select>
-            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2 text-muted-foreground">
-              <Loader2 v-if="isSwappingModel" class="size-3 animate-spin" />
-              <svg v-else xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-3 w-3"><path d="m6 9 6 6 6-6"/></svg>
+          <div class="flex items-center gap-2">
+            <div class="flex items-center gap-1.5">
+              <span class="size-1.5 rounded-full" :class="isConnected ? 'bg-green-500' : 'bg-red-500'" />
+              <span class="text-xs text-muted-foreground">{{ isConnected ? 'Connected' : 'Disconnected' }}</span>
+            </div>
+            
+             <div v-if="currentBranch" class="flex items-center gap-1 px-2 py-0.5 rounded-full bg-accent/50 text-[10px] text-muted-foreground border">
+              <GitBranch class="size-3" />
+              <span class="font-mono max-w-[150px] truncate">{{ currentBranch }}</span>
             </div>
           </div>
         </div>
@@ -695,7 +697,7 @@ const formatTime = (timestamp: number) => {
         
         <!-- Input Area -->
         <div class="border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shrink-0">
-          <div class="max-w-3xl mx-auto p-4">
+          <div class="max-w-3xl mx-auto p-4 flex flex-col gap-2">
             <form @submit.prevent="sendMessage">
               <div class="flex items-end gap-2">
                 <div class="flex-1 bg-card rounded-2xl border shadow-sm focus-within:ring-2 focus-within:ring-ring focus-within:border-transparent transition-all">
@@ -733,9 +735,31 @@ const formatTime = (timestamp: number) => {
                   <Send v-else class="size-5" />
                 </Button>
               </div>
-              <p class="text-center text-[10px] text-muted-foreground mt-2">
-                Press <kbd class="px-1 py-0.5 rounded bg-muted text-[9px] font-mono">⌘</kbd> + <kbd class="px-1 py-0.5 rounded bg-muted text-[9px] font-mono">Enter</kbd> to send
-              </p>
+
+              <div class="flex items-center justify-between mt-2 px-1">
+                 <!-- Model Selector (Moved here) -->
+                 <div class="flex items-center gap-2">
+                    <div class="relative min-w-[120px]">
+                      <select
+                        v-model="modelIdDraft"
+                        class="h-6 w-auto min-w-[140px] rounded-md border border-input bg-transparent px-2 text-[10px] shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 appearance-none pr-6 cursor-pointer hover:bg-accent/50"
+                        :disabled="isSwappingModel || isLoading || modelTemplates.length === 0"
+                      >
+                        <option v-for="m in modelTemplates" :key="m.id" :value="m.id">
+                          {{ formatModelLabel(m) }}
+                        </option>
+                      </select>
+                      <div class="pointer-events-none absolute inset-y-0 right-0 gap-1 px-2 flex items-center text-muted-foreground">
+                        <Loader2 v-if="isSwappingModel" class="size-2.5 animate-spin" />
+                        <ChevronDown class="size-3" />
+                      </div>
+                    </div>
+                 </div>
+
+                <p class="text-[10px] text-muted-foreground">
+                  Press <kbd class="px-1 py-0.5 rounded bg-muted text-[9px] font-mono">⌘</kbd> + <kbd class="px-1 py-0.5 rounded bg-muted text-[9px] font-mono">Enter</kbd> to send
+                </p>
+              </div>
             </form>
           </div>
         </div>
