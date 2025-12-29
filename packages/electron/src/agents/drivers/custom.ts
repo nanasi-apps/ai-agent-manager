@@ -1,22 +1,29 @@
 import type { AgentConfig } from "@agent-manager/shared";
-import type { AgentDriver, AgentDriverCommand, AgentDriverContext } from "./interface";
-import { splitCommand, shellEscape } from "./interface";
+import type {
+	AgentDriver,
+	AgentDriverCommand,
+	AgentDriverContext,
+} from "./interface";
+import { shellEscape, splitCommand } from "./interface";
 
 export class CustomDriver implements AgentDriver {
-    constructor(private config: AgentConfig) { }
+	constructor(private config: AgentConfig) {}
 
-    getCommand(context: AgentDriverContext, message: string, config: AgentConfig): AgentDriverCommand {
-        const base = splitCommand(config.command || this.config.command);
-        const command = base.command;
+	getCommand(
+		context: AgentDriverContext,
+		message: string,
+		config: AgentConfig,
+	): AgentDriverCommand {
+		const base = splitCommand(config.command || this.config.command);
+		const command = base.command;
 
-        // Escape message for shell - handles newlines, special characters, brackets, etc.
-        const escapedMessage = shellEscape(message);
-        const args = [...base.args, escapedMessage];
+		// Escape message for shell - handles newlines, special characters, brackets, etc.
+		const escapedMessage = shellEscape(message);
+		const args = [...base.args, escapedMessage];
 
-        return {
-            command,
-            args
-        };
-    }
+		return {
+			command,
+			args,
+		};
+	}
 }
-

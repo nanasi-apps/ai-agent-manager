@@ -1,72 +1,77 @@
 import type { AgentConfig } from "@agent-manager/shared";
 
 export interface AgentDriverCommand {
-    command: string;
-    args: string[];
+	command: string;
+	args: string[];
 }
 
 export interface AgentDriverContext {
-    sessionId: string;
-    messageCount: number;
-    geminiSessionId?: string;
-    codexThreadId?: string;
-    mcpServerUrl?: string; // URL for internal MCP server injection
+	sessionId: string;
+	messageCount: number;
+	geminiSessionId?: string;
+	codexThreadId?: string;
+	mcpServerUrl?: string; // URL for internal MCP server injection
 }
 
 export interface AgentDriver {
-    getCommand(context: AgentDriverContext, message: string, config: AgentConfig, systemPrompt?: string): AgentDriverCommand;
+	getCommand(
+		context: AgentDriverContext,
+		message: string,
+		config: AgentConfig,
+		systemPrompt?: string,
+	): AgentDriverCommand;
 }
 
 export function splitCommand(command: string): AgentDriverCommand {
-    const parts: string[] = [];
-    let current = '';
-    let quote: '"' | "'" | null = null;
+	const parts: string[] = [];
+	let current = "";
+	let quote: '"' | "'" | null = null;
 
-    for (let i = 0; i < command.length; i++) {
-        const char = command[i];
+	for (let i = 0; i < command.length; i++) {
+		const char = command[i];
 
-        if (quote) {
-            if (char === quote) {
-                quote = null;
-                continue;
-            }
-            if (char === '\\' && i + 1 < command.length) {
-                current += command[i + 1];
-                i++;
-                continue;
-            }
-            current += char;
-            continue;
-        }
+		if (quote) {
+			if (char === quote) {
+				quote = null;
+				continue;
+			}
+			if (char === "\\" && i + 1 < command.length) {
+				current += command[i + 1];
+				i++;
+				continue;
+			}
+			current += char;
+			continue;
+		}
 
-        if (char === '"' || char === "'") {
-            quote = char;
-            continue;
-        }
+		if (char === '"' || char === "'") {
+			quote = char;
+			continue;
+		}
 
-        if (/\s/.test(char)) {
-            if (current) {
-                parts.push(current);
-                current = '';
-            }
-            continue;
-        }
+		if (/\s/.test(char)) {
+			if (current) {
+				parts.push(current);
+				current = "";
+			}
+			continue;
+		}
 
-        if (char === '\\' && i + 1 < command.length) {
-            current += command[i + 1];
-            i++;
-            continue;
-        }
+		if (char === "\\" && i + 1 < command.length) {
+			current += command[i + 1];
+			i++;
+			continue;
+		}
 
-        current += char;
-    }
+		current += char;
+	}
 
-    if (current) {
-        parts.push(current);
-    }
+	if (current) {
+		parts.push(current);
+	}
 
-    const cmd = parts.shift() || '';
-    return { command: cmd, args: parts };
+	const cmd = parts.shift() || "";
+	return { command: cmd, args: parts };
 }
 
 /**
@@ -75,7 +80,7 @@ export function splitCommand(command: string): AgentDriverCommand {
  * This is required when using spawn with shell: true.
  */
 export function shellEscape(arg: string): string {
-    // Replace single quotes with '\'' (end quote, escaped quote, start quote)
-    const escaped = arg.replace(/'/g, "'\\''");
-    return `'${escaped}'`;
+	// Replace single quotes with '\'' (end quote, escaped quote, start quote)
+	const escaped = arg.replace(/'/g, "'\\''");
+	return `'${escaped}'`;
 }
