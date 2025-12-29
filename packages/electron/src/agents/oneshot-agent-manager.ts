@@ -1,4 +1,3 @@
-
 import { EventEmitter } from 'node:events';
 import type { AgentConfig, AgentLogPayload } from '@agent-manager/shared';
 import type { IAgentManager, WorktreeResumeRequest } from './agent-manager';

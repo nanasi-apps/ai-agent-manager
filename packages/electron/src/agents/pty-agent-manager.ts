@@ -1,21 +1,23 @@
-import * as pty from 'node-pty';
-import { EventEmitter } from 'node:events';
-import type { AgentConfig, AgentLogPayload } from '@agent-manager/shared';
-import { AgentOutputParser } from './output-parser';
-import type { IAgentManager, WorktreeResumeRequest } from './agent-manager';
-import { executeMcpTool, getMcpToolInstructions } from './mcp-utils';
-import { prepareGeminiEnv, prepareClaudeEnv } from './env-utils';
+import { EventEmitter } from "node:events";
+import type { AgentConfig, AgentLogPayload } from "@agent-manager/shared";
+import * as pty from "node-pty";
+import type { IAgentManager, WorktreeResumeRequest } from "./agent-manager";
+import { detectAgentType } from "./agent-type-utils";
+import { MCP_SERVER_URL } from "./constants";
+import { prepareClaudeEnv, prepareGeminiEnv } from "./env-utils";
+import { executeMcpTool, getMcpToolInstructions } from "./mcp-utils";
+import { AgentOutputParser } from "./output-parser";
 
 interface SessionInfo {
-    pty: pty.IPty;
-    config: AgentConfig;
-    buffer: string;
-    ready: boolean;
-    messageQueue: string[];
-    messageCount: number;
-    pendingWorktreeResume?: WorktreeResumeRequest;
-    geminiHome?: string;
-    claudeHome?: string;
+	pty: pty.IPty;
+	config: AgentConfig;
+	buffer: string;
+	ready: boolean;
+	messageQueue: string[];
+	messageCount: number;
+	pendingWorktreeResume?: WorktreeResumeRequest;
+	geminiHome?: string;
+	claudeHome?: string;
 }
 
 /**
@@ -23,331 +25,411 @@ interface SessionInfo {
  * Uses node-pty for terminal emulation
  */
 export class PtyAgentManager extends EventEmitter implements IAgentManager {
-    private sessions: Map<string, SessionInfo> = new Map();
-    private parser = new AgentOutputParser();
+	private sessions: Map<string, SessionInfo> = new Map();
+	private parser = new AgentOutputParser();
 
-    async startSession(sessionId: string, command: string, config?: Partial<AgentConfig> & { geminiHome?: string, claudeHome?: string }) {
-        if (this.sessions.has(sessionId)) {
-            console.warn(`[PtyAgentManager] Session ${sessionId} is already running.`);
-            return;
-        }
+	async startSession(
+		sessionId: string,
+		command: string,
+		config?: Partial<AgentConfig> & {
+			geminiHome?: string;
+			claudeHome?: string;
+		},
+	) {
+		if (this.sessions.has(sessionId)) {
+			console.warn(
+				`[PtyAgentManager] Session ${sessionId} is already running.`,
+			);
+			return;
+		}
 
-        console.log(`[PtyAgentManager] Starting PTY session ${sessionId}: ${command}`);
+		console.log(
+			`[PtyAgentManager] Starting PTY session ${sessionId}: ${command}`,
+		);
 
-        const agentConfig: AgentConfig = {
-            type: config?.type ?? 'custom',
-            command,
-            model: config?.model,
-            cwd: config?.cwd,
-            env: config?.env,
-            streamJson: config?.streamJson ?? false,
-            rulesContent: config?.rulesContent,
-        };
+		const agentConfig: AgentConfig = {
+			type: config?.type ?? "custom",
+			command,
+			model: config?.model,
+			cwd: config?.cwd,
+			env: config?.env,
+			streamJson: config?.streamJson ?? false,
+			rulesContent: config?.rulesContent,
+		};
 
-        const mcpServerUrl = "http://localhost:3001/mcp/sse";
+		try {
+			const shell =
+				process.platform === "win32"
+					? "powershell.exe"
+					: process.env.SHELL || "/bin/zsh";
 
-        try {
-            const shell = process.platform === 'win32' ? 'powershell.exe' : process.env.SHELL || '/bin/zsh';
+			let env: Record<string, string> = {
+				...(process.env as Record<string, string>),
+				...agentConfig.env,
+				TERM: "xterm-256color",
+				COLORTERM: "truecolor",
+				FORCE_COLOR: "3",
+			};
 
-            let env: Record<string, string> = {
-                ...process.env as Record<string, string>,
-                ...agentConfig.env,
-                TERM: 'xterm-256color',
-                COLORTERM: 'truecolor',
-                FORCE_COLOR: '3',
-            };
+			// Detect agent type for MCP injection
+			const agentTypeInfo = detectAgentType(agentConfig);
+			const { isGemini, isClaude } = agentTypeInfo;
 
-            // Detect agent type for MCP injection
-            const isGemini = agentConfig.type === 'gemini' || agentConfig.command === 'gemini' || agentConfig.command.startsWith('gemini ');
-            const isClaude = agentConfig.type === 'claude' || agentConfig.command === 'claude' || agentConfig.command.startsWith('claude ');
+			let geminiHome = config?.geminiHome;
+			let claudeHome = config?.claudeHome;
 
-            let geminiHome = config?.geminiHome;
-            let claudeHome = config?.claudeHome;
+			if (isGemini) {
+				const geminiEnv = await prepareGeminiEnv({
+					mcpServerUrl: MCP_SERVER_URL,
+					existingHome: geminiHome,
+					apiKey: agentConfig.env?.GEMINI_API_KEY,
+					baseUrl: agentConfig.env?.GOOGLE_GEMINI_BASE_URL,
+				});
+				if (geminiEnv.HOME) {
+					geminiHome = geminiEnv.HOME;
+					env = { ...env, ...(geminiEnv as Record<string, string>) };
+				}
+			}
 
-            if (isGemini) {
-                const geminiEnv = await prepareGeminiEnv({
-                    mcpServerUrl,
-                    existingHome: geminiHome,
-                    apiKey: agentConfig.env?.GEMINI_API_KEY,
-                    baseUrl: agentConfig.env?.GOOGLE_GEMINI_BASE_URL,
-                });
-                if (geminiEnv.HOME) {
-                    geminiHome = geminiEnv.HOME;
-                    env = { ...env, ...geminiEnv as Record<string, string> };
-                }
-            }
+			if (isClaude) {
+				const claudeEnv = await prepareClaudeEnv(MCP_SERVER_URL, claudeHome);
+				if (claudeEnv.CLAUDE_CONFIG_DIR) {
+					claudeHome = claudeEnv.CLAUDE_CONFIG_DIR;
+					env = { ...env, ...(claudeEnv as Record<string, string>) };
+				}
+			}
 
-            if (isClaude) {
-                const claudeEnv = await prepareClaudeEnv(mcpServerUrl, claudeHome);
-                if (claudeEnv.CLAUDE_CONFIG_DIR) {
-                    claudeHome = claudeEnv.CLAUDE_CONFIG_DIR;
-                    env = { ...env, ...claudeEnv as Record<string, string> };
-                }
-            }
+			const ptyProcess = pty.spawn(shell, [], {
+				name: "xterm-256color",
+				cols: 120,
+				rows: 30,
+				cwd: agentConfig.cwd || process.cwd(),
+				env,
+			});
 
-            const ptyProcess = pty.spawn(shell, [], {
-                name: 'xterm-256color',
-                cols: 120,
-                rows: 30,
-                cwd: agentConfig.cwd || process.cwd(),
-                env,
-            });
+			const sessionInfo: SessionInfo = {
+				pty: ptyProcess,
+				config: agentConfig,
+				buffer: "",
+				ready: false,
+				messageQueue: [],
+				messageCount: 0,
+				geminiHome,
+				claudeHome,
+			};
 
-            const sessionInfo: SessionInfo = {
-                pty: ptyProcess,
-                config: agentConfig,
-                buffer: '',
-                ready: false,
-                messageQueue: [],
-                messageCount: 0,
-                geminiHome,
-                claudeHome,
-            };
+			this.sessions.set(sessionId, sessionInfo);
 
-            this.sessions.set(sessionId, sessionInfo);
+			ptyProcess.onData((data: string) => {
+				this.handleOutput(sessionId, data);
+			});
 
-            ptyProcess.onData((data: string) => {
-                this.handleOutput(sessionId, data);
-            });
+			ptyProcess.onExit(({ exitCode }) => {
+				const session = this.sessions.get(sessionId);
+				if (!session?.pendingWorktreeResume) {
+					this.emitLog(
+						sessionId,
+						`\r\n[Process exited with code ${exitCode}]\r\n`,
+						"system",
+					);
+				}
 
-            ptyProcess.onExit(({ exitCode }) => {
-                const session = this.sessions.get(sessionId);
-                if (!session?.pendingWorktreeResume) {
-                    this.emitLog(sessionId, `\r\n[Process exited with code ${exitCode}]\r\n`, 'system');
-                }
+				if (session?.pendingWorktreeResume) {
+					const resume = session.pendingWorktreeResume;
+					session.pendingWorktreeResume = undefined;
 
-                if (session?.pendingWorktreeResume) {
-                    const resume = session.pendingWorktreeResume;
-                    session.pendingWorktreeResume = undefined;
+					console.log(
+						`[PtyAgentManager] Resuming session ${sessionId} in worktree: ${resume.cwd}`,
+					);
+					this.emitLog(
+						sessionId,
+						`\n[System] Switching to worktree ${resume.branch} at ${resume.cwd}\n`,
+						"system",
+					);
 
-                    console.log(`[PtyAgentManager] Resuming session ${sessionId} in worktree: ${resume.cwd}`);
-                    this.emitLog(sessionId, `\n[System] Switching to worktree ${resume.branch} at ${resume.cwd}\n`, 'system');
+					// Restart session in new CWD, preserving home directories for context
+					const oldConfig = session.config;
+					const oldGeminiHome = session.geminiHome;
+					const oldClaudeHome = session.claudeHome;
 
-                    // Restart session in new CWD, preserving home directories for context
-                    const oldConfig = session.config;
-                    const oldGeminiHome = session.geminiHome;
-                    const oldClaudeHome = session.claudeHome;
+					this.sessions.delete(sessionId);
+					this.startSession(sessionId, oldConfig.command, {
+						...oldConfig,
+						cwd: resume.cwd,
+						geminiHome: oldGeminiHome,
+						claudeHome: oldClaudeHome,
+					}).catch((err) => {
+						console.error(
+							`[PtyAgentManager] Failed to restart after worktree resume:`,
+							err,
+						);
+					});
 
-                    this.sessions.delete(sessionId);
-                    this.startSession(sessionId, oldConfig.command, {
-                        ...oldConfig,
-                        cwd: resume.cwd,
-                        geminiHome: oldGeminiHome,
-                        claudeHome: oldClaudeHome,
-                    }).catch(err => {
-                        console.error(`[PtyAgentManager] Failed to restart after worktree resume:`, err);
-                    });
+					if (resume.resumeMessage) {
+						this.sendToSession(sessionId, resume.resumeMessage);
+					}
+				} else {
+					this.sessions.delete(sessionId);
+				}
+			});
 
-                    if (resume.resumeMessage) {
-                        this.sendToSession(sessionId, resume.resumeMessage);
-                    }
-                } else {
-                    this.sessions.delete(sessionId);
-                }
-            });
+			setTimeout(() => {
+				ptyProcess.write(`${command}\r`);
 
-            setTimeout(() => {
-                ptyProcess.write(`${command}\r`);
+				setTimeout(() => {
+					const session = this.sessions.get(sessionId);
+					if (session) {
+						session.ready = true;
+						while (session.messageQueue.length > 0) {
+							const msg = session.messageQueue.shift();
+							if (msg) {
+								console.log(
+									`[PtyAgentManager] Sending queued message: ${msg.substring(0, 50)}...`,
+								);
+								// Since we don't know the message count when queuing (it might be the first message),
+								// check here if it's the first.
+								let finalMsg = msg;
+								if (session.messageCount === 0 && session.config.rulesContent) {
+									console.log(
+										`[PtyAgentManager] Injecting rules for session ${sessionId} (queued)`,
+									);
+									finalMsg = `${session.config.rulesContent}\n\n${msg}`;
+								}
+								session.pty.write(finalMsg + "\r");
+								session.messageCount++;
+							}
+						}
+					}
+				}, 2000);
+			}, 100);
+		} catch (error) {
+			console.error(
+				`[PtyAgentManager] Failed to start session ${sessionId}:`,
+				error,
+			);
+			this.emitLog(
+				sessionId,
+				`\r\n[Error starting PTY: ${error}]\r\n`,
+				"error",
+			);
+			throw error;
+		}
+	}
 
-                setTimeout(() => {
-                    const session = this.sessions.get(sessionId);
-                    if (session) {
-                        session.ready = true;
-                        while (session.messageQueue.length > 0) {
-                            const msg = session.messageQueue.shift();
-                            if (msg) {
-                                console.log(`[PtyAgentManager] Sending queued message: ${msg.substring(0, 50)}...`);
-                                // Since we don't know the message count when queuing (it might be the first message),
-                                // check here if it's the first.
-                                let finalMsg = msg;
-                                if (session.messageCount === 0 && session.config.rulesContent) {
-                                    console.log(`[PtyAgentManager] Injecting rules for session ${sessionId} (queued)`);
-                                    finalMsg = `${session.config.rulesContent}\n\n${msg}`;
-                                }
-                                session.pty.write(finalMsg + '\r');
-                                session.messageCount++;
-                            }
-                        }
-                    }
-                }, 2000);
-            }, 100);
-        } catch (error) {
-            console.error(`[PtyAgentManager] Failed to start session ${sessionId}:`, error);
-            this.emitLog(sessionId, `\r\n[Error starting PTY: ${error}]\r\n`, 'error');
-            throw error;
-        }
-    }
+	async resetSession(
+		sessionId: string,
+		command: string,
+		config?: Partial<AgentConfig>,
+	) {
+		if (this.sessions.has(sessionId)) {
+			this.stopSession(sessionId);
+		}
+		await this.startSession(sessionId, command, config);
+	}
 
-    async resetSession(sessionId: string, command: string, config?: Partial<AgentConfig>) {
-        if (this.sessions.has(sessionId)) {
-            this.stopSession(sessionId);
-        }
-        await this.startSession(sessionId, command, config);
-    }
+	private handleOutput(sessionId: string, data: string) {
+		const session = this.sessions.get(sessionId);
+		if (!session) return;
 
-    private handleOutput(sessionId: string, data: string) {
-        const session = this.sessions.get(sessionId);
-        if (!session) return;
+		console.log(`[PTY ${sessionId}] Raw output:`, data);
 
-        console.log(`[PTY ${sessionId}] Raw output:`, data);
+		if (session.config.streamJson) {
+			this.parseStreamJson(sessionId, data, session);
+		} else {
+			this.emitLog(sessionId, data, "text");
+		}
+	}
 
-        if (session.config.streamJson) {
-            this.parseStreamJson(sessionId, data, session);
-        } else {
-            this.emitLog(sessionId, data, 'text');
-        }
-    }
+	private parseStreamJson(
+		sessionId: string,
+		data: string,
+		session: SessionInfo,
+	) {
+		const cleanData = this.stripAnsi(data);
+		session.buffer += cleanData;
 
-    private parseStreamJson(sessionId: string, data: string, session: SessionInfo) {
-        const cleanData = this.stripAnsi(data);
-        session.buffer += cleanData;
+		const lines = session.buffer.split("\n");
+		session.buffer = lines.pop() || "";
 
-        const lines = session.buffer.split('\n');
-        session.buffer = lines.pop() || '';
+		for (const line of lines) {
+			const trimmed = line.trim();
+			if (!trimmed) continue;
+			if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) continue;
 
-        for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed) continue;
-            if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) continue;
+			try {
+				const json = JSON.parse(trimmed);
+				const logs = this.parser.processJsonEvent(json, session.config.type);
 
-            try {
-                const json = JSON.parse(trimmed);
-                const logs = this.parser.processJsonEvent(json, session.config.type);
+				for (const log of logs) {
+					this.emitLog(sessionId, log.data, log.type, log.raw);
 
-                for (const log of logs) {
-                    this.emitLog(sessionId, log.data, log.type, log.raw);
+					if (log.type === "tool_call" && log.raw) {
+						// eslint-disable-next-line @typescript-eslint/no-explicit-any
+						const raw = log.raw as any;
+						const toolName = raw.tool_name || raw.name || raw.tool;
+						const args = raw.parameters || raw.arguments || raw.input || {};
 
-                    if (log.type === 'tool_call' && log.raw) {
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        const raw = log.raw as any;
-                        const toolName = raw.tool_name || raw.name || raw.tool;
-                        const args = raw.parameters || raw.arguments || raw.input || {};
+						if (toolName) {
+							this.emitLog(
+								sessionId,
+								`\n[Executing Tool: ${toolName}...]\n`,
+								"system",
+							);
 
-                        if (toolName) {
-                            this.emitLog(sessionId, `\n[Executing Tool: ${toolName}...]\n`, 'system');
+							// Async execution
+							executeMcpTool(toolName, args)
+								.then((result) => {
+									this.emitLog(
+										sessionId,
+										`[Tool Result]\n${result}\n`,
+										"tool_result",
+									);
 
-                            // Async execution
-                            executeMcpTool(toolName, args).then(result => {
-                                this.emitLog(sessionId, `[Tool Result]\n${result}\n`, 'tool_result');
+									// Feed result back to PTY
+									const toolResultMessage = `[Tool Result for ${toolName}]\n${result}`;
+									session.pty.write(toolResultMessage + "\r");
+									session.messageCount++;
+								})
+								.catch((err) => {
+									console.error(
+										`[PtyAgentManager] Tool execution failed:`,
+										err,
+									);
+									this.emitLog(
+										sessionId,
+										`[Error executing tool: ${err}]\n`,
+										"error",
+									);
+								});
+						}
+					}
+				}
+			} catch {
+				// Not valid JSON, silently ignore
+			}
+		}
+	}
 
-                                // Feed result back to PTY
-                                const toolResultMessage = `[Tool Result for ${toolName}]\n${result}`;
-                                session.pty.write(toolResultMessage + '\r');
-                                session.messageCount++;
-                            }).catch(err => {
-                                console.error(`[PtyAgentManager] Tool execution failed:`, err);
-                                this.emitLog(sessionId, `[Error executing tool: ${err}]\n`, 'error');
-                            });
-                        }
-                    }
-                }
-            } catch {
-                // Not valid JSON, silently ignore
-            }
-        }
-    }
+	private stripAnsi(str: string): string {
+		// biome-ignore lint/suspicious/noControlCharactersInRegex: Intentional ANSI escape sequence pattern
+		return str.replace(/\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g, "");
+	}
 
-    private stripAnsi(str: string): string {
-        // eslint-disable-next-line no-control-regex
-        return str.replace(/\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g, '');
-    }
+	private emitLog(
+		sessionId: string,
+		data: string,
+		type: AgentLogPayload["type"] = "text",
+		raw?: unknown,
+	) {
+		const payload: AgentLogPayload = {
+			sessionId,
+			data,
+			type,
+			raw,
+		};
+		this.emit("log", payload);
+	}
 
-    private emitLog(
-        sessionId: string,
-        data: string,
-        type: AgentLogPayload['type'] = 'text',
-        raw?: unknown
-    ) {
-        const payload: AgentLogPayload = {
-            sessionId,
-            data,
-            type,
-            raw,
-        };
-        this.emit('log', payload);
-    }
+	stopSession(sessionId: string): boolean {
+		const session = this.sessions.get(sessionId);
+		if (session) {
+			session.pty.kill();
+			this.sessions.delete(sessionId);
+			this.emitLog(sessionId, `\r\n[Process killed by user]\r\n`, "system");
+			return true;
+		}
+		return false;
+	}
 
-    stopSession(sessionId: string): boolean {
-        const session = this.sessions.get(sessionId);
-        if (session) {
-            session.pty.kill();
-            this.sessions.delete(sessionId);
-            this.emitLog(sessionId, `\r\n[Process killed by user]\r\n`, 'system');
-            return true;
-        }
-        return false;
-    }
+	async sendToSession(sessionId: string, message: string) {
+		const session = this.sessions.get(sessionId);
+		if (session) {
+			if (session.messageCount === 0) {
+				try {
+					const mcpInstructions = await getMcpToolInstructions();
+					if (mcpInstructions) {
+						if (session.config.rulesContent) {
+							session.config.rulesContent += mcpInstructions;
+						} else {
+							session.config.rulesContent = mcpInstructions;
+						}
+					}
+				} catch (e) {
+					console.error("Failed to fetch MCP tools", e);
+				}
+			}
 
-    async sendToSession(sessionId: string, message: string) {
-        const session = this.sessions.get(sessionId);
-        if (session) {
-            if (session.messageCount === 0) {
-                try {
-                    const mcpInstructions = await getMcpToolInstructions();
-                    if (mcpInstructions) {
-                        if (session.config.rulesContent) {
-                            session.config.rulesContent += mcpInstructions;
-                        } else {
-                            session.config.rulesContent = mcpInstructions;
-                        }
-                    }
-                } catch (e) {
-                    console.error('Failed to fetch MCP tools', e);
-                }
-            }
+			if (session.ready) {
+				console.log(
+					`[PtyAgentManager] Sending message: ${message.substring(0, 50)}...`,
+				);
+				let finalMsg = message;
+				if (session.messageCount === 0 && session.config.rulesContent) {
+					console.log(
+						`[PtyAgentManager] Injecting rules for session ${sessionId}`,
+					);
+					finalMsg = `${session.config.rulesContent}\n\n${message}`;
+				}
+				session.pty.write(finalMsg + "\r");
+				session.messageCount++;
+			} else {
+				console.log(
+					`[PtyAgentManager] Queueing message (session not ready): ${message.substring(0, 50)}...`,
+				);
+				session.messageQueue.push(message);
+			}
+		} else {
+			console.warn(
+				`[PtyAgentManager] Cannot send to ${sessionId}: Session not running`,
+			);
+			this.emitLog(
+				sessionId,
+				`\r\n[System] Error: Agent process is not running.\r\n`,
+				"error",
+			);
+		}
+	}
 
-            if (session.ready) {
-                console.log(`[PtyAgentManager] Sending message: ${message.substring(0, 50)}...`);
-                let finalMsg = message;
-                if (session.messageCount === 0 && session.config.rulesContent) {
-                    console.log(`[PtyAgentManager] Injecting rules for session ${sessionId}`);
-                    finalMsg = `${session.config.rulesContent}\n\n${message}`;
-                }
-                session.pty.write(finalMsg + '\r');
-                session.messageCount++;
-            } else {
-                console.log(`[PtyAgentManager] Queueing message (session not ready): ${message.substring(0, 50)}...`);
-                session.messageQueue.push(message);
-            }
-        } else {
-            console.warn(`[PtyAgentManager] Cannot send to ${sessionId}: Session not running`);
-            this.emitLog(sessionId, `\r\n[System] Error: Agent process is not running.\r\n`, 'error');
-        }
-    }
+	isRunning(sessionId: string): boolean {
+		return this.sessions.has(sessionId);
+	}
 
-    isRunning(sessionId: string): boolean {
-        return this.sessions.has(sessionId);
-    }
+	getSessionConfig(sessionId: string): AgentConfig | undefined {
+		return this.sessions.get(sessionId)?.config;
+	}
 
-    getSessionConfig(sessionId: string): AgentConfig | undefined {
-        return this.sessions.get(sessionId)?.config;
-    }
+	listSessions(): string[] {
+		return Array.from(this.sessions.keys());
+	}
 
-    listSessions(): string[] {
-        return Array.from(this.sessions.keys());
-    }
+	resizeSession(sessionId: string, cols: number, rows: number) {
+		const session = this.sessions.get(sessionId);
+		if (session) {
+			session.pty.resize(cols, rows);
+		}
+	}
 
-    resizeSession(sessionId: string, cols: number, rows: number) {
-        const session = this.sessions.get(sessionId);
-        if (session) {
-            session.pty.resize(cols, rows);
-        }
-    }
+	requestWorktreeResume(
+		sessionId: string,
+		request: WorktreeResumeRequest,
+	): boolean {
+		const session = this.sessions.get(sessionId);
+		if (!session) {
+			console.warn(
+				`[PtyAgentManager] Worktree resume requested for missing session ${sessionId}`,
+			);
+			return false;
+		}
 
-    requestWorktreeResume(sessionId: string, request: WorktreeResumeRequest): boolean {
-        const session = this.sessions.get(sessionId);
-        if (!session) {
-            console.warn(`[PtyAgentManager] Worktree resume requested for missing session ${sessionId}`);
-            return false;
-        }
+		console.log(
+			`[PtyAgentManager] Scheduling worktree resume for session ${sessionId}`,
+		);
+		session.pendingWorktreeResume = request;
 
-        console.log(`[PtyAgentManager] Scheduling worktree resume for session ${sessionId}`);
-        session.pendingWorktreeResume = request;
-
-        // Kill the current PTY, the onExit handler will restart it in the new CWD
-        session.pty.kill();
-        return true;
-    }
+		// Kill the current PTY, the onExit handler will restart it in the new CWD
+		session.pty.kill();
+		return true;
+	}
 }
 
 export const ptyAgentManager = new PtyAgentManager();
