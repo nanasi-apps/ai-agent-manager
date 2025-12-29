@@ -1,56 +1,15 @@
-import { spawn, type ChildProcess } from 'node:child_process';
+
 import { EventEmitter } from 'node:events';
-import * as fs from 'fs/promises';
-import { statSync } from 'node:fs';
-import * as path from 'path';
 import type { AgentConfig, AgentLogPayload } from '@agent-manager/shared';
-import { AgentOutputParser } from './output-parser';
 import type { IAgentManager, WorktreeResumeRequest } from './agent-manager';
-// Removed mcpHub import as we are using native CLI MCP
-import {
-    AgentDriver,
-    AgentDriverContext,
-    GeminiDriver,
-    ClaudeDriver,
-    CodexDriver
-} from './drivers';
-import { prepareGeminiEnv, prepareClaudeEnv, prepareCodexEnv } from './env-utils';
-
-interface PendingWorktreeResume {
-    request: WorktreeResumeRequest;
-    resumeMessage: string;
-}
-
-interface ActiveWorktreeContext {
-    cwd: string;
-    branch: string;
-    repoPath: string;
-}
-
-interface SessionInfo extends AgentDriverContext {
-    config: AgentConfig; // Keep config accessible
-    buffer: string;
-    isProcessing: boolean;
-    currentProcess?: ChildProcess;
-    pendingHandover?: string;
-    pendingToolCall?: { name: string; args: any };
-    projectRoot?: string;
-    lastUserMessage?: string;
-    pendingWorktreeResume?: PendingWorktreeResume;
-    activeWorktree?: ActiveWorktreeContext;
-    geminiHome?: string;
-    claudeHome?: string;
-    /** Flag to prevent re-capturing invalid Gemini session IDs from stdout */
-    invalidGeminiSession?: boolean;
-}
+import { OneShotSession } from './one-shot-session';
 
 /**
  * One-shot agent manager for CLIs that work best in non-interactive mode
  * Uses --resume for maintaining conversation context between messages
  */
 export class OneShotAgentManager extends EventEmitter implements IAgentManager {
-    private sessions: Map<string, SessionInfo> = new Map();
-    private parser = new AgentOutputParser();
+    private sessions: Map<string, OneShotSession> = new Map();
 
     startSession(sessionId: string, command: string, config?: Partial<AgentConfig>) {
         if (this.sessions.has(sessionId)) {
@@ -71,14 +30,14 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
             rulesContent: config?.rulesContent,
         };
 
-        this.sessions.set(sessionId, {
-            config: agentConfig,
-            messageCount: 0,
-            buffer: '',
-            isProcessing: false,
-            sessionId, // From AgentDriverContext
-            projectRoot: agentConfig.cwd,
+        const session = new OneShotSession(sessionId, agentConfig);
+
+        // Forward logs from session
+        session.on('log', (payload: AgentLogPayload) => {
+            this.emit('log', payload);
         });
+
+        this.sessions.set(sessionId, session);
     }
 
     resetSession(sessionId: string, command: string, config?: Partial<AgentConfig>) {
@@ -91,31 +50,19 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
         const nextType = config?.type ?? session.config.type;
         const shouldResetState = session.config.type !== nextType;
 
-        if (session.currentProcess) {
-            session.currentProcess.kill();
-            session.currentProcess = undefined;
-        }
-
-        const previousProjectRoot = session.projectRoot ?? session.config.cwd;
-
-        session.isProcessing = false;
-        session.buffer = '';
-        session.config = {
+        const newConfig = {
             ...session.config,
             ...config,
             type: nextType,
             command,
         };
-        session.projectRoot = previousProjectRoot ?? session.config.cwd;
-        session.pendingWorktreeResume = undefined;
 
         if (shouldResetState) {
-            session.messageCount = 0;
-            session.geminiSessionId = undefined;
-            session.codexThreadId = undefined;
-            session.lastUserMessage = undefined;
-            session.geminiHome = undefined;
-            session.claudeHome = undefined;
+            session.resetStateForNewType(newConfig);
+        } else {
+            session.resetStateSoft(config ?? {});
+            // Explicitly set command in case it wasn't in config
+            session.updateConfig({ command });
         }
     }
 
@@ -127,206 +74,7 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
             return;
         }
 
-        if (session.isProcessing) {
-            console.warn(`[OneShotAgentManager] Session ${sessionId} is busy`);
-            this.emitLog(sessionId, '[Waiting for previous response...]\n', 'system');
-            return;
-        }
-
-        session.isProcessing = true;
-        session.lastUserMessage = message;
-
-        await this.validateActiveWorktree(sessionId, session);
-
-        let systemPrompt = '';
-        if (session.messageCount === 0) {
-            // Reset invalidGeminiSession flag on fresh start so new session IDs can be captured
-            session.invalidGeminiSession = false;
-            const baseRules = session.config.rulesContent ?? '';
-            const worktreeInstructions = this.buildWorktreeInstructions(session);
-            const parts = [baseRules, worktreeInstructions].filter(Boolean);
-            systemPrompt = parts.join('\n\n');
-            if (baseRules) {
-                console.log(`[OneShotAgentManager] Injecting rules for session ${sessionId}`);
-            }
-        }
-        const messageToSend = this.appendWorktreeReminder(session, message);
-
-        // We define the internal URL here. Ideally this constant comes from a shared config or server starter.
-        const mcpServerUrl = "http://localhost:3001/mcp/sse";
-
-        try {
-            const driver = this.getDriver(session.config);
-            // Determine if the agent type supports dynamic MCP injection
-            const isGemini = session.config.type === 'gemini' || session.config.command === 'gemini' || session.config.command.startsWith('gemini ');
-            const isCodex = session.config.type === 'codex' || session.config.command.startsWith('codex');
-            const isClaude = session.config.type === 'claude' || session.config.command === 'claude' || session.config.command.startsWith('claude ');
-
-            const context: AgentDriverContext = {
-                sessionId,
-                geminiSessionId: session.geminiSessionId,
-                codexThreadId: session.codexThreadId,
-                messageCount: session.messageCount,
-                mcpServerUrl: (isCodex || isGemini || isClaude) ? mcpServerUrl : undefined,
-            };
-
-            const cmd = driver.getCommand(context, messageToSend, session.config, systemPrompt);
-
-            // Execute the command
-            console.log(`[OneShotAgentManager] Running: ${cmd.command} ${cmd.args.join(' ')}`);
-
-            let spawnEnv = { ...process.env, ...session.config.env };
-
-            // If Gemini, prepare a temporary environment with injected config
-            // API keys are already in session.config.env if configured
-            if (isGemini) {
-                const geminiEnv = await prepareGeminiEnv({
-                    mcpServerUrl,
-                    existingHome: session.geminiHome,
-                    // API key/base URL already in config.env if configured
-                    apiKey: session.config.env?.GEMINI_API_KEY,
-                    baseUrl: session.config.env?.GOOGLE_GEMINI_BASE_URL,
-                });
-                if (geminiEnv.HOME) {
-                    session.geminiHome = geminiEnv.HOME;
-                }
-                spawnEnv = { ...spawnEnv, ...geminiEnv };
-            }
-
-            // If Codex, prepare API key environment variables
-            if (isCodex) {
-                const codexEnv = prepareCodexEnv({
-                    apiKey: session.config.env?.OPENAI_API_KEY,
-                    baseUrl: session.config.env?.OPENAI_BASE_URL,
-                });
-                spawnEnv = { ...spawnEnv, ...codexEnv };
-            }
-
-            // If Claude, prepare a temporary config directory with injected MCP
-            if (isClaude) {
-                const claudeEnv = await prepareClaudeEnv(mcpServerUrl, session.claudeHome);
-                if (claudeEnv.CLAUDE_CONFIG_DIR) {
-                    session.claudeHome = claudeEnv.CLAUDE_CONFIG_DIR;
-                }
-                spawnEnv = { ...spawnEnv, ...claudeEnv };
-            }
-
-            // Safety check for CWD
-            if (session.config.cwd) {
-                try {
-                    await fs.access(session.config.cwd);
-                } catch (error) {
-                    console.error(`[OneShotAgentManager] CWD ${session.config.cwd} does not exist.`);
-                    if (session.projectRoot && session.projectRoot !== session.config.cwd) {
-                        console.log(`[OneShotAgentManager] Falling back to project root: ${session.projectRoot}`);
-                        this.emitLog(sessionId, `[Warning] Worktree directory ${session.config.cwd} not found. Falling back to project root.\n`, 'system');
-                        session.config.cwd = session.projectRoot;
-                        // Clear invalid active worktree
-                        if (session.activeWorktree?.cwd === session.config.cwd) {
-                            session.activeWorktree = undefined;
-                        }
-                    } else {
-                        this.emitLog(sessionId, `[Error] CWD ${session.config.cwd} does not exist and no valid fallback.\n`, 'error');
-                        session.isProcessing = false;
-                        return;
-                    }
-                }
-            }
-
-            const resolvedCwd = await this.resolveSessionCwd(sessionId, session);
-
-            const child = spawn(cmd.command, cmd.args, {
-                cwd: resolvedCwd,
-                env: spawnEnv,
-                shell: true
-            });
-
-            session.currentProcess = child;
-            session.messageCount += 1;
-
-            let stdout = '';
-            let stderr = '';
-
-            if (child.stdout) {
-                child.stdout.on('data', (data) => {
-                    const str = data.toString();
-                    stdout += str;
-                    // Stream parse JSON
-                    if (session.config.streamJson) {
-                        this.parseStreamJson(sessionId, str, session);
-                    } else {
-                        this.emitLog(sessionId, str, 'text');
-                    }
-                });
-            }
-
-            if (child.stderr) {
-                child.stderr.on('data', (data) => {
-                    const str = data.toString();
-                    stderr += str;
-                    // Log stderr but maybe not emit to user interface unless error?
-                    // Some tools talk on stderr.
-                    console.log(`[OneShotAgentManager ${sessionId}] stderr:`, str);
-
-                    // Detect Gemini's "Invalid session identifier" error and clear the stale session ID
-                    if (str.includes('Invalid session identifier') || str.includes('No previous sessions found')) {
-                        if (session.geminiSessionId) {
-                            console.warn(`[OneShotAgentManager ${sessionId}] Gemini session ${session.geminiSessionId} is invalid, clearing it.`);
-                            session.geminiSessionId = undefined;
-                        }
-                        // Set flag to prevent re-capturing invalid ID from stdout and reset messageCount
-                        session.invalidGeminiSession = true;
-                        session.messageCount = 0;
-                        // Notify UI that session was reset - this will start fresh on next user message
-                        this.emitLog(sessionId, '\n[Session Error] Previous session was invalid. Session will restart fresh on next message.\n', 'error');
-                    }
-
-                    // Detect Gemini API connection errors - clear session ID to allow fresh start
-                    if (str.includes('Error when talking to Gemini API')) {
-                        // Check for quota/rate limit errors first (don't clear session for these)
-                        const quotaMatch = str.match(/Your quota will reset after (\d+h\d+m\d+s|\d+m\d+s|\d+s)/);
-                        if (str.includes('exhausted your capacity') || quotaMatch) {
-                            const resetTime = quotaMatch ? quotaMatch[1] : 'some time';
-                            this.emitLog(sessionId, `\n[Gemini Quota Error] API quota exhausted. Quota will reset after ${resetTime}. Try using a different model or wait for reset.\n`, 'error');
-                        } else {
-                            // Generic API error - clear session ID for fresh start
-                            if (session.geminiSessionId) {
-                                console.warn(`[OneShotAgentManager ${sessionId}] Gemini API error during session ${session.geminiSessionId}, clearing session ID for retry.`);
-                                session.geminiSessionId = undefined;
-                            }
-                            // Also prevent ID recapture and reset message count for generic API errors
-                            session.invalidGeminiSession = true;
-                            session.messageCount = 0;
-                            this.emitLog(sessionId, '\n[Gemini API Error] Connection to Gemini API failed. Please check your network connection and authentication.\n', 'error');
-                        }
-                    }
-                    // Optional: this.emitLog(sessionId, str, 'system');
-                });
-            }
-
-            child.on('close', (code) => {
-                session.currentProcess = undefined;
-                session.isProcessing = false;
-                console.log(`[OneShotAgentManager ${sessionId}] Process exited with code ${code}`);
-
-                if (!session.pendingWorktreeResume) {
-                    this.emitLog(sessionId, `\n[Process exited with code ${code}]\n`, 'system');
-                }
-                this.handlePendingWorktreeResume(sessionId);
-            });
-
-            child.on('error', (err) => {
-                session.currentProcess = undefined;
-                session.isProcessing = false;
-                console.error(`[OneShotAgentManager ${sessionId}] Failed to start subprocess.`, err);
-                this.emitLog(sessionId, `Failed to start subprocess: ${err.message}`, 'error');
-            });
-
-        } catch (error: any) {
-            session.isProcessing = false;
-            console.error(`[OneShotAgentManager] Error running command:`, error);
-            this.emitLog(sessionId, `Error: ${error.message}`, 'error');
-        }
+        await session.processMessage(message);
     }
 
     requestWorktreeResume(sessionId: string, request: WorktreeResumeRequest): boolean {
@@ -336,242 +84,13 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
             return false;
         }
 
-        try {
-            if (!statSync(request.cwd).isDirectory()) {
-                throw new Error('Worktree path is not a directory.');
-            }
-        } catch (error: any) {
-            const message = error?.message || String(error);
-            this.emitLog(
-                sessionId,
-                `\n[System] Worktree resume blocked: ${message}\n`,
-                'system'
-            );
-            return false;
-        }
-
-        const resumeMessage = request.resumeMessage ?? this.buildWorktreeResumeMessage(session, request);
-        session.pendingWorktreeResume = {
-            request,
-            resumeMessage,
-        };
-        this.emitLog(
-            sessionId,
-            `\n[System] Worktree resume scheduled for branch ${request.branch}.\n`,
-            'system'
-        );
-        return true;
-    }
-
-    private buildWorktreeInstructions(session: SessionInfo): string {
-        const projectRoot = session.projectRoot ?? session.config.cwd ?? '';
-        const branchSuggestion = `agent/${session.sessionId.slice(0, 8)}`;
-        const lines = [
-            '[Agent Manager Context]',
-            `Session ID: ${session.sessionId}`,
-        ];
-        if (projectRoot) {
-            lines.push(`Project root: ${projectRoot}`);
-        }
-        if (session.activeWorktree) {
-            lines.push(`Active worktree: ${session.activeWorktree.branch} (${session.activeWorktree.cwd})`);
-        }
-        lines.push('Worktree workflow:');
-        lines.push('- If the task involves code changes, tests, or file edits, create a worktree first.');
-        lines.push('- Only skip for pure Q/A that does not touch the repo.');
-        lines.push(`- Use repoPath = Project root. Suggested branch: ${branchSuggestion}.`);
-        lines.push('- Call MCP tool "worktree_create" with { repoPath, branch, sessionId, resume: true }.');
-        lines.push('- After calling, stop and wait. The host will resume you with cwd switched to that worktree.');
-        lines.push('- If you are already in a worktree, do not request another one.');
-        return lines.join('\n');
-    }
-
-    private appendWorktreeReminder(session: SessionInfo, message: string): string {
-        if (session.messageCount === 0 || session.activeWorktree) {
-            return message;
-        }
-
-        const projectRoot = session.projectRoot ?? session.config.cwd ?? '';
-        const branchSuggestion = `agent/${session.sessionId.slice(0, 8)}`;
-        const reminderLines = [
-            '[Worktree Reminder]',
-            `Session ID: ${session.sessionId}`,
-        ];
-        if (projectRoot) {
-            reminderLines.push(`Project root: ${projectRoot}`);
-        }
-        reminderLines.push('If this task involves code changes, create a worktree first.');
-        reminderLines.push(`Use repoPath = Project root, branch = ${branchSuggestion}.`);
-        reminderLines.push('Call tool: worktree_create({ repoPath, branch, sessionId, resume: true }) then wait.');
-        return `${reminderLines.join('\n')}\n\n${message}`;
-    }
-
-    private buildWorktreeResumeMessage(session: SessionInfo, request: WorktreeResumeRequest): string {
-        const projectRoot = session.projectRoot ?? request.repoPath;
-        const originalMessage = session.lastUserMessage ?? '';
-        const lines = [
-            '[SYSTEM CONTEXT]',
-            'Worktree created and activated for this session.',
-            `Branch: ${request.branch}`,
-            `Worktree path: ${request.cwd}`,
-        ];
-        if (projectRoot) {
-            lines.push(`Project root: ${projectRoot}`);
-        }
-        lines.push('Continue the original task from the worktree. Do not create another worktree unless needed.');
-        if (originalMessage) {
-            lines.push('', 'Original request:', originalMessage);
-        }
-        return lines.join('\n');
-    }
-
-    private handlePendingWorktreeResume(sessionId: string) {
-        const session = this.sessions.get(sessionId);
-        if (!session || session.isProcessing) return;
-        const pending = session.pendingWorktreeResume;
-        if (!pending) return;
-
-        session.pendingWorktreeResume = undefined;
-        session.activeWorktree = {
-            cwd: pending.request.cwd,
-            branch: pending.request.branch,
-            repoPath: pending.request.repoPath,
-        };
-        session.config.cwd = pending.request.cwd;
-
-        this.emitLog(
-            sessionId,
-            `\n[System] Switching to worktree ${pending.request.branch} at ${pending.request.cwd}\n`,
-            'system'
-        );
-
-        void this.sendToSession(sessionId, pending.resumeMessage);
-    }
-
-    private async resolveSessionCwd(sessionId: string, session: SessionInfo): Promise<string | undefined> {
-        const requestedCwd = session.config.cwd;
-        if (requestedCwd && await this.pathExists(requestedCwd)) {
-            return requestedCwd;
-        }
-
-        const fallbackCwd = session.projectRoot;
-        if (fallbackCwd && await this.pathExists(fallbackCwd)) {
-            if (requestedCwd) {
-                session.config.cwd = fallbackCwd;
-                if (session.activeWorktree) {
-                    session.activeWorktree = undefined;
-                }
-                this.emitLog(
-                    sessionId,
-                    `\n[System] Worktree path not found. Falling back to ${fallbackCwd}\n`,
-                    'system'
-                );
-            }
-            return fallbackCwd;
-        }
-
-        if (requestedCwd) {
-            this.emitLog(
-                sessionId,
-                `\n[System] Working directory not found: ${requestedCwd}. Using default cwd.\n`,
-                'system'
-            );
-        }
-
-        return undefined;
-    }
-
-    private async validateActiveWorktree(sessionId: string, session: SessionInfo): Promise<void> {
-        if (!session.activeWorktree) return;
-        const cwd = session.config.cwd;
-        if (cwd && await this.pathExists(cwd)) return;
-
-        session.activeWorktree = undefined;
-        const fallback = session.projectRoot;
-        if (fallback) {
-            session.config.cwd = fallback;
-        }
-        this.emitLog(
-            sessionId,
-            `\n[System] Worktree path missing. Worktree context cleared.\n`,
-            'system'
-        );
-    }
-
-    private async pathExists(targetPath: string): Promise<boolean> {
-        try {
-            const stats = await fs.stat(targetPath);
-            return stats.isDirectory();
-        } catch {
-            return false;
-        }
-    }
-
-    private getDriver(config: AgentConfig): AgentDriver {
-        switch (config.type) {
-            case 'gemini':
-                return new GeminiDriver();
-            case 'claude':
-                return new ClaudeDriver();
-            case 'codex':
-                return new CodexDriver();
-            default:
-                throw new Error(`Unknown agent command: ${config.command}`);
-        }
-    }
-
-    private parseStreamJson(sessionId: string, chunk: string, session: SessionInfo) {
-        // This is a simplified stream parser. 
-        const lines = chunk.split('\n').filter(l => l.trim().length > 0);
-        for (const line of lines) {
-            try {
-                const json = JSON.parse(line);
-                const logs = this.parser.processJsonEvent(json, session.config.type);
-
-                for (const log of logs) {
-                    // Only capture Gemini session ID if not marked as invalid
-                    if (log.metadata?.geminiSessionId && !session.invalidGeminiSession) {
-                        session.geminiSessionId = log.metadata.geminiSessionId;
-                        console.log(`[OneShotAgentManager] Captured Gemini session ID: ${session.geminiSessionId}`);
-                    }
-
-                    if (log.metadata?.codexThreadId) {
-                        session.codexThreadId = log.metadata.codexThreadId;
-                        console.log(`[OneShotAgentManager] Captured Codex thread ID: ${session.codexThreadId}`);
-                    }
-
-                    this.emitLog(sessionId, log.data, log.type, log.raw);
-                }
-            } catch {
-                // Not valid JSON
-            }
-        }
-    }
-
-    private emitLog(
-        sessionId: string,
-        data: string,
-        type: AgentLogPayload['type'] = 'text',
-        raw?: unknown
-    ) {
-        const payload: AgentLogPayload = {
-            sessionId,
-            data,
-            type,
-            raw,
-        };
-        this.emit('log', payload);
+        return session.requestWorktreeResume(request);
     }
 
     stopSession(sessionId: string): boolean {
         const session = this.sessions.get(sessionId);
         if (session) {
-            if (session.currentProcess) {
-                session.currentProcess.kill();
-            }
-            session.isProcessing = false;
-            session.pendingWorktreeResume = undefined;
-            this.emitLog(sessionId, '\n[Generation stopped by user]\n', 'system');
+            session.stop();
             return true;
         }
         return false;
@@ -594,25 +113,36 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
         const session = this.sessions.get(sessionId);
         if (!session) return undefined;
         return {
-            geminiSessionId: session.geminiSessionId,
-            codexThreadId: session.codexThreadId,
+            geminiSessionId: session.state.geminiSessionId,
+            codexThreadId: session.state.codexThreadId,
         };
     }
 
     setPendingHandover(sessionId: string, context: string) {
         const session = this.sessions.get(sessionId);
         if (session) {
-            session.pendingHandover = context;
+            session.setPendingHandover(context);
         }
     }
 
     consumePendingHandover(sessionId: string): string | undefined {
         const session = this.sessions.get(sessionId);
-        if (!session || !session.pendingHandover) return undefined;
+        return session?.consumePendingHandover();
+    }
 
-        const context = session.pendingHandover;
-        session.pendingHandover = undefined;
-        return context;
+    private emitLog(
+        sessionId: string,
+        data: string,
+        type: AgentLogPayload['type'] = 'text',
+        raw?: unknown
+    ) {
+        const payload: AgentLogPayload = {
+            sessionId,
+            data,
+            type,
+            raw,
+        };
+        this.emit('log', payload);
     }
 }
 
