@@ -1,11 +1,9 @@
 {
-  "servers": [
-    {
-      "name": "filesystem",
-      "command": "node",
-      "args": [
-        "packages/electron/dist/fs-server.js"
-      ]
-    }
-  ]
+	"servers": [
+		{
+			"name": "filesystem",
+			"command": "node",
+			"args": ["packages/electron/dist/fs-server.js"]
+		}
+	]
 }

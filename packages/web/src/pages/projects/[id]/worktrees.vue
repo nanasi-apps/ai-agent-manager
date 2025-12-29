@@ -1,137 +1,163 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Loader2, Plus, GitBranch, Trash2 } from 'lucide-vue-next'
-import { orpc } from '@/services/orpc'
+import { GitBranch, Loader2, Plus, Trash2 } from "lucide-vue-next";
+import { onMounted, ref } from "vue";
+import { useRoute } from "vue-router";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+	DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "@/components/ui/table";
+import { orpc } from "@/services/orpc";
 
-const route = useRoute()
-const projectId = (route.params as any).id as string
+const route = useRoute();
+const projectId = (route.params as any).id as string;
 
 interface Worktree {
-  id: string
-  path: string
-  branch: string
-  isMain: boolean
-  isLocked: boolean
-  prunable: string | null
+	id: string;
+	path: string;
+	branch: string;
+	isMain: boolean;
+	isLocked: boolean;
+	prunable: string | null;
 }
 
 interface WorktreeCommit {
-  hash: string
-  shortHash: string
-  author: string
-  date: string
-  subject: string
+	hash: string;
+	shortHash: string;
+	author: string;
+	date: string;
+	subject: string;
 }
 
-const worktrees = ref<Worktree[]>([])
-const isLoading = ref(false)
-const isCreating = ref(false)
-const selectedWorktree = ref<Worktree | null>(null)
-const worktreeCommits = ref<WorktreeCommit[]>([])
-const isDetailLoading = ref(false)
+const worktrees = ref<Worktree[]>([]);
+const isLoading = ref(false);
+const isCreating = ref(false);
+const selectedWorktree = ref<Worktree | null>(null);
+const worktreeCommits = ref<WorktreeCommit[]>([]);
+const isDetailLoading = ref(false);
 
 // New Worktree Form
-const isDialogOpen = ref(false)
-const newBranch = ref('')
-const newPath = ref('')
+const isDialogOpen = ref(false);
+const newBranch = ref("");
+const newPath = ref("");
 
 const loadWorktrees = async () => {
-  isLoading.value = true
-  try {
-    const res = await orpc.listWorktrees({ projectId })
-    worktrees.value = res
-    if (res.length > 0) {
-      const existing = selectedWorktree.value
-      const found = existing ? res.find(wt => wt.path === existing.path) : undefined
-      const target = found || res[0]
-      if (target) {
-        await selectWorktree(target)
-      }
-    } else {
-      selectedWorktree.value = null
-      worktreeCommits.value = []
-    }
-  } catch (e) {
-    console.error(e)
-  } finally {
-    isLoading.value = false
-  }
-}
+	isLoading.value = true;
+	try {
+		const res = await orpc.listWorktrees({ projectId });
+		worktrees.value = res;
+		if (res.length > 0) {
+			const existing = selectedWorktree.value;
+			const found = existing
+				? res.find((wt) => wt.path === existing.path)
+				: undefined;
+			const target = found || res[0];
+			if (target) {
+				await selectWorktree(target);
+			}
+		} else {
+			selectedWorktree.value = null;
+			worktreeCommits.value = [];
+		}
+	} catch (e) {
+		console.error(e);
+	} finally {
+		isLoading.value = false;
+	}
+};
 
 const loadWorktreeDetails = async (worktree: Worktree) => {
-  isDetailLoading.value = true
-  try {
-    const commits = await orpc.listWorktreeCommits({ projectId, path: worktree.path, limit: 15 })
-    worktreeCommits.value = commits
-  } catch (e) {
-    console.error(e)
-  } finally {
-    isDetailLoading.value = false
-  }
-}
+	isDetailLoading.value = true;
+	try {
+		const commits = await orpc.listWorktreeCommits({
+			projectId,
+			path: worktree.path,
+			limit: 15,
+		});
+		worktreeCommits.value = commits;
+	} catch (e) {
+		console.error(e);
+	} finally {
+		isDetailLoading.value = false;
+	}
+};
 
 const selectWorktree = async (worktree: Worktree) => {
-  selectedWorktree.value = worktree
-  await loadWorktreeDetails(worktree)
-}
+	selectedWorktree.value = worktree;
+	await loadWorktreeDetails(worktree);
+};
 
 const createWorktree = async () => {
-  if (!newBranch.value) return
-  isCreating.value = true
-  try {
-    await orpc.createWorktree({
-      projectId,
-      branch: newBranch.value,
-      relativePath: newPath.value || undefined
-    })
-    isDialogOpen.value = false
-    newBranch.value = ''
-    newPath.value = ''
-    await loadWorktrees()
-  } catch (e) {
-    console.error(e)
-  } finally {
-    isCreating.value = false
-  }
-}
+	if (!newBranch.value) return;
+	isCreating.value = true;
+	try {
+		await orpc.createWorktree({
+			projectId,
+			branch: newBranch.value,
+			relativePath: newPath.value || undefined,
+		});
+		isDialogOpen.value = false;
+		newBranch.value = "";
+		newPath.value = "";
+		await loadWorktrees();
+	} catch (e) {
+		console.error(e);
+	} finally {
+		isCreating.value = false;
+	}
+};
 
 const removeWorktree = async (path: string) => {
-  if (!confirm('Are you sure you want to remove this worktree? Uncommitted changes may be lost.')) return
-  try {
-    await orpc.removeWorktree({
-      projectId,
-      path,
-      force: true // Allow force remove for now or make it an option
-    })
-    await loadWorktrees()
-  } catch (e) {
-    console.error(e)
-    alert('Failed to remove worktree: ' + e)
-  }
-}
+	if (
+		!confirm(
+			"Are you sure you want to remove this worktree? Uncommitted changes may be lost.",
+		)
+	)
+		return;
+	try {
+		await orpc.removeWorktree({
+			projectId,
+			path,
+			force: true, // Allow force remove for now or make it an option
+		});
+		await loadWorktrees();
+	} catch (e) {
+		console.error(e);
+		alert("Failed to remove worktree: " + e);
+	}
+};
 
 const getWorktreeName = (path: string) => {
-    // Basic extraction of the folder name
-    return path.split(/[\\/]/).pop() || path
-}
+	// Basic extraction of the folder name
+	return path.split(/[\\/]/).pop() || path;
+};
 
 const formatCommitDate = (value: string) => {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString()
-}
+	const date = new Date(value);
+	if (Number.isNaN(date.getTime())) return value;
+	return date.toLocaleString();
+};
 
 onMounted(() => {
-  loadWorktrees()
-})
+	loadWorktrees();
+});
 </script>
 
 <template>

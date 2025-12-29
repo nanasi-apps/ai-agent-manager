@@ -1,13 +1,14 @@
 // Types
-export * from "./types/index";
+
+export type { AppRouter, IAgentManager } from "./router";
 
 // Router
 export {
-    appRouter,
-    setAgentManager,
-    setStore,
-    setNativeDialog,
-    setWorktreeManager,
-    getStoreOrThrow
+	appRouter,
+	getStoreOrThrow,
+	setAgentManager,
+	setNativeDialog,
+	setStore,
+	setWorktreeManager,
 } from "./router";
-export type { AppRouter, IAgentManager } from "./router";
+export * from "./types/index";

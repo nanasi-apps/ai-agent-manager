@@ -1,24 +1,24 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { MessageSquare, ExternalLink } from 'lucide-vue-next'
-import { Card, CardContent } from '@/components/ui/card'
+import { ExternalLink, MessageSquare } from "lucide-vue-next";
+import { computed } from "vue";
+import { Card, CardContent } from "@/components/ui/card";
 
 const props = defineProps<{
-  title: string
-  projectName?: string
-  updatedAt: number
-}>()
+	title: string;
+	projectName?: string;
+	updatedAt: number;
+}>();
 
 const formattedTime = computed(() => {
-  const date = new Date(props.updatedAt)
-  const now = new Date()
-  const diff = now.getTime() - date.getTime()
-  
-  if (diff < 60000) return 'Just now'
-  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`
-  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`
-  return date.toLocaleDateString()
-})
+	const date = new Date(props.updatedAt);
+	const now = new Date();
+	const diff = now.getTime() - date.getTime();
+
+	if (diff < 60000) return "Just now";
+	if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+	if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+	return date.toLocaleDateString();
+});
 </script>
 
 <template>

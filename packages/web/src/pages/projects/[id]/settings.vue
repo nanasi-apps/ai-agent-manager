@@ -1,159 +1,184 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
-import { Checkbox } from '@/components/ui/checkbox'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { ArrowLeft, Loader2, Plus, Trash2, FileText } from 'lucide-vue-next'
-import { orpc } from '@/services/orpc'
-import { MIN_LOAD_TIME } from '@/lib/constants'
+import { ArrowLeft, FileText, Loader2, Plus, Trash2 } from "lucide-vue-next";
+import { computed, ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Textarea } from "@/components/ui/textarea";
+import { MIN_LOAD_TIME } from "@/lib/constants";
+import { orpc } from "@/services/orpc";
 
 interface ProjectRule {
-    id: string
-    name: string
-    content: string
+	id: string;
+	name: string;
+	content: string;
 }
 
-const route = useRoute()
-const router = useRouter()
-const projectId = computed(() => (route.params as any).id as string)
-const project = ref<{ id: string, name: string, rootPath?: string, activeGlobalRules?: string[], projectRules?: ProjectRule[] } | null>(null)
-const nameDraft = ref('')
-const rootPathDraft = ref('')
-const isLoading = ref(true)
-const isSavingProject = ref(false)
+const route = useRoute();
+const router = useRouter();
+const projectId = computed(() => (route.params as any).id as string);
+const project = ref<{
+	id: string;
+	name: string;
+	rootPath?: string;
+	activeGlobalRules?: string[];
+	projectRules?: ProjectRule[];
+} | null>(null);
+const nameDraft = ref("");
+const rootPathDraft = ref("");
+const isLoading = ref(true);
+const isSavingProject = ref(false);
 const hasNativePicker = computed(() => {
-  return typeof window !== 'undefined' && !!window.electronAPI
-})
-const globalRules = ref<{ id: string, name: string }[]>([])
-const activeGlobalRulesDraft = ref<string[]>([])
-const projectRulesDraft = ref<ProjectRule[]>([])
+	return typeof window !== "undefined" && !!window.electronAPI;
+});
+const globalRules = ref<{ id: string; name: string }[]>([]);
+const activeGlobalRulesDraft = ref<string[]>([]);
+const projectRulesDraft = ref<ProjectRule[]>([]);
 
 // Project Rules Logic
-const selectedProjectRuleId = ref<string | null>(null)
-const selectedRule = computed(() => projectRulesDraft.value.find(r => r.id === selectedProjectRuleId.value))
+const selectedProjectRuleId = ref<string | null>(null);
+const selectedRule = computed(() =>
+	projectRulesDraft.value.find((r) => r.id === selectedProjectRuleId.value),
+);
 
 const createProjectRule = () => {
-    const newRule: ProjectRule = {
-        id: crypto.randomUUID(),
-        name: 'New Rule',
-        content: ''
-    }
-    projectRulesDraft.value.push(newRule)
-    selectedProjectRuleId.value = newRule.id
-}
+	const newRule: ProjectRule = {
+		id: crypto.randomUUID(),
+		name: "New Rule",
+		content: "",
+	};
+	projectRulesDraft.value.push(newRule);
+	selectedProjectRuleId.value = newRule.id;
+};
 
 const deleteProjectRule = (id: string, event?: Event) => {
-    event?.stopPropagation()
-    if (!confirm('Are you sure you want to delete this rule?')) return
-    
-    projectRulesDraft.value = projectRulesDraft.value.filter(r => r.id !== id)
-    if (selectedProjectRuleId.value === id) {
-        selectedProjectRuleId.value = null
-    }
-}
+	event?.stopPropagation();
+	if (!confirm("Are you sure you want to delete this rule?")) return;
+
+	projectRulesDraft.value = projectRulesDraft.value.filter((r) => r.id !== id);
+	if (selectedProjectRuleId.value === id) {
+		selectedProjectRuleId.value = null;
+	}
+};
 
 const loadProject = async () => {
-  const id = projectId.value
-  if (!id) return
+	const id = projectId.value;
+	if (!id) return;
 
-  isLoading.value = true
-  const minLoadTime = new Promise(resolve => setTimeout(resolve, MIN_LOAD_TIME))
+	isLoading.value = true;
+	const minLoadTime = new Promise((resolve) =>
+		setTimeout(resolve, MIN_LOAD_TIME),
+	);
 
-  try {
-    const [p, rules] = await Promise.all([
-        orpc.getProject({ projectId: id }),
-        orpc.listGlobalRules()
-    ])
-    // Ensure projectRules is parsed correctly or initialized
-    const parsedProject = {
-        ...p,
-        // @ts-ignore
-        projectRules: (p?.projectRules && Array.isArray(p.projectRules)) ? p.projectRules : []
-    }
-    project.value = parsedProject as any
-    globalRules.value = rules
-  } catch (e) {
-    console.error(e)
-  } finally {
-    await minLoadTime
-    isLoading.value = false
-  }
-}
+	try {
+		const [p, rules] = await Promise.all([
+			orpc.getProject({ projectId: id }),
+			orpc.listGlobalRules(),
+		]);
+		// Ensure projectRules is parsed correctly or initialized
+		const parsedProject = {
+			...p,
+			// @ts-expect-error
+			projectRules:
+				p?.projectRules && Array.isArray(p.projectRules) ? p.projectRules : [],
+		};
+		project.value = parsedProject as any;
+		globalRules.value = rules;
+	} catch (e) {
+		console.error(e);
+	} finally {
+		await minLoadTime;
+		isLoading.value = false;
+	}
+};
 
 const resetSettings = () => {
-  nameDraft.value = project.value?.name || ''
-  rootPathDraft.value = project.value?.rootPath || ''
-  activeGlobalRulesDraft.value = project.value?.activeGlobalRules ? [...project.value.activeGlobalRules] : []
-  // Deep copy project rules
-  projectRulesDraft.value = project.value?.projectRules ? JSON.parse(JSON.stringify(project.value.projectRules)) : []
-  selectedProjectRuleId.value = null
-}
+	nameDraft.value = project.value?.name || "";
+	rootPathDraft.value = project.value?.rootPath || "";
+	activeGlobalRulesDraft.value = project.value?.activeGlobalRules
+		? [...project.value.activeGlobalRules]
+		: [];
+	// Deep copy project rules
+	projectRulesDraft.value = project.value?.projectRules
+		? JSON.parse(JSON.stringify(project.value.projectRules))
+		: [];
+	selectedProjectRuleId.value = null;
+};
 
 const isSettingsDirty = computed(() => {
-  if (!project.value) return false
-  return (
-    nameDraft.value !== project.value.name ||
-    rootPathDraft.value !== (project.value.rootPath || '') ||
-    JSON.stringify(activeGlobalRulesDraft.value.sort()) !== JSON.stringify((project.value.activeGlobalRules || []).sort()) ||
-    projectRulesDraft.value.length !== (project.value.projectRules || []).length ||
-    JSON.stringify(projectRulesDraft.value.map(r => ({ name: r.name, content: r.content })).sort((a,b) => a.name.localeCompare(b.name))) !== 
-    JSON.stringify((project.value.projectRules || []).map(r => ({ name: r.name, content: r.content })).sort((a,b) => a.name.localeCompare(b.name)))
-  )
-})
+	if (!project.value) return false;
+	return (
+		nameDraft.value !== project.value.name ||
+		rootPathDraft.value !== (project.value.rootPath || "") ||
+		JSON.stringify(activeGlobalRulesDraft.value.sort()) !==
+			JSON.stringify((project.value.activeGlobalRules || []).sort()) ||
+		projectRulesDraft.value.length !==
+			(project.value.projectRules || []).length ||
+		JSON.stringify(
+			projectRulesDraft.value
+				.map((r) => ({ name: r.name, content: r.content }))
+				.sort((a, b) => a.name.localeCompare(b.name)),
+		) !==
+			JSON.stringify(
+				(project.value.projectRules || [])
+					.map((r) => ({ name: r.name, content: r.content }))
+					.sort((a, b) => a.name.localeCompare(b.name)),
+			)
+	);
+});
 
 const saveProjectSettings = async () => {
-  if (!project.value) return
-  const trimmedName = nameDraft.value.trim()
-  if (!trimmedName) return
+	if (!project.value) return;
+	const trimmedName = nameDraft.value.trim();
+	if (!trimmedName) return;
 
-  const trimmedRoot = rootPathDraft.value.trim()
+	const trimmedRoot = rootPathDraft.value.trim();
 
-  isSavingProject.value = true
-  try {
-    const result = await orpc.updateProject({
-      projectId: projectId.value,
-      name: trimmedName,
-      rootPath: trimmedRoot ? trimmedRoot : null,
-      activeGlobalRules: activeGlobalRulesDraft.value,
-      projectRules: projectRulesDraft.value
-    })
-    if (result.success) {
-      project.value = {
-        ...project.value,
-        name: trimmedName,
-        rootPath: trimmedRoot || undefined,
-        activeGlobalRules: activeGlobalRulesDraft.value,
-        projectRules: JSON.parse(JSON.stringify(projectRulesDraft.value))
-      }
-      window.dispatchEvent(new Event('agent-manager:data-change'))
-    }
-  } catch (e) {
-    console.error(e)
-  } finally {
-    isSavingProject.value = false
-  }
-}
+	isSavingProject.value = true;
+	try {
+		const result = await orpc.updateProject({
+			projectId: projectId.value,
+			name: trimmedName,
+			rootPath: trimmedRoot ? trimmedRoot : null,
+			activeGlobalRules: activeGlobalRulesDraft.value,
+			projectRules: projectRulesDraft.value,
+		});
+		if (result.success) {
+			project.value = {
+				...project.value,
+				name: trimmedName,
+				rootPath: trimmedRoot || undefined,
+				activeGlobalRules: activeGlobalRulesDraft.value,
+				projectRules: JSON.parse(JSON.stringify(projectRulesDraft.value)),
+			};
+			window.dispatchEvent(new Event("agent-manager:data-change"));
+		}
+	} catch (e) {
+		console.error(e);
+	} finally {
+		isSavingProject.value = false;
+	}
+};
 
 const browseRootPath = async () => {
-  if (!hasNativePicker.value) return
-  try {
-    const selected = await orpc.selectDirectory()
-    if (selected) {
-      rootPathDraft.value = selected
-    }
-  } catch (e) {
-    console.error(e)
-  }
-}
+	if (!hasNativePicker.value) return;
+	try {
+		const selected = await orpc.selectDirectory();
+		if (selected) {
+			rootPathDraft.value = selected;
+		}
+	} catch (e) {
+		console.error(e);
+	}
+};
 
 watch(project, () => {
-  resetSettings()
-})
+	resetSettings();
+});
 
-watch(projectId, loadProject, { immediate: true })
+watch(projectId, loadProject, { immediate: true });
 </script>
 
 <template>

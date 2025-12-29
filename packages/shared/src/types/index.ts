@@ -1,20 +1,17 @@
 // Agent types
-export type { AgentType, AgentConfig, AgentLogPayload } from './agent';
-
-// Project types
-export type { ProjectConfig, ModelTemplate } from './project';
-export { availableAgents, getAgentTemplate } from './project';
-
-// Store types
-export * from './store';
-export * from './worktree';
-
+export type { AgentConfig, AgentLogPayload, AgentType } from "./agent";
 // MCP types
 export type {
-    McpServerConfig,
-    McpTool,
-    McpResource,
-    McpResourceTemplate,
-    McpResourceContent,
-    McpResourceUpdate
-} from './mcp';
+	McpResource,
+	McpResourceContent,
+	McpResourceTemplate,
+	McpResourceUpdate,
+	McpServerConfig,
+	McpTool,
+} from "./mcp";
+// Project types
+export type { ModelTemplate, ProjectConfig } from "./project";
+export { availableAgents, getAgentTemplate } from "./project";
+// Store types
+export * from "./store";
+export * from "./worktree";

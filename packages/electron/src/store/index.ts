@@ -1,1 +1,1 @@
-export { FileStore, store } from './file-store';
+export { FileStore, store } from "./file-store";

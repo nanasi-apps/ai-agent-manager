@@ -1,138 +1,138 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { orpc } from '@/services/orpc'
-import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
-import { Input } from '@/components/ui/input'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Loader2, Plus, Trash2, FileText, Save } from 'lucide-vue-next'
+import { FileText, Loader2, Plus, Save, Trash2 } from "lucide-vue-next";
+import { onMounted, ref } from "vue";
+import { Button } from "@/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Textarea } from "@/components/ui/textarea";
+import { orpc } from "@/services/orpc";
 
 interface GlobalRule {
-  id: string
-  name: string
-  content?: string
+	id: string;
+	name: string;
+	content?: string;
 }
 
-const rules = ref<GlobalRule[]>([])
-const selectedRule = ref<GlobalRule | null>(null)
-const ruleContent = ref('') // Content of selected rule
-const isLoading = ref(false)
-const isSaving = ref(false)
+const rules = ref<GlobalRule[]>([]);
+const selectedRule = ref<GlobalRule | null>(null);
+const ruleContent = ref(""); // Content of selected rule
+const isLoading = ref(false);
+const isSaving = ref(false);
 
 // New rule dialog
-const isNewRuleOpen = ref(false)
-const newRuleName = ref('')
-const isCreating = ref(false)
+const isNewRuleOpen = ref(false);
+const newRuleName = ref("");
+const isCreating = ref(false);
 
 const loadRules = async () => {
-    isLoading.value = true
-    try {
-        const res = await orpc.listGlobalRules()
-        rules.value = res
-        // If we have a selected rule, refresh its content too if sticking to it? 
-        // Or if nothing selected, select first?
-        const first = rules.value[0]
-        if (!selectedRule.value && first) {
-            await selectRule(first)
-        }
-    } catch (e) {
-        console.error(e)
-    } finally {
-        isLoading.value = false
-    }
-}
+	isLoading.value = true;
+	try {
+		const res = await orpc.listGlobalRules();
+		rules.value = res;
+		// If we have a selected rule, refresh its content too if sticking to it?
+		// Or if nothing selected, select first?
+		const first = rules.value[0];
+		if (!selectedRule.value && first) {
+			await selectRule(first);
+		}
+	} catch (e) {
+		console.error(e);
+	} finally {
+		isLoading.value = false;
+	}
+};
 
 const selectRule = async (rule: GlobalRule) => {
-    selectedRule.value = rule
-    isLoading.value = true
-    try {
-        const details = await orpc.getGlobalRule({ id: rule.id })
-        if (details) {
-            ruleContent.value = details.content
-        }
-    } catch (e) {
-        console.error(e)
-        ruleContent.value = ''
-    } finally {
-        isLoading.value = false
-    }
-}
+	selectedRule.value = rule;
+	isLoading.value = true;
+	try {
+		const details = await orpc.getGlobalRule({ id: rule.id });
+		if (details) {
+			ruleContent.value = details.content;
+		}
+	} catch (e) {
+		console.error(e);
+		ruleContent.value = "";
+	} finally {
+		isLoading.value = false;
+	}
+};
 
 const saveCurrentRule = async () => {
-    if (!selectedRule.value) return
-    isSaving.value = true
-    try {
-        await orpc.updateGlobalRule({
-            id: selectedRule.value.id,
-            content: ruleContent.value
-        })
-    } catch (e) {
-        console.error(e)
-    } finally {
-        isSaving.value = false
-    }
-}
+	if (!selectedRule.value) return;
+	isSaving.value = true;
+	try {
+		await orpc.updateGlobalRule({
+			id: selectedRule.value.id,
+			content: ruleContent.value,
+		});
+	} catch (e) {
+		console.error(e);
+	} finally {
+		isSaving.value = false;
+	}
+};
 
 const createRule = async () => {
-    if (!newRuleName.value.trim()) return
-    isCreating.value = true
-    try {
-        const res = await orpc.createGlobalRule({
-            name: newRuleName.value,
-            content: ''
-        })
-        if (res.success) {
-            isNewRuleOpen.value = false
-            newRuleName.value = ''
-            await loadRules()
-            // Select the newly created rule
-            const newRule = rules.value.find(r => r.id === res.id)
-            if (newRule) {
-                 // selectRule expects a rule object
-                 await selectRule(newRule as GlobalRule)
-            }
-        }
-    } catch (e) {
-        console.error(e)
-    } finally {
-        isCreating.value = false
-    }
-}
+	if (!newRuleName.value.trim()) return;
+	isCreating.value = true;
+	try {
+		const res = await orpc.createGlobalRule({
+			name: newRuleName.value,
+			content: "",
+		});
+		if (res.success) {
+			isNewRuleOpen.value = false;
+			newRuleName.value = "";
+			await loadRules();
+			// Select the newly created rule
+			const newRule = rules.value.find((r) => r.id === res.id);
+			if (newRule) {
+				// selectRule expects a rule object
+				await selectRule(newRule as GlobalRule);
+			}
+		}
+	} catch (e) {
+		console.error(e);
+	} finally {
+		isCreating.value = false;
+	}
+};
 
 const deleteRule = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this rule?')) return
-    try {
-        await orpc.deleteGlobalRule({ id })
-        await loadRules()
-        if (selectedRule.value?.id === id) {
-            selectedRule.value = null
-            ruleContent.value = ''
-            if (rules.value.length > 0) {
-                // Ensure array element exists
-                await selectRule(rules.value[0] as GlobalRule)
-            }
-        }
-    } catch (e) {
-        console.error(e)
-    }
-}
+	if (!confirm("Are you sure you want to delete this rule?")) return;
+	try {
+		await orpc.deleteGlobalRule({ id });
+		await loadRules();
+		if (selectedRule.value?.id === id) {
+			selectedRule.value = null;
+			ruleContent.value = "";
+			if (rules.value.length > 0) {
+				// Ensure array element exists
+				await selectRule(rules.value[0] as GlobalRule);
+			}
+		}
+	} catch (e) {
+		console.error(e);
+	}
+};
 
 const openNewRuleDialog = () => {
-    newRuleName.value = ''
-    isNewRuleOpen.value = true
-}
+	newRuleName.value = "";
+	isNewRuleOpen.value = true;
+};
 
 onMounted(() => {
-    loadRules()
-})
+	loadRules();
+});
 </script>
 
 <template>

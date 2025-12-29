@@ -1,69 +1,68 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { orpc } from '@/services/orpc'
-import { 
-  MessageSquare, 
-  Loader2,
-} from 'lucide-vue-next'
-import ConversionCard from '@/components/ConversionCard.vue'
-import { MIN_LOAD_TIME } from '@/lib/constants'
+import { Loader2, MessageSquare } from "lucide-vue-next";
+import { onMounted, ref } from "vue";
+import { useRouter } from "vue-router";
+import ConversionCard from "@/components/ConversionCard.vue";
+import { MIN_LOAD_TIME } from "@/lib/constants";
+import { orpc } from "@/services/orpc";
 
 // Project from API - user-created projects
 interface UserProject {
-  id: string
-  name: string
-  description?: string
-  createdAt: number
-  updatedAt: number
+	id: string;
+	name: string;
+	description?: string;
+	createdAt: number;
+	updatedAt: number;
 }
 
 interface Conversation {
-  id: string
-  projectId: string
-  title: string
-  createdAt: number
-  updatedAt: number
+	id: string;
+	projectId: string;
+	title: string;
+	createdAt: number;
+	updatedAt: number;
 }
 
-const router = useRouter()
+const router = useRouter();
 
-const userProjects = ref<UserProject[]>([])
-const recentConversations = ref<Conversation[]>([])
-const isLoading = ref(true)
+const userProjects = ref<UserProject[]>([]);
+const recentConversations = ref<Conversation[]>([]);
+const isLoading = ref(true);
 
 const loadData = async () => {
-  isLoading.value = true
-  const minLoadTime = new Promise(resolve => setTimeout(resolve, MIN_LOAD_TIME))
-  try {
-    const [projectsData, conversationsData] = await Promise.all([
-      orpc.listProjects({}),
-      orpc.listConversations({})
-    ])
-    userProjects.value = projectsData
-    // Get most recent 5 conversations
-    recentConversations.value = conversationsData
-      .sort((a, b) => b.updatedAt - a.updatedAt)
-      .slice(0, 10) // Show more recent conversions if it's the main focus
-  } catch (err) {
-    console.error('Failed to load data:', err)
-  } finally {
-    await minLoadTime
-    isLoading.value = false
-  }
-}
+	isLoading.value = true;
+	const minLoadTime = new Promise((resolve) =>
+		setTimeout(resolve, MIN_LOAD_TIME),
+	);
+	try {
+		const [projectsData, conversationsData] = await Promise.all([
+			orpc.listProjects({}),
+			orpc.listConversations({}),
+		]);
+		userProjects.value = projectsData;
+		// Get most recent 5 conversations
+		recentConversations.value = conversationsData
+			.sort((a, b) => b.updatedAt - a.updatedAt)
+			.slice(0, 10); // Show more recent conversions if it's the main focus
+	} catch (err) {
+		console.error("Failed to load data:", err);
+	} finally {
+		await minLoadTime;
+		isLoading.value = false;
+	}
+};
 
 const openConversation = (id: string) => {
-  router.push(`/conversions/${id}`)
-}
+	router.push(`/conversions/${id}`);
+};
 
 const getProjectName = (projectId: string) => {
-  return userProjects.value.find(p => p.id === projectId)?.name || projectId
-}
+	return userProjects.value.find((p) => p.id === projectId)?.name || projectId;
+};
 
 onMounted(() => {
-  loadData()
-})
+	loadData();
+});
 </script>
 
 <template>

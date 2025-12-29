@@ -269,11 +269,7 @@ export class PtyAgentManager extends EventEmitter implements IAgentManager {
 						const raw = log.raw as Record<string, unknown>;
 						const toolName = raw.tool_name || raw.name || raw.tool;
 						if (toolName) {
-							this.emitLog(
-								sessionId,
-								`\n[Tool Call: ${toolName}]\n`,
-								"system",
-							);
+							this.emitLog(sessionId, `\n[Tool Call: ${toolName}]\n`, "system");
 						}
 					}
 				}

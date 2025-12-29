@@ -1,19 +1,19 @@
 <script setup lang="ts">
-import type { SidebarProps } from "."
-import { cn } from "@/lib/utils"
-import { useSidebar } from "./utils"
+import { cn } from "@/lib/utils";
+import type { SidebarProps } from ".";
+import { useSidebar } from "./utils";
 
 defineOptions({
-  inheritAttrs: false,
-})
+	inheritAttrs: false,
+});
 
 const props = withDefaults(defineProps<SidebarProps>(), {
-  side: "left",
-  variant: "sidebar",
-  collapsible: "offcanvas",
-})
+	side: "left",
+	variant: "sidebar",
+	collapsible: "offcanvas",
+});
 
-const { state, isResizing } = useSidebar()
+const { state, isResizing } = useSidebar();
 </script>
 
 <template>

@@ -1,22 +1,24 @@
+import { execSync } from "node:child_process";
 import {
 	setAgentManager,
 	setNativeDialog,
 	setStore,
-	setWorktreeManager
+	setWorktreeManager,
 } from "@agent-manager/shared";
 import { app, BrowserWindow, dialog } from "electron";
-import path from "path";
 import { homedir } from "os";
-import { unifiedAgentManager, setAgentManager as setElectronAgentManager } from "./agents";
+import path from "path";
+import {
+	setAgentManager as setElectronAgentManager,
+	unifiedAgentManager,
+} from "./agents";
 import { setupAgentLogs } from "./main/agent-logs";
 import { setupIpc } from "./main/ipc";
 import { initializeWindowTheme, setupGlobalThemeHandlers } from "./main/theme";
-import { store } from "./store";
 import { worktreeManager } from "./main/worktree-manager";
 import { startMcpServer } from "./server/mcp-server.js";
 import { startOrpcServer } from "./server/orpc-server";
-
-import { execSync } from "node:child_process";
+import { store } from "./store";
 
 // Fix PATH for macOS GUI apps (Electron doesn't inherit shell PATH)
 // This ensures git and other CLI tools are found
@@ -41,7 +43,7 @@ const fixPath = () => {
 
 	// Fallback: ensure common bin paths are included
 	const ensurePathIncludes = (binPath: string) => {
-		const delimiter = ':';
+		const delimiter = ":";
 		if (!process.env.PATH?.includes(binPath)) {
 			process.env.PATH = `${binPath}${delimiter}${process.env.PATH}`;
 			console.log(`[Main] Added ${binPath} to PATH`);
@@ -49,9 +51,9 @@ const fixPath = () => {
 	};
 
 	const home = homedir();
-	ensurePathIncludes(path.join(home, '.local', 'bin'));
-	ensurePathIncludes('/opt/homebrew/bin');  // Apple Silicon
-	ensurePathIncludes('/usr/local/bin');      // Intel Mac
+	ensurePathIncludes(path.join(home, ".local", "bin"));
+	ensurePathIncludes("/opt/homebrew/bin"); // Apple Silicon
+	ensurePathIncludes("/usr/local/bin"); // Intel Mac
 };
 
 // Call fixPath BEFORE any other imports that might use git
@@ -106,8 +108,6 @@ app.whenReady().then(() => {
 	store.setDataPath(userDataPath);
 	console.log(`[Main] Store initialized with path: ${userDataPath}`);
 
-
-
 	createWindow();
 
 	app.on("activate", () => {
@@ -126,11 +126,13 @@ app.whenReady().then(() => {
 
 	// Start internal MCP server
 	console.log("[Main] Starting internal MCP server...");
-	startMcpServer(3001).then(() => {
-		console.log("[Main] Internal MCP server started on port 3001");
-	}).catch((err) => {
-		console.error("[Main] Failed to start MCP server:", err);
-	});
+	startMcpServer(3001)
+		.then(() => {
+			console.log("[Main] Internal MCP server started on port 3001");
+		})
+		.catch((err) => {
+			console.error("[Main] Failed to start MCP server:", err);
+		});
 });
 
 app.on("window-all-closed", () => {

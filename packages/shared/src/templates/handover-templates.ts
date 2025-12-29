@@ -6,10 +6,10 @@ Please summarize the conversation so far based on the following points:
 `;
 
 export function buildHandoverContext(
-    _previousAgentName: string,
-    summary: string,
+	_previousAgentName: string,
+	summary: string,
 ): string {
-    return `[SYSTEM CONTEXT from previous agent]:
+	return `[SYSTEM CONTEXT from previous agent]:
 ${summary}
 
 [User's message follows]

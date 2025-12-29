@@ -1,635 +1,662 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick, watch } from 'vue'
-import { useRoute, onBeforeRouteLeave } from 'vue-router'
-import { orpc } from '@/services/orpc'
-import { useMarkdown } from '@/composables/useMarkdown'
-import { 
-  Send, 
-  Loader2, 
-  AlertCircle, 
-  Sparkles, 
-  Copy, 
-  Check, 
-  Square, 
-  ChevronRight, 
-  ChevronDown,
-  Terminal,
-  GitBranch,
-  Settings2,
-  Cpu
-} from 'lucide-vue-next'
-import { Avatar } from '@/components/ui/avatar'
-import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import type { AgentLogPayload } from '@agent-manager/shared'
+import type { AgentLogPayload } from "@agent-manager/shared";
+import {
+	AlertCircle,
+	Check,
+	ChevronDown,
+	ChevronRight,
+	Copy,
+	Cpu,
+	GitBranch,
+	Loader2,
+	Send,
+	Settings2,
+	Sparkles,
+	Square,
+	Terminal,
+} from "lucide-vue-next";
+import { nextTick, onMounted, ref, watch } from "vue";
+import { onBeforeRouteLeave, useRoute } from "vue-router";
+import { Avatar } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Textarea } from "@/components/ui/textarea";
+import { useMarkdown } from "@/composables/useMarkdown";
+import { orpc } from "@/services/orpc";
 
-type LogType = 'text' | 'tool_call' | 'tool_result' | 'thinking' | 'error' | 'system'
+type LogType =
+	| "text"
+	| "tool_call"
+	| "tool_result"
+	| "thinking"
+	| "error"
+	| "system";
 
 interface Message {
-  id: string
-  role: 'user' | 'agent' | 'system'
-  content: string
-  timestamp: number
-  logType?: LogType
+	id: string;
+	role: "user" | "agent" | "system";
+	content: string;
+	timestamp: number;
+	logType?: LogType;
 }
 
 interface ModelTemplate {
-  id: string
-  name: string
-  agentType: string
-  agentName: string
-  model?: string
+	id: string;
+	name: string;
+	agentType: string;
+	agentName: string;
+	model?: string;
 }
 
-const route = useRoute()
-const { renderMarkdown } = useMarkdown()
-const sessionId = ref((route.params as unknown as { id: string }).id)
-const input = ref('')
-const messages = ref<Message[]>([])
-const isLoading = ref(false)
-const isGenerating = ref(false)
-const isConnected = ref(false)
-const conversationTitle = ref('')
-const titleDraft = ref('')
-const isSavingTitle = ref(false)
-const copiedId = ref<string | null>(null)
-const expandedMessageIds = ref(new Set<string>())
-const modelTemplates = ref<ModelTemplate[]>([])
-const modelIdDraft = ref('')
-const currentModelId = ref('')
-const conversationAgentType = ref<string | null>(null)
-const conversationAgentModel = ref<string | null>(null)
-const isSwappingModel = ref(false)
-const currentBranch = ref<string | null>(null)
-const projectId = ref<string | null>(null)
+const route = useRoute();
+const { renderMarkdown } = useMarkdown();
+const sessionId = ref((route.params as unknown as { id: string }).id);
+const input = ref("");
+const messages = ref<Message[]>([]);
+const isLoading = ref(false);
+const isGenerating = ref(false);
+const isConnected = ref(false);
+const conversationTitle = ref("");
+const titleDraft = ref("");
+const isSavingTitle = ref(false);
+const copiedId = ref<string | null>(null);
+const expandedMessageIds = ref(new Set<string>());
+const modelTemplates = ref<ModelTemplate[]>([]);
+const modelIdDraft = ref("");
+const currentModelId = ref("");
+const conversationAgentType = ref<string | null>(null);
+const conversationAgentModel = ref<string | null>(null);
+const isSwappingModel = ref(false);
+const currentBranch = ref<string | null>(null);
+const projectId = ref<string | null>(null);
 
 const formatModelLabel = (model: ModelTemplate) => {
-  if (!model.agentName || model.name.includes(model.agentName)) {
-    return model.name
-  }
-  return `${model.name} (${model.agentName})`
-}
+	if (!model.agentName || model.name.includes(model.agentName)) {
+		return model.name;
+	}
+	return `${model.name} (${model.agentName})`;
+};
 
-const scrollAreaRef = ref<InstanceType<typeof ScrollArea> | null>(null)
-const messagesEndRef = ref<HTMLElement | null>(null)
-const showSystemLogs = ref(true)
+const scrollAreaRef = ref<InstanceType<typeof ScrollArea> | null>(null);
+const messagesEndRef = ref<HTMLElement | null>(null);
+const showSystemLogs = ref(true);
 
 const toggleMessage = (id: string) => {
-  if (expandedMessageIds.value.has(id)) {
-    expandedMessageIds.value.delete(id)
-  } else {
-    expandedMessageIds.value.add(id)
-  }
-}
+	if (expandedMessageIds.value.has(id)) {
+		expandedMessageIds.value.delete(id);
+	} else {
+		expandedMessageIds.value.add(id);
+	}
+};
 
 const getScrollViewport = () => {
-  if (!scrollAreaRef.value) return null
-  const el = scrollAreaRef.value.$el as HTMLElement
-  // Scope strictly to this component's scroll area
-  return el.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement
-}
+	if (!scrollAreaRef.value) return null;
+	const component = scrollAreaRef.value as any;
+	// Handle both Vue component (with $el) and direct element
+	const el = (component.$el || component) as HTMLElement;
+	
+	if (!el || typeof el.querySelector !== 'function') return null;
+
+	// Scope strictly to this component's scroll area
+	return el.querySelector("[data-radix-scroll-area-viewport]") as HTMLElement;
+};
 
 const saveScrollPosition = (id: string) => {
-  if (!id) return
-  
-  const viewport = getScrollViewport()
-  if (viewport) {
-    sessionStorage.setItem(`scroll-pos-${id}`, viewport.scrollTop.toString())
-  }
-}
+	if (!id) return;
 
-
+	const viewport = getScrollViewport();
+	if (viewport) {
+		sessionStorage.setItem(`scroll-pos-${id}`, viewport.scrollTop.toString());
+	}
+};
 
 const restoreScrollPosition = async () => {
-  await nextTick()
-  const key = `scroll-pos-${sessionId.value}`
-  const saved = sessionStorage.getItem(key)
-  
-  if (saved !== null) {
-    const viewport = getScrollViewport()
-    if (viewport) {
-      viewport.scrollTop = parseInt(saved, 10)
-      return
-    }
-  }
-  
-  // Fallback to bottom if no saved position
-  await scrollToBottom(false)
-}
+	await nextTick();
+	const key = `scroll-pos-${sessionId.value}`;
+	const saved = sessionStorage.getItem(key);
+
+	if (saved !== null) {
+		const viewport = getScrollViewport();
+		if (viewport) {
+			viewport.scrollTop = parseInt(saved, 10);
+			return;
+		}
+	}
+
+	// Fallback to bottom if no saved position
+	await scrollToBottom(false);
+};
 
 const scrollToBottom = async (smooth = true) => {
-  await nextTick()
-  
-  // Method 1: Use messagesEndRef if available
-  if (messagesEndRef.value) {
-    messagesEndRef.value.scrollIntoView({ behavior: smooth ? 'smooth' : 'instant' })
-    return
-  }
-  
-  // Method 2: Fallback to viewport scroll
-  const viewport = getScrollViewport()
-  
-  if (viewport) {
-    if (smooth) {
-      viewport.scrollTo({ top: viewport.scrollHeight, behavior: 'smooth' })
-    } else {
-      viewport.scrollTop = viewport.scrollHeight
-    }
-  }
-}
+	await nextTick();
+
+	// Method 1: Use messagesEndRef if available
+	if (messagesEndRef.value) {
+		messagesEndRef.value.scrollIntoView({
+			behavior: smooth ? "smooth" : "instant",
+		});
+		return;
+	}
+
+	// Method 2: Fallback to viewport scroll
+	const viewport = getScrollViewport();
+
+	if (viewport) {
+		if (smooth) {
+			viewport.scrollTo({ top: viewport.scrollHeight, behavior: "smooth" });
+		} else {
+			viewport.scrollTop = viewport.scrollHeight;
+		}
+	}
+};
 
 const copyMessage = async (content: string, id: string) => {
-  try {
-    // Strip HTML tags for plain text copy
-    const plainText = content.replace(/<[^>]*>/g, '')
-    await navigator.clipboard.writeText(plainText)
-    copiedId.value = id;
-    setTimeout(() => copiedId.value = null, 2000)
-  } catch (err) {
-    console.error('Failed to copy:', err)
-  }
-}
+	try {
+		// Strip HTML tags for plain text copy
+		const plainText = content.replace(/<[^>]*>/g, "");
+		await navigator.clipboard.writeText(plainText);
+		copiedId.value = id;
+		setTimeout(() => (copiedId.value = null), 2000);
+	} catch (err) {
+		console.error("Failed to copy:", err);
+	}
+};
 
 const getLogSummary = (msg: Message) => {
-  const content = msg.content || ''
-  const type = msg.logType
+	const content = msg.content || "";
+	const type = msg.logType;
 
-  if (type === 'tool_call') {
-    const toolMatch = content.match(/\[Tool: ([^\]]+)\]/)
-    if (toolMatch) return toolMatch[1]
-    const execMatch = content.match(/\[Executing: ([^\]]+)\]/)
-    if (execMatch) return execMatch[1]
-    return 'Tool Call'
-  }
-  
-  if (type === 'tool_result') {
-    const resultMatch = content.match(/\[Result: ([^\]]+)\]/)
-    if (resultMatch) return `Result (${resultMatch[1]})`
-    if (content.includes('[Output]')) return 'Output'
-    if (content.includes('[File ')) return 'File Change'
-    return 'Tool Result'
-  }
+	if (type === "tool_call") {
+		const toolMatch = content.match(/\[Tool: ([^\]]+)\]/);
+		if (toolMatch) return toolMatch[1];
+		const execMatch = content.match(/\[Executing: ([^\]]+)\]/);
+		if (execMatch) return execMatch[1];
+		return "Tool Call";
+	}
 
-  if (type === 'error') return 'Error'
-  if (type === 'thinking') return 'Thinking'
-  
-  if (type === 'system') {
-    const modelMatch = content.match(/\[Using model: ([^\]]+)\]/)
-    if (modelMatch) return `Model: ${modelMatch[1]}`
-    return 'System'
-  }
+	if (type === "tool_result") {
+		const resultMatch = content.match(/\[Result: ([^\]]+)\]/);
+		if (resultMatch) return `Result (${resultMatch[1]})`;
+		if (content.includes("[Output]")) return "Output";
+		if (content.includes("[File ")) return "File Change";
+		return "Tool Result";
+	}
 
-  return type?.replace('_', ' ').toUpperCase() || 'LOG'
-}
+	if (type === "error") return "Error";
+	if (type === "thinking") return "Thinking";
+
+	if (type === "system") {
+		const modelMatch = content.match(/\[Using model: ([^\]]+)\]/);
+		if (modelMatch) return `Model: ${modelMatch[1]}`;
+		return "System";
+	}
+
+	return type?.replace("_", " ") || "Log";
+};
 
 const getCleanContent = (content: string, logType?: LogType) => {
-  if (!logType || logType === 'text') return content.trim()
-  
-  let clean = content
-  // Remove known prefixes to show cleaner content in the expanded view
-  const prefixes = [
-    /^\s*\[Tool: [^\]]+\]\s*/,
-    /^\s*\[Executing: [^\]]+\]\s*/,
-    /^\s*\[Result(: [^\]]+)?\]\s*/,
-    /^\s*\[Thinking\]\s*/,
-    /^\s*\[Error\]\s*/,
-    /^\s*\[System\]\s*/,
-    /^\s*\[Using model: [^\]]+\]\s*/,
-    /^\s*\[Output\]\s*/,
-    /^\s*\[File [^:]+: [^\]]+\]\s*/,
-    /^\s*\[Exit code: [^\]]+\]\s*/,
-    /^\s*\[Session started\]\s*/,
-  ]
-  
-  for (const p of prefixes) {
-    clean = clean.replace(p, '')
-  }
-  
-  return clean.trim()
-}
+	if (!logType || logType === "text") return content.trim();
+
+	let clean = content;
+	// Remove known prefixes to show cleaner content in the expanded view
+	const prefixes = [
+		/^\s*\[Tool: [^\]]+\]\s*/,
+		/^\s*\[Executing: [^\]]+\]\s*/,
+		/^\s*\[Result(: [^\]]+)?\]\s*/,
+		/^\s*\[Thinking\]\s*/,
+		/^\s*\[Error\]\s*/,
+		/^\s*\[System\]\s*/,
+		/^\s*\[Using model: [^\]]+\]\s*/,
+		/^\s*\[Output\]\s*/,
+		/^\s*\[File [^:]+: [^\]]+\]\s*/,
+		/^\s*\[Exit code: [^\]]+\]\s*/,
+		/^\s*\[Session started\]\s*/,
+	];
+
+	for (const p of prefixes) {
+		clean = clean.replace(p, "");
+	}
+
+	return clean.trim();
+};
 
 const sanitizeLogContent = (content: string, logType?: LogType) => {
-  const clean = getCleanContent(content, logType)
-  
-  if (!clean) return '_No content_'
+	const clean = getCleanContent(content, logType);
 
-  if (logType === 'tool_call') {
-    return '```json\n' + clean + '\n```'
-  }
+	if (!clean) return "_No content_";
 
-  if (logType === 'tool_result') {
-    // If it looks like it already has markdown code fences, leave it.
-    if (clean.startsWith('```')) return clean
-    return '```\n' + clean + '\n```'
-  }
-  
-  return clean
-}
+	if (logType === "tool_call") {
+		return "```json\n" + clean + "\n```";
+	}
+
+	if (logType === "tool_result") {
+		// If it looks like it already has markdown code fences, leave it.
+		if (clean.startsWith("```")) return clean;
+		return "```\n" + clean + "\n```";
+	}
+
+	return clean;
+};
 
 const hasContent = (msg: Message) => {
-  return getCleanContent(msg.content, msg.logType).length > 0
-}
+	return getCleanContent(msg.content, msg.logType).length > 0;
+};
+
+const isAlwaysOpen = (msg: Message) => {
+	return msg.logType === "system" && hasContent(msg);
+};
 
 const loadModelTemplates = async () => {
-  try {
-    modelTemplates.value = await orpc.listModelTemplates({})
-  } catch (err) {
-    console.error('Failed to load model templates:', err)
-  }
-}
+	try {
+		modelTemplates.value = await orpc.listModelTemplates({});
+	} catch (err) {
+		console.error("Failed to load model templates:", err);
+	}
+};
 
 const applyConversationModelSelection = () => {
-  if (modelTemplates.value.length === 0) return
+	if (modelTemplates.value.length === 0) return;
 
-  const match = modelTemplates.value.find(
-    (template) =>
-      template.agentType === conversationAgentType.value &&
-      (template.model || '') === (conversationAgentModel.value || '')
-  )
+	const match = modelTemplates.value.find(
+		(template) =>
+			template.agentType === conversationAgentType.value &&
+			(template.model || "") === (conversationAgentModel.value || ""),
+	);
 
-  const preferred = modelTemplates.value.find((model) => model.agentType !== 'default')
-  const nextId = match?.id || preferred?.id || modelTemplates.value[0]!.id
-  currentModelId.value = nextId
-  modelIdDraft.value = nextId
-}
+	const preferred = modelTemplates.value.find(
+		(model) => model.agentType !== "default",
+	);
+	const nextId = match?.id || preferred?.id || modelTemplates.value[0]!.id;
+	currentModelId.value = nextId;
+	modelIdDraft.value = nextId;
+};
 
 const setModelFromConversation = (agentType?: string, agentModel?: string) => {
-  conversationAgentType.value = agentType || null
-  conversationAgentModel.value = agentModel || null
-  applyConversationModelSelection()
-}
+	conversationAgentType.value = agentType || null;
+	conversationAgentModel.value = agentModel || null;
+	applyConversationModelSelection();
+};
 
 const swapModel = async () => {
-  const nextId = modelIdDraft.value
-  if (!nextId || nextId === currentModelId.value || isSwappingModel.value) return
+	const nextId = modelIdDraft.value;
+	if (!nextId || nextId === currentModelId.value || isSwappingModel.value)
+		return;
 
-  const previousId = currentModelId.value
-  isSwappingModel.value = true
-  // Find model name for the log
-  const nextTemplate = modelTemplates.value.find(m => m.id === nextId)
-  const nextName = nextTemplate ? formatModelLabel(nextTemplate) : 'next agent'
+	const previousId = currentModelId.value;
+	isSwappingModel.value = true;
+	// Find model name for the log
+	const nextTemplate = modelTemplates.value.find((m) => m.id === nextId);
+	const nextName = nextTemplate ? formatModelLabel(nextTemplate) : "next agent";
 
-  // Add handover message
-  messages.value.push({
-    id: crypto.randomUUID(),
-    role: 'system',
-    content: `Handing over conversation to **${nextName}**...`,
-    timestamp: Date.now(),
-    logType: 'system',
-  })
-  scrollToBottom()
+	// Add handover message
+	messages.value.push({
+		id: crypto.randomUUID(),
+		role: "system",
+		content: `Handing over conversation to **${nextName}**...`,
+		timestamp: Date.now(),
+		logType: "system",
+	});
+	scrollToBottom();
 
-  // isLoading removed here to prevent spinner during background swap
-  try {
-    const result = await orpc.swapConversationAgent({
-      sessionId: sessionId.value,
-      modelId: nextId
-    })
-    if (!result.success) {
-      throw new Error(result.message || 'Failed to swap model')
-    }
+	// isLoading removed here to prevent spinner during background swap
+	try {
+		const result = await orpc.swapConversationAgent({
+			sessionId: sessionId.value,
+			modelId: nextId,
+		});
+		if (!result.success) {
+			throw new Error(result.message || "Failed to swap model");
+		}
 
-    currentModelId.value = nextId
-    if (result.message) {
-      messages.value.push({
-        id: crypto.randomUUID(),
-        role: 'system',
-        content: result.message,
-        timestamp: Date.now(),
-        logType: 'system',
-      })
-    }
-    window.dispatchEvent(new Event('agent-manager:data-change'))
-    scrollToBottom()
-  } catch (err) {
-    console.error('Failed to swap model:', err)
-    modelIdDraft.value = previousId
-    messages.value.push({
-      id: crypto.randomUUID(),
-      role: 'system',
-      content: `Failed to swap model: ${err}`,
-      timestamp: Date.now(),
-      logType: 'error',
-    })
-  } finally {
-    isSwappingModel.value = false
-  }
-}
+		currentModelId.value = nextId;
+		if (result.message) {
+			messages.value.push({
+				id: crypto.randomUUID(),
+				role: "system",
+				content: result.message,
+				timestamp: Date.now(),
+				logType: "system",
+			});
+		}
+		window.dispatchEvent(new Event("agent-manager:data-change"));
+		scrollToBottom();
+	} catch (err) {
+		console.error("Failed to swap model:", err);
+		modelIdDraft.value = previousId;
+		messages.value.push({
+			id: crypto.randomUUID(),
+			role: "system",
+			content: `Failed to swap model: ${err}`,
+			timestamp: Date.now(),
+			logType: "error",
+		});
+	} finally {
+		isSwappingModel.value = false;
+	}
+};
 
 watch(modelIdDraft, async (newVal) => {
-  if (newVal && newVal !== currentModelId.value) {
-    await swapModel()
-  }
-})
-
-
+	if (newVal && newVal !== currentModelId.value) {
+		await swapModel();
+	}
+});
 
 const appendAgentLog = (payload: AgentLogPayload) => {
-  const content = payload.data
-  if (!content.trim()) return
+	const content = payload.data;
+	if (!content.trim()) return;
 
-  // Detect worktree-related changes and refresh branch info
-  // This handles cases where the agent creates a worktree and the UI needs to update
-  if (content.includes('Scheduled resume in worktree') || 
-      content.includes('Worktree created') ||
-      content.includes('[Agent Manager] Scheduled resume') ||
-      content.includes('Switching to worktree')) {
-    // Refresh branch info after a short delay to allow backend state to update
-    setTimeout(() => {
-      loadBranchInfo(sessionId.value, projectId.value ?? undefined)
-    }, 500)
-  }
+	// Detect worktree-related changes and refresh branch info
+	// This handles cases where the agent creates a worktree and the UI needs to update
+	if (
+		content.includes("Scheduled resume in worktree") ||
+		content.includes("Worktree created") ||
+		content.includes("[Agent Manager] Scheduled resume") ||
+		content.includes("Switching to worktree")
+	) {
+		// Refresh branch info after a short delay to allow backend state to update
+		setTimeout(() => {
+			loadBranchInfo(sessionId.value, projectId.value ?? undefined);
+		}, 500);
+	}
 
-  // Determine effective type and role for the INCOMING chunk
-  const incomingType = payload.type || 'text'
-  const incomingRole = incomingType === 'system' ? 'system' : 'agent'
-  
-  const lastMsg = messages.value[messages.value.length - 1]
-  
-  // Check if we can merge
-  let merged = false
-  if (lastMsg) {
-    // Determine effective type of the LAST message
-    const lastType = lastMsg.logType || 'text'
-    
-    // Strict role match is required
-    if (lastMsg.role === incomingRole) {
-      // If both are text, merge
-      if (incomingType === 'text' && lastType === 'text') {
-        lastMsg.content += content
-        merged = true
-      }
-      // If same non-text type (e.g. streaming tool output), merge
-      else if (incomingType !== 'text' && incomingType === lastType) {
-        lastMsg.content += content
-        merged = true
-      }
-    }
-  }
+	// Determine effective type and role for the INCOMING chunk
+	const incomingType = payload.type || "text";
+	const incomingRole = incomingType === "system" ? "system" : "agent";
 
-  if (!merged) {
-    // Create new
-    messages.value.push({
-      id: crypto.randomUUID(),
-      role: incomingRole,
-      content,
-      timestamp: Date.now(),
-      logType: incomingType as LogType
-    })
-  }
+	const lastMsg = messages.value[messages.value.length - 1];
 
-  scrollToBottom()
-}
+	// Check if we can merge
+	let merged = false;
+	if (lastMsg) {
+		// Determine effective type of the LAST message
+		const lastType = lastMsg.logType || "text";
+
+		// Strict role match is required
+		if (lastMsg.role === incomingRole) {
+			// If both are text, merge
+			if (incomingType === "text" && lastType === "text") {
+				lastMsg.content += content;
+				merged = true;
+			}
+			// If same non-text type (e.g. streaming tool output), merge
+			else if (incomingType !== "text" && incomingType === lastType) {
+				lastMsg.content += content;
+				merged = true;
+			}
+		}
+	}
+
+	if (!merged) {
+		// Create new
+		messages.value.push({
+			id: crypto.randomUUID(),
+			role: incomingRole,
+			content,
+			timestamp: Date.now(),
+			logType: incomingType as LogType,
+		});
+	}
+
+	scrollToBottom();
+};
 
 const sendMessage = async () => {
-  if (!input.value.trim()) return
+	if (!input.value.trim()) return;
 
-  isLoading.value = true
+	isLoading.value = true;
 
-  // Check if we need to swap model before sending
-  if (modelIdDraft.value && modelIdDraft.value !== currentModelId.value) {
-    // If waiting for an in-progress swap (e.g. from watcher), wait for it
-    if (isSwappingModel.value) {
-        while (isSwappingModel.value) {
-            await new Promise(resolve => setTimeout(resolve, 100))
-        }
-    } else {
-        // Otherwise trigger it explicitly
-        await swapModel()
-    }
-    
-    // If swap failed (draft reverted to previous) or mismatch persists, stop sending
-    if (currentModelId.value !== modelIdDraft.value) {
-      isLoading.value = false
-      return
-    }
-  }
+	// Check if we need to swap model before sending
+	if (modelIdDraft.value && modelIdDraft.value !== currentModelId.value) {
+		// If waiting for an in-progress swap (e.g. from watcher), wait for it
+		if (isSwappingModel.value) {
+			while (isSwappingModel.value) {
+				await new Promise((resolve) => setTimeout(resolve, 100));
+			}
+		} else {
+			// Otherwise trigger it explicitly
+			await swapModel();
+		}
 
-  const messageText = input.value
-  input.value = ''
-  
-  // Add user message
-  messages.value.push({
-    id: crypto.randomUUID(),
-    role: 'user',
-    content: messageText,
-    timestamp: Date.now()
-  })
-  
-  scrollToBottom()
+		// If swap failed (draft reverted to previous) or mismatch persists, stop sending
+		if (currentModelId.value !== modelIdDraft.value) {
+			isLoading.value = false;
+			return;
+		}
+	}
 
-  isGenerating.value = true
+	const messageText = input.value;
+	input.value = "";
 
-  try {
-    await orpc.sendMessage({
-      sessionId: sessionId.value,
-      message: messageText
-    })
-    // Agent logs will come via event listener
-  } catch (err) {
-    console.error('Failed to send message', err)
-    isGenerating.value = false
-    messages.value.push({
-      id: crypto.randomUUID(),
-      role: 'system',
-      content: `Failed to send message: ${err}`,
-      timestamp: Date.now(),
-      logType: 'error',
-    })
-  } finally {
-    isLoading.value = false
-  }
-}
+	// Add user message
+	messages.value.push({
+		id: crypto.randomUUID(),
+		role: "user",
+		content: messageText,
+		timestamp: Date.now(),
+	});
+
+	scrollToBottom();
+
+	isGenerating.value = true;
+
+	try {
+		await orpc.sendMessage({
+			sessionId: sessionId.value,
+			message: messageText,
+		});
+		// Agent logs will come via event listener
+	} catch (err) {
+		console.error("Failed to send message", err);
+		isGenerating.value = false;
+		messages.value.push({
+			id: crypto.randomUUID(),
+			role: "system",
+			content: `Failed to send message: ${err}`,
+			timestamp: Date.now(),
+			logType: "error",
+		});
+	} finally {
+		isLoading.value = false;
+	}
+};
 
 const normalizeTitle = (value: string) => {
-  const trimmed = value.trim()
-  return trimmed.length ? trimmed : 'Untitled Session'
-}
+	const trimmed = value.trim();
+	return trimmed.length ? trimmed : "Untitled Session";
+};
 
 const saveTitle = async () => {
-  const nextTitle = normalizeTitle(titleDraft.value)
-  if (nextTitle === conversationTitle.value || isSavingTitle.value) {
-    titleDraft.value = conversationTitle.value
-    return
-  }
+	const nextTitle = normalizeTitle(titleDraft.value);
+	if (nextTitle === conversationTitle.value || isSavingTitle.value) {
+		titleDraft.value = conversationTitle.value;
+		return;
+	}
 
-  isSavingTitle.value = true
-  try {
-    const result = await orpc.updateConversationTitle({
-      sessionId: sessionId.value,
-      title: nextTitle,
-    })
-    if (result.success) {
-      conversationTitle.value = nextTitle
-      titleDraft.value = nextTitle
-      window.dispatchEvent(new Event('agent-manager:data-change'))
-    }
-  } catch (err) {
-    console.error('Failed to update conversation title:', err)
-    titleDraft.value = conversationTitle.value
-  } finally {
-    isSavingTitle.value = false
-  }
-}
+	isSavingTitle.value = true;
+	try {
+		const result = await orpc.updateConversationTitle({
+			sessionId: sessionId.value,
+			title: nextTitle,
+		});
+		if (result.success) {
+			conversationTitle.value = nextTitle;
+			titleDraft.value = nextTitle;
+			window.dispatchEvent(new Event("agent-manager:data-change"));
+		}
+	} catch (err) {
+		console.error("Failed to update conversation title:", err);
+		titleDraft.value = conversationTitle.value;
+	} finally {
+		isSavingTitle.value = false;
+	}
+};
 
 const loadBranchInfo = async (sid: string, pid?: string) => {
-  try {
-    // Pass both sessionId and projectId - backend will prefer sessionId's cwd, fallback to projectId
-    currentBranch.value = await orpc.getCurrentBranch({ sessionId: sid, projectId: pid })
-  } catch (e) {
-    console.error('Failed to load branch info:', e)
-    currentBranch.value = null
-  }
-}
+	try {
+		// Pass both sessionId and projectId - backend will prefer sessionId's cwd, fallback to projectId
+		currentBranch.value = await orpc.getCurrentBranch({
+			sessionId: sid,
+			projectId: pid,
+		});
+	} catch (e) {
+		console.error("Failed to load branch info:", e);
+		currentBranch.value = null;
+	}
+};
 
 const loadConversationMeta = async (id: string) => {
-  try {
-    const conv = await orpc.getConversation({ sessionId: id })
-    if (conv) {
-      conversationTitle.value = conv.title
-      titleDraft.value = conv.title
-      projectId.value = conv.projectId
-      setModelFromConversation(conv.agentType, conv.agentModel)
-      // Load branch info using sessionId (for agent's cwd) with projectId as fallback
-      loadBranchInfo(id, conv.projectId)
-    } else {
-      conversationTitle.value = 'Untitled Session'
-      titleDraft.value = conversationTitle.value
-      projectId.value = null
-      setModelFromConversation(undefined, undefined)
-    }
-  } catch (err) {
-    console.error('Failed to load conversation metadata:', err)
-  }
-}
+	try {
+		const conv = await orpc.getConversation({ sessionId: id });
+		if (conv) {
+			conversationTitle.value = conv.title;
+			titleDraft.value = conv.title;
+			projectId.value = conv.projectId;
+			setModelFromConversation(conv.agentType, conv.agentModel);
+			// Load branch info using sessionId (for agent's cwd) with projectId as fallback
+			loadBranchInfo(id, conv.projectId);
+		} else {
+			conversationTitle.value = "Untitled Session";
+			titleDraft.value = conversationTitle.value;
+			projectId.value = null;
+			setModelFromConversation(undefined, undefined);
+		}
+	} catch (err) {
+		console.error("Failed to load conversation metadata:", err);
+	}
+};
 
 // Handle CMD+Enter to submit
 const handleKeydown = (e: KeyboardEvent) => {
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-        e.preventDefault()
-        sendMessage()
-    }
-}
+	if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+		e.preventDefault();
+		sendMessage();
+	}
+};
 
 // Unified initialization logic
 async function initSession(id: string) {
-  isLoading.value = true
+	isLoading.value = true;
 
-  sessionId.value = id
-  messages.value = []
-  // Don't clear title here to prevent flickering - let loadConversation update it
-  // conversationTitle.value = ''
-  // titleDraft.value = ''
+	sessionId.value = id;
+	messages.value = [];
+	// Don't clear title here to prevent flickering - let loadConversation update it
+	// conversationTitle.value = ''
+	// titleDraft.value = ''
 
-  try {
-    await loadConversation(id)
-  } finally {
-    isLoading.value = false
-    // Wait for 'out-in' transition (approx 100ms) to complete so ScrollArea is in DOM
-    setTimeout(async () => {
-      await restoreScrollPosition()
-    }, 100)
-  }
+	try {
+		await loadConversation(id);
+	} finally {
+		isLoading.value = false;
+		// Wait for 'out-in' transition (approx 100ms) to complete so ScrollArea is in DOM
+		setTimeout(async () => {
+			await restoreScrollPosition();
+		}, 100);
+	}
 }
 
 // Watch for route param changes
-watch(() => (route.params as { id: string }).id, (newId, oldId) => {
-  if (oldId) {
-    saveScrollPosition(oldId)
-  }
-  if (newId) {
-    initSession(newId)
-  }
-})
+watch(
+	() => (route.params as { id: string }).id,
+	(newId, oldId) => {
+		if (oldId) {
+			saveScrollPosition(oldId);
+		}
+		if (newId) {
+			initSession(newId);
+		}
+	},
+);
 
 // Load conversation data and saved messages
 async function loadConversation(id: string) {
-  try {
-    await loadConversationMeta(id)
-    // Check if agent is currently running
-    const running = await orpc.isAgentRunning({ sessionId: id })
-    isGenerating.value = running
+	try {
+		await loadConversationMeta(id);
+		// Check if agent is currently running
+		const running = await orpc.isAgentRunning({ sessionId: id });
+		isGenerating.value = running;
 
-    // Load saved messages from store
-    const savedMessages = await orpc.getMessages({ sessionId: id })
-    if (savedMessages && savedMessages.length > 0) {
-      messages.value = savedMessages
-          .map(m => ({
-        id: m.id,
-        role: m.role,
-        content: m.content,
-        timestamp: m.timestamp,
-        logType: m.logType,
-      }))
-      // Scroll restoration handling moved to initSession finally block
-    }
-  } catch (err) {
-    console.error('Failed to load conversation:', err)
-  }
+		// Load saved messages from store
+		const savedMessages = await orpc.getMessages({ sessionId: id });
+		if (savedMessages && savedMessages.length > 0) {
+			messages.value = savedMessages.map((m) => ({
+				id: m.id,
+				role: m.role,
+				content: m.content,
+				timestamp: m.timestamp,
+				logType: m.logType,
+			}));
+			// Scroll restoration handling moved to initSession finally block
+		}
+	} catch (err) {
+		console.error("Failed to load conversation:", err);
+	}
 }
 
 const stopGeneration = async () => {
-  try {
-    await orpc.stopSession({ sessionId: sessionId.value })
-  } catch (err) {
-    console.error('Failed to stop session:', err)
-  }
-  isGenerating.value = false
-  isLoading.value = false
-}
+	try {
+		await orpc.stopSession({ sessionId: sessionId.value });
+	} catch (err) {
+		console.error("Failed to stop session:", err);
+	}
+	isGenerating.value = false;
+	isLoading.value = false;
+};
 
 onMounted(async () => {
-  await loadModelTemplates()
-  // Initialize current session
-  await initSession(sessionId.value)
+	await loadModelTemplates();
+	// Initialize current session
+	await initSession(sessionId.value);
 
-  if (window.electronAPI) {
-    isConnected.value = true
-    
-    const handleLog = (payload: AgentLogPayload) => {
-      // Filter by sessionId
-      if (payload.sessionId === sessionId.value) {
-        appendAgentLog(payload)
-        
-        // Check for completion signals
-        if (payload.type === 'system') {
-          if (payload.data.includes('[Process exited') || payload.data.includes('[Generation stopped')) {
-            isGenerating.value = false
-            isLoading.value = false
-          }
-        }
-      }
-    }
-    
-    window.electronAPI.onAgentLog(handleLog)
-  } else {
-    isConnected.value = false
-    messages.value.push({
-      id: crypto.randomUUID(),
-      role: 'system',
-      content: 'Not in Electron environment. Agent logs will not appear.',
-      timestamp: Date.now(),
-      logType: 'system',
-    })
-  }
-})
+	if (window.electronAPI) {
+		isConnected.value = true;
+
+		const handleLog = (payload: AgentLogPayload) => {
+			// Filter by sessionId
+			if (payload.sessionId === sessionId.value) {
+				appendAgentLog(payload);
+
+				// Check for completion signals
+				if (payload.type === "system") {
+					if (
+						payload.data.includes("[Process exited") ||
+						payload.data.includes("[Generation stopped")
+					) {
+						isGenerating.value = false;
+						isLoading.value = false;
+					}
+				}
+			}
+		};
+
+		window.electronAPI.onAgentLog(handleLog);
+	} else {
+		isConnected.value = false;
+		messages.value.push({
+			id: crypto.randomUUID(),
+			role: "system",
+			content: "Not in Electron environment. Agent logs will not appear.",
+			timestamp: Date.now(),
+			logType: "system",
+		});
+	}
+});
 
 watch(modelTemplates, () => {
-  applyConversationModelSelection()
-})
-
-
+	applyConversationModelSelection();
+});
 
 onBeforeRouteLeave(() => {
-  if (sessionId.value) {
-    saveScrollPosition(sessionId.value)
-  }
-})
+	if (sessionId.value) {
+		saveScrollPosition(sessionId.value);
+	}
+});
 
 const formatTime = (timestamp: number) => {
-  return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-}
+	return new Date(timestamp).toLocaleTimeString([], {
+		hour: "2-digit",
+		minute: "2-digit",
+	});
+};
 </script>
 
 <template>
@@ -734,18 +761,19 @@ const formatTime = (timestamp: number) => {
 
               <!-- Type 2: System / Tool / Thinking Log (Minimal Timeline Style) -->
               <div v-else-if="showSystemLogs || msg.logType === 'error'" class="flex flex-col gap-0.5 py-0.5 px-4 group">
-                 <!-- Collapsible Header -->
+                 <!-- Header -->
                 <div 
-                  @click="hasContent(msg) && toggleMessage(msg.id)"
+                  @click="!isAlwaysOpen(msg) && hasContent(msg) && toggleMessage(msg.id)"
                   class="flex items-center gap-2 select-none px-2 py-1.5 rounded-md transition-colors opacity-80 hover:opacity-100"
-                  :class="hasContent(msg) ? 'cursor-pointer hover:bg-black/5 dark:hover:bg-white/5' : 'cursor-default'"
+                  :class="!isAlwaysOpen(msg) && hasContent(msg) ? 'cursor-pointer hover:bg-black/5 dark:hover:bg-white/5' : 'cursor-default'"
                 >
+                  <!-- Spacer if always open or empty, Chevron otherwise -->
+                  <div v-if="isAlwaysOpen(msg) || !hasContent(msg)" class="size-3.5" /> 
                   <component 
-                    v-if="hasContent(msg)"
+                    v-else
                     :is="expandedMessageIds.has(msg.id) ? ChevronDown : ChevronRight" 
                     class="size-3.5 opacity-50 shrink-0"
                   />
-                  <div v-else class="size-3.5" /> <!-- Spacer -->
                   
                   <!-- Icon based on type -->
                   <Terminal v-if="msg.logType === 'tool_call' || msg.logType === 'tool_result'" class="size-3.5 text-blue-500 shrink-0" />
@@ -754,7 +782,7 @@ const formatTime = (timestamp: number) => {
                   <Cpu v-else-if="msg.logType === 'system'" class="size-3.5 text-green-500 shrink-0" />
                   <AlertCircle v-else class="size-3.5 text-yellow-500 shrink-0" />
 
-                  <span class="text-xs font-medium font-mono uppercase text-muted-foreground truncate max-w-[200px]">
+                  <span class="text-xs font-medium font-mono text-muted-foreground truncate max-w-[200px]">
                     {{ getLogSummary(msg) }}
                   </span>
                   
@@ -762,9 +790,9 @@ const formatTime = (timestamp: number) => {
                    <span class="ml-auto text-[10px] text-muted-foreground/40">{{ formatTime(msg.timestamp) }}</span>
                 </div>
 
-                <!-- Expanded Content -->
+                <!-- Content (Visible if always open OR manually expanded) -->
                 <div 
-                  v-show="expandedMessageIds.has(msg.id)"
+                  v-show="isAlwaysOpen(msg) || expandedMessageIds.has(msg.id)"
                   class="pl-8 pr-2 pb-2"
                 >
                   <div class="relative bg-muted/30 border rounded-md px-3 py-2 text-sm markdown-content">

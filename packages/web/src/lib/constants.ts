@@ -1,1 +1,1 @@
-export const MIN_LOAD_TIME = 200
+export const MIN_LOAD_TIME = 200;

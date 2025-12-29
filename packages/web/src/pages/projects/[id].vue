@@ -1,60 +1,77 @@
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { Button } from '@/components/ui/button'
-import { Plus, MessageSquare, Loader2, Settings, GitBranch } from 'lucide-vue-next'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import ConversionCard from '@/components/ConversionCard.vue'
-import { useNewConversionDialog } from '@/composables/useNewConversionDialog'
-import { orpc } from '@/services/orpc'
-import { MIN_LOAD_TIME } from '@/lib/constants'
+import {
+	GitBranch,
+	Loader2,
+	MessageSquare,
+	Plus,
+	Settings,
+} from "lucide-vue-next";
+import { computed, ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import ConversionCard from "@/components/ConversionCard.vue";
+import { Button } from "@/components/ui/button";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { useNewConversionDialog } from "@/composables/useNewConversionDialog";
+import { MIN_LOAD_TIME } from "@/lib/constants";
+import { orpc } from "@/services/orpc";
 
-const route = useRoute()
-const router = useRouter()
-const { open } = useNewConversionDialog()
+const route = useRoute();
+const router = useRouter();
+const { open } = useNewConversionDialog();
 
 // Safely access route param
-const projectId = computed(() => (route.params as any).id as string)
-const isSubRoute = computed(() => route.path.endsWith('/settings') || route.path.endsWith('/worktrees'))
-const project = ref<{ id: string, name: string, rootPath?: string } | null>(null)
-const conversations = ref<any[]>([])
-const isLoading = ref(true)
+const projectId = computed(() => (route.params as any).id as string);
+const isSubRoute = computed(
+	() => route.path.endsWith("/settings") || route.path.endsWith("/worktrees"),
+);
+const project = ref<{ id: string; name: string; rootPath?: string } | null>(
+	null,
+);
+const conversations = ref<any[]>([]);
+const isLoading = ref(true);
 
 const loadData = async () => {
-  const id = projectId.value
-  if (!id) return
-  
-  isLoading.value = true
-  const minLoadTime = new Promise(resolve => setTimeout(resolve, MIN_LOAD_TIME))
+	const id = projectId.value;
+	if (!id) return;
 
-  try {
-     const [p, convs] = await Promise.all([
-       orpc.getProject({ projectId: id }),
-       orpc.listConversations({ projectId: id })
-     ])
-     project.value = p
-     conversations.value = convs.sort((a, b) => b.updatedAt - a.updatedAt)
-  } catch (e) {
-     console.error(e)
-  } finally {
-     await minLoadTime
-     isLoading.value = false
-  }
-}
+	isLoading.value = true;
+	const minLoadTime = new Promise((resolve) =>
+		setTimeout(resolve, MIN_LOAD_TIME),
+	);
+
+	try {
+		const [p, convs] = await Promise.all([
+			orpc.getProject({ projectId: id }),
+			orpc.listConversations({ projectId: id }),
+		]);
+		project.value = p;
+		conversations.value = convs.sort((a, b) => b.updatedAt - a.updatedAt);
+	} catch (e) {
+		console.error(e);
+	} finally {
+		await minLoadTime;
+		isLoading.value = false;
+	}
+};
 
 const openConversation = (id: string) => {
-  router.push(`/conversions/${id}`)
-}
+	router.push(`/conversions/${id}`);
+};
 
-const goSettings = (id:string) =>{
-  router.push(`/projects/${id}/settings`)
-}
+const goSettings = (id: string) => {
+	router.push(`/projects/${id}/settings`);
+};
 
-const goWorktrees = (id:string) =>{
-  router.push(`/projects/${id}/worktrees`)
-}
+const goWorktrees = (id: string) => {
+	router.push(`/projects/${id}/worktrees`);
+};
 
-watch(projectId, loadData, { immediate: true })
+watch(projectId, loadData, { immediate: true });
 </script>
 
 <template>

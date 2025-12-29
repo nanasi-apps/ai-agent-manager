@@ -1,18 +1,24 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
-import { orpc } from '@/services/orpc';
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Loader2, Check, Eye, EyeOff, Key } from 'lucide-vue-next';
+import { Check, Eye, EyeOff, Key, Loader2 } from "lucide-vue-next";
+import { computed, onMounted, ref } from "vue";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+	Card,
+	CardContent,
+	CardDescription,
+	CardHeader,
+	CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { orpc } from "@/services/orpc";
 
 interface ApiSettings {
-  openaiApiKey?: string;
-  openaiBaseUrl?: string;
-  geminiApiKey?: string;
-  geminiBaseUrl?: string;
+	openaiApiKey?: string;
+	openaiBaseUrl?: string;
+	geminiApiKey?: string;
+	geminiBaseUrl?: string;
 }
 
 // API Settings state
@@ -22,95 +28,95 @@ const apiSaving = ref(false);
 const apiSaveSuccess = ref(false);
 
 // Form values for editing
-const openaiApiKeyInput = ref('');
-const openaiBaseUrlInput = ref('');
-const geminiApiKeyInput = ref('');
-const geminiBaseUrlInput = ref('');
+const openaiApiKeyInput = ref("");
+const openaiBaseUrlInput = ref("");
+const geminiApiKeyInput = ref("");
+const geminiBaseUrlInput = ref("");
 
 // Visibility toggles
 const showOpenaiKey = ref(false);
 const showGeminiKey = ref(false);
 
 // Check if keys are configured
-const hasOpenaiKey = computed(() => apiSettings.value.openaiApiKey === '***');
-const hasGeminiKey = computed(() => apiSettings.value.geminiApiKey === '***');
-
-
+const hasOpenaiKey = computed(() => apiSettings.value.openaiApiKey === "***");
+const hasGeminiKey = computed(() => apiSettings.value.geminiApiKey === "***");
 
 async function loadApiSettings() {
-  apiLoading.value = true;
-  try {
-    const settings = await orpc.getApiSettings();
-    apiSettings.value = settings;
-    // Initialize inputs with base URLs (keys are masked)
-    openaiBaseUrlInput.value = settings.openaiBaseUrl || '';
-    geminiBaseUrlInput.value = settings.geminiBaseUrl || '';
-  } catch (err) {
-    console.error("Failed to load API settings", err);
-  } finally {
-    apiLoading.value = false;
-  }
+	apiLoading.value = true;
+	try {
+		const settings = await orpc.getApiSettings();
+		apiSettings.value = settings;
+		// Initialize inputs with base URLs (keys are masked)
+		openaiBaseUrlInput.value = settings.openaiBaseUrl || "";
+		geminiBaseUrlInput.value = settings.geminiBaseUrl || "";
+	} catch (err) {
+		console.error("Failed to load API settings", err);
+	} finally {
+		apiLoading.value = false;
+	}
 }
 
 async function saveApiSettings() {
-  apiSaving.value = true;
-  apiSaveSuccess.value = false;
-  try {
-    const updates: Partial<ApiSettings> = {};
-    
-    // Only include fields that have been explicitly set
-    if (openaiApiKeyInput.value) {
-      updates.openaiApiKey = openaiApiKeyInput.value;
-    }
-    if (openaiBaseUrlInput.value !== (apiSettings.value.openaiBaseUrl || '')) {
-      updates.openaiBaseUrl = openaiBaseUrlInput.value || undefined;
-    }
-    if (geminiApiKeyInput.value) {
-      updates.geminiApiKey = geminiApiKeyInput.value;
-    }
-    if (geminiBaseUrlInput.value !== (apiSettings.value.geminiBaseUrl || '')) {
-      updates.geminiBaseUrl = geminiBaseUrlInput.value || undefined;
-    }
-    
-    if (Object.keys(updates).length > 0) {
-      await orpc.updateApiSettings(updates);
-      // Clear key inputs after save
-      openaiApiKeyInput.value = '';
-      geminiApiKeyInput.value = '';
-      // Reload to get updated state
-      await loadApiSettings();
-      apiSaveSuccess.value = true;
-      setTimeout(() => { apiSaveSuccess.value = false; }, 2000);
-    }
-  } catch (err) {
-    console.error("Failed to save API settings", err);
-  } finally {
-    apiSaving.value = false;
-  }
+	apiSaving.value = true;
+	apiSaveSuccess.value = false;
+	try {
+		const updates: Partial<ApiSettings> = {};
+
+		// Only include fields that have been explicitly set
+		if (openaiApiKeyInput.value) {
+			updates.openaiApiKey = openaiApiKeyInput.value;
+		}
+		if (openaiBaseUrlInput.value !== (apiSettings.value.openaiBaseUrl || "")) {
+			updates.openaiBaseUrl = openaiBaseUrlInput.value || undefined;
+		}
+		if (geminiApiKeyInput.value) {
+			updates.geminiApiKey = geminiApiKeyInput.value;
+		}
+		if (geminiBaseUrlInput.value !== (apiSettings.value.geminiBaseUrl || "")) {
+			updates.geminiBaseUrl = geminiBaseUrlInput.value || undefined;
+		}
+
+		if (Object.keys(updates).length > 0) {
+			await orpc.updateApiSettings(updates);
+			// Clear key inputs after save
+			openaiApiKeyInput.value = "";
+			geminiApiKeyInput.value = "";
+			// Reload to get updated state
+			await loadApiSettings();
+			apiSaveSuccess.value = true;
+			setTimeout(() => {
+				apiSaveSuccess.value = false;
+			}, 2000);
+		}
+	} catch (err) {
+		console.error("Failed to save API settings", err);
+	} finally {
+		apiSaving.value = false;
+	}
 }
 
 async function clearOpenaiKey() {
-  apiSaving.value = true;
-  try {
-    await orpc.updateApiSettings({ openaiApiKey: '' });
-    await loadApiSettings();
-  } finally {
-    apiSaving.value = false;
-  }
+	apiSaving.value = true;
+	try {
+		await orpc.updateApiSettings({ openaiApiKey: "" });
+		await loadApiSettings();
+	} finally {
+		apiSaving.value = false;
+	}
 }
 
 async function clearGeminiKey() {
-  apiSaving.value = true;
-  try {
-    await orpc.updateApiSettings({ geminiApiKey: '' });
-    await loadApiSettings();
-  } finally {
-    apiSaving.value = false;
-  }
+	apiSaving.value = true;
+	try {
+		await orpc.updateApiSettings({ geminiApiKey: "" });
+		await loadApiSettings();
+	} finally {
+		apiSaving.value = false;
+	}
 }
 
 onMounted(() => {
-  loadApiSettings();
+	loadApiSettings();
 });
 </script>
 

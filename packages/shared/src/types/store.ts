@@ -2,49 +2,55 @@
  * Chat message
  */
 export interface Message {
-    id: string;
-    role: 'user' | 'agent' | 'system';
-    content: string;
-    timestamp: number;
-    logType?: 'text' | 'tool_call' | 'tool_result' | 'thinking' | 'error' | 'system';
+	id: string;
+	role: "user" | "agent" | "system";
+	content: string;
+	timestamp: number;
+	logType?:
+		| "text"
+		| "tool_call"
+		| "tool_result"
+		| "thinking"
+		| "error"
+		| "system";
 }
 
 /**
  * Conversation session
  */
 export interface Conversation {
-    id: string;
-    projectId: string;
-    title: string;
-    initialMessage: string;
-    createdAt: number;
-    updatedAt: number;
-    geminiSessionName?: string;
-    messages: Message[];
-    agentType?: string;
-    agentModel?: string;
-    /** Current working directory for the agent */
-    cwd?: string;
+	id: string;
+	projectId: string;
+	title: string;
+	initialMessage: string;
+	createdAt: number;
+	updatedAt: number;
+	geminiSessionName?: string;
+	messages: Message[];
+	agentType?: string;
+	agentModel?: string;
+	/** Current working directory for the agent */
+	cwd?: string;
 }
 
 /**
  * Project entity
  */
 export interface Project {
-    id: string;
-    name: string;
-    description?: string;
-    rootPath?: string;
-    createdAt: number;
-    updatedAt: number;
-    activeGlobalRules?: string[];
-    projectRules?: ProjectRule[];
+	id: string;
+	name: string;
+	description?: string;
+	rootPath?: string;
+	createdAt: number;
+	updatedAt: number;
+	activeGlobalRules?: string[];
+	projectRules?: ProjectRule[];
 }
 
 export interface ProjectRule {
-    id: string;
-    name: string;
-    content: string;
+	id: string;
+	name: string;
+	content: string;
 }
 
 /**
@@ -52,11 +58,11 @@ export interface ProjectRule {
  * Used to coordinate access to files or logical resources between agents
  */
 export interface ResourceLock {
-    resourceId: string; // e.g., file path or logical identifier
-    agentId: string;    // e.g., conversation/session ID
-    intent: string;     // Description of what the agent is doing
-    timestamp: number;
-    expiresAt?: number; // Optional TTL
+	resourceId: string; // e.g., file path or logical identifier
+	agentId: string; // e.g., conversation/session ID
+	intent: string; // Description of what the agent is doing
+	timestamp: number;
+	expiresAt?: number; // Optional TTL
 }
 
 /**
@@ -64,45 +70,45 @@ export interface ResourceLock {
  * Stored separately from projects for security
  */
 export interface ApiSettings {
-    openaiApiKey?: string;
-    openaiBaseUrl?: string;
-    geminiApiKey?: string;
-    geminiBaseUrl?: string;
+	openaiApiKey?: string;
+	openaiBaseUrl?: string;
+	geminiApiKey?: string;
+	geminiBaseUrl?: string;
 }
 
 /**
  * Interface for store implementations
  */
 export interface IStore {
-    // Data path
-    setDataPath(dirPath: string): void;
+	// Data path
+	setDataPath(dirPath: string): void;
 
-    // Conversation methods
-    addConversation(conversation: Conversation): void;
-    getConversation(id: string): Conversation | undefined;
-    listConversations(projectId?: string): Conversation[];
-    updateConversation(id: string, updates: Partial<Conversation>): void;
-    deleteConversation(id: string): void;
+	// Conversation methods
+	addConversation(conversation: Conversation): void;
+	getConversation(id: string): Conversation | undefined;
+	listConversations(projectId?: string): Conversation[];
+	updateConversation(id: string, updates: Partial<Conversation>): void;
+	deleteConversation(id: string): void;
 
-    // Message methods
-    addMessage(conversationId: string, message: Message): void;
-    getMessages(conversationId: string): Message[];
+	// Message methods
+	addMessage(conversationId: string, message: Message): void;
+	getMessages(conversationId: string): Message[];
 
-    // Project methods
-    addProject(project: Project): void;
-    getProject(id: string): Project | undefined;
-    listProjects(): Project[];
-    updateProject(id: string, updates: Partial<Project>): void;
-    deleteProject(id: string): void;
+	// Project methods
+	addProject(project: Project): void;
+	getProject(id: string): Project | undefined;
+	listProjects(): Project[];
+	updateProject(id: string, updates: Partial<Project>): void;
+	deleteProject(id: string): void;
 
-    // Lock methods
-    acquireLock(lock: ResourceLock): boolean;
-    releaseLock(resourceId: string, agentId: string): boolean;
-    getLock(resourceId: string): ResourceLock | undefined;
-    listLocks(): ResourceLock[];
-    forceReleaseLock(resourceId: string): void;
+	// Lock methods
+	acquireLock(lock: ResourceLock): boolean;
+	releaseLock(resourceId: string, agentId: string): boolean;
+	getLock(resourceId: string): ResourceLock | undefined;
+	listLocks(): ResourceLock[];
+	forceReleaseLock(resourceId: string): void;
 
-    // API settings methods
-    getApiSettings(): ApiSettings;
-    updateApiSettings(settings: Partial<ApiSettings>): void;
+	// API settings methods
+	getApiSettings(): ApiSettings;
+	updateApiSettings(settings: Partial<ApiSettings>): void;
 }

@@ -22,13 +22,13 @@ function getEnhancedEnv(): NodeJS.ProcessEnv {
 	}
 
 	const extraPaths = [
-		"/opt/homebrew/bin",  // Apple Silicon
-		"/usr/local/bin",      // Intel Mac
+		"/opt/homebrew/bin", // Apple Silicon
+		"/usr/local/bin", // Intel Mac
 		path.join(homedir(), ".local", "bin"),
 	];
 
 	const currentPath = process.env.PATH || "";
-	const pathsToAdd = extraPaths.filter(p => !currentPath.includes(p));
+	const pathsToAdd = extraPaths.filter((p) => !currentPath.includes(p));
 
 	if (pathsToAdd.length === 0) {
 		return process.env;

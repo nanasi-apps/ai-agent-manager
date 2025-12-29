@@ -1,124 +1,135 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
-import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
+import { ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { Button } from "@/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import { useNewConversionDialog } from '@/composables/useNewConversionDialog'
-import { orpc } from '@/services/orpc'
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { useNewConversionDialog } from "@/composables/useNewConversionDialog";
+import { orpc } from "@/services/orpc";
 
 interface Project {
-    id: string
-    name: string
+	id: string;
+	name: string;
 }
 
 interface ModelTemplate {
-    id: string
-    name: string
-    agentType: string
-    agentName: string
-    model?: string
+	id: string;
+	name: string;
+	agentType: string;
+	agentName: string;
+	model?: string;
 }
 
-const { isOpen, close, projectId: preselectedProjectId } = useNewConversionDialog()
-const router = useRouter()
-const route = useRoute()
+const {
+	isOpen,
+	close,
+	projectId: preselectedProjectId,
+} = useNewConversionDialog();
+const router = useRouter();
+const route = useRoute();
 
-const input = ref('')
-const selectedProjectId = ref('')
-const selectedModelId = ref('')
-const projects = ref<Project[]>([])
-const modelTemplates = ref<ModelTemplate[]>([])
-const isLoading = ref(false)
-const isInitializing = ref(true)
+const input = ref("");
+const selectedProjectId = ref("");
+const selectedModelId = ref("");
+const projects = ref<Project[]>([]);
+const modelTemplates = ref<ModelTemplate[]>([]);
+const isLoading = ref(false);
+const isInitializing = ref(true);
 
 const formatModelLabel = (model: ModelTemplate) => {
-    if (!model.agentName || model.name.includes(model.agentName)) {
-        return model.name
-    }
-    return `${model.name} (${model.agentName})`
-}
+	if (!model.agentName || model.name.includes(model.agentName)) {
+		return model.name;
+	}
+	return `${model.name} (${model.agentName})`;
+};
 
 const loadData = async () => {
-    isInitializing.value = true
-    try {
-        const [projRes, modelRes] = await Promise.all([
-            orpc.listProjects({}),
-            orpc.listModelTemplates({})
-        ])
-        projects.value = projRes
-        modelTemplates.value = modelRes
-        if (!selectedModelId.value && modelTemplates.value.length > 0) {
-            const preferred = modelTemplates.value.find((model) => model.agentType !== 'default')
-            selectedModelId.value = preferred?.id || modelTemplates.value[0]!.id
-        }
+	isInitializing.value = true;
+	try {
+		const [projRes, modelRes] = await Promise.all([
+			orpc.listProjects({}),
+			orpc.listModelTemplates({}),
+		]);
+		projects.value = projRes;
+		modelTemplates.value = modelRes;
+		if (!selectedModelId.value && modelTemplates.value.length > 0) {
+			const preferred = modelTemplates.value.find(
+				(model) => model.agentType !== "default",
+			);
+			selectedModelId.value = preferred?.id || modelTemplates.value[0]!.id;
+		}
 
-        // Auto-select project logic
-        const params = route.params as any
-        const routeProjectId = params.id as string | undefined
-        
-        // Priority: 1. Composable state (Explicit open) 2. Route param 3. Default (first)
-        if (preselectedProjectId.value && projects.value.some(p => p.id === preselectedProjectId.value)) {
-            selectedProjectId.value = preselectedProjectId.value
-        } else if (routeProjectId && projects.value.some(p => p.id === routeProjectId)) {
-            selectedProjectId.value = routeProjectId
-        } else if (projects.value.length > 0 && !selectedProjectId.value) {
-            selectedProjectId.value = projects.value[0]!.id
-        }
-        
-    } catch (e) {
-        console.error("Failed to load initial data", e)
-    } finally {
-        isInitializing.value = false
-    }
-}
+		// Auto-select project logic
+		const params = route.params as any;
+		const routeProjectId = params.id as string | undefined;
 
+		// Priority: 1. Composable state (Explicit open) 2. Route param 3. Default (first)
+		if (
+			preselectedProjectId.value &&
+			projects.value.some((p) => p.id === preselectedProjectId.value)
+		) {
+			selectedProjectId.value = preselectedProjectId.value;
+		} else if (
+			routeProjectId &&
+			projects.value.some((p) => p.id === routeProjectId)
+		) {
+			selectedProjectId.value = routeProjectId;
+		} else if (projects.value.length > 0 && !selectedProjectId.value) {
+			selectedProjectId.value = projects.value[0]!.id;
+		}
+	} catch (e) {
+		console.error("Failed to load initial data", e);
+	} finally {
+		isInitializing.value = false;
+	}
+};
 
 // Reload data when dialog opens
 watch(isOpen, (val) => {
-    if (val) loadData()
-})
+	if (val) loadData();
+});
 
 const handleStart = async () => {
-    if (!input.value.trim() || !selectedProjectId.value || !selectedModelId.value) return
+	if (!input.value.trim() || !selectedProjectId.value || !selectedModelId.value)
+		return;
 
-    isLoading.value = true
-    try {
-        // Create new session via orpc
-        const res = await orpc.createConversation({
-            projectId: selectedProjectId.value,
-            initialMessage: input.value,
-            modelId: selectedModelId.value
-        })
-        
-        window.dispatchEvent(new Event('agent-manager:data-change'))
-        
-        close()
-        input.value = ''
-        
-        // Navigate to the new conversion
-        router.push(`/conversions/${res.sessionId}`)
-    } catch (e) {
-        console.error("Failed to start conversation", e)
-    } finally {
-        isLoading.value = false
-    }
-}
+	isLoading.value = true;
+	try {
+		// Create new session via orpc
+		const res = await orpc.createConversation({
+			projectId: selectedProjectId.value,
+			initialMessage: input.value,
+			modelId: selectedModelId.value,
+		});
+
+		window.dispatchEvent(new Event("agent-manager:data-change"));
+
+		close();
+		input.value = "";
+
+		// Navigate to the new conversion
+		router.push(`/conversions/${res.sessionId}`);
+	} catch (e) {
+		console.error("Failed to start conversation", e);
+	} finally {
+		isLoading.value = false;
+	}
+};
 
 // Handle CMD+Enter to submit
 const handleKeydown = (e: KeyboardEvent) => {
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-        e.preventDefault()
-        handleStart()
-    }
-}
+	if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+		e.preventDefault();
+		handleStart();
+	}
+};
 </script>
 
 <template>

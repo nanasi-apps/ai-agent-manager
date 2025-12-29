@@ -1,67 +1,67 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { computed, ref } from "vue";
+import { Button } from "@/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import { orpc } from '@/services/orpc'
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { orpc } from "@/services/orpc";
 
 const props = defineProps<{
-  open: boolean
-}>()
+	open: boolean;
+}>();
 
 const emit = defineEmits<{
-  (e: 'update:open', value: boolean): void
-  (e: 'created'): void
-}>()
+	(e: "update:open", value: boolean): void;
+	(e: "created"): void;
+}>();
 
-const name = ref('')
-const rootPath = ref('')
-const isLoading = ref(false)
+const name = ref("");
+const rootPath = ref("");
+const isLoading = ref(false);
 const hasNativePicker = computed(() => {
-  return typeof window !== 'undefined' && !!window.electronAPI
-})
+	return typeof window !== "undefined" && !!window.electronAPI;
+});
 
 const browseRootPath = async () => {
-  if (!hasNativePicker.value) return
-  try {
-    const selected = await orpc.selectDirectory()
-    if (selected) {
-      rootPath.value = selected
-    }
-  } catch (e) {
-    console.error("Failed to select directory", e)
-  }
-}
+	if (!hasNativePicker.value) return;
+	try {
+		const selected = await orpc.selectDirectory();
+		if (selected) {
+			rootPath.value = selected;
+		}
+	} catch (e) {
+		console.error("Failed to select directory", e);
+	}
+};
 
 const handleCreate = async () => {
-    const trimmedName = name.value.trim()
-    const trimmedRoot = rootPath.value.trim()
-    if (!trimmedName || !trimmedRoot) return
+	const trimmedName = name.value.trim();
+	const trimmedRoot = rootPath.value.trim();
+	if (!trimmedName || !trimmedRoot) return;
 
-    isLoading.value = true
-    try {
-        await orpc.createProject({
-            name: trimmedName,
-            rootPath: trimmedRoot,
-        })
-        window.dispatchEvent(new Event('agent-manager:data-change'))
-        emit('created')
-        emit('update:open', false)
-        name.value = ''
-        rootPath.value = ''
-    } catch (e) {
-        console.error("Failed to create project", e)
-    } finally {
-        isLoading.value = false
-    }
-}
+	isLoading.value = true;
+	try {
+		await orpc.createProject({
+			name: trimmedName,
+			rootPath: trimmedRoot,
+		});
+		window.dispatchEvent(new Event("agent-manager:data-change"));
+		emit("created");
+		emit("update:open", false);
+		name.value = "";
+		rootPath.value = "";
+	} catch (e) {
+		console.error("Failed to create project", e);
+	} finally {
+		isLoading.value = false;
+	}
+};
 </script>
 
 <template>

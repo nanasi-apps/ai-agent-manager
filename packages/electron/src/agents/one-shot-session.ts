@@ -98,7 +98,8 @@ export class OneShotSession extends EventEmitter {
 
 		// Check if we have a running process to kill
 		const currentProcess = this.state.currentProcess;
-		const isProcessRunning = currentProcess && currentProcess.pid && !currentProcess.killed;
+		const isProcessRunning =
+			currentProcess && currentProcess.pid && !currentProcess.killed;
 
 		if (isProcessRunning) {
 			// Force kill the current process to trigger immediate resume in the new worktree
