@@ -9,6 +9,10 @@ import { existsSync } from "fs";
 import * as path from "path";
 import { promisify } from "node:util";
 import { z } from "zod";
+import {
+    buildConflictResolutionMessage,
+    buildWorktreeCreateResultMessage,
+} from "../agents/context-builder";
 import { splitCommand } from "../agents/drivers/interface";
 import { getAgentManager } from "../agents/agent-manager";
 import { worktreeManager } from "../main/worktree-manager";
@@ -318,15 +322,16 @@ export async function startMcpServer(port: number = 3001) {
                 }
             }
 
-            const lines: string[] = [];
-            if (createOutput) lines.push(createOutput);
-            if (worktreePath) lines.push(`Worktree path: ${worktreePath}`);
-            if (resumeScheduled) lines.push("Resume scheduled.");
-            if (resumeError) lines.push(`Resume not scheduled: ${resumeError}`);
+            const resultText = buildWorktreeCreateResultMessage({
+                createOutput: createOutput || undefined,
+                worktreePath,
+                resumeScheduled,
+                resumeError: resumeError || undefined,
+            });
 
             const isError = Boolean((createError && !worktreePath) || (resumeRequested && resumeError));
             return {
-                content: [{ type: "text", text: lines.join("\n") || "OK" }],
+                content: [{ type: "text", text: resultText || "OK" }],
                 isError: isError || undefined,
             };
         }
@@ -424,13 +429,12 @@ export async function startMcpServer(port: number = 3001) {
                         const reverseStdout = reverseError?.stdout?.toString() || "";
                         if (reverseStdout.includes("CONFLICT")) {
                             const conflicts = await getConflictedFiles(worktreePath);
+                            const message = buildConflictResolutionMessage({
+                                targetBranch,
+                                conflictedFiles: conflicts,
+                            });
                             return {
-                                content: [{
-                                    type: "text", text:
-                                        `Merge conflict detected. I have attempted to merge '${targetBranch}' into your worktree to resolve this, but conflicts were found.\n\n` +
-                                        `Conflicted files in worktree:\n${conflicts.map(c => `- ${c}`).join("\n")}\n\n` +
-                                        `Action Required: Please resolve these conflicts inside your worktree, commit the changes, and then run 'worktree_complete' again.`
-                                }],
+                                content: [{ type: "text", text: message }],
                                 isError: true
                             }
                         }

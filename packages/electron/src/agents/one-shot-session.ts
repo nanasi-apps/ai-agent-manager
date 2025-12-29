@@ -6,6 +6,10 @@ import * as fs from "fs/promises";
 import type { WorktreeResumeRequest } from "./agent-manager";
 import { isAgentType } from "./agent-type-utils";
 import {
+	buildWorktreeInstructions,
+	buildWorktreeResumeMessage,
+} from "./context-builder";
+import {
 	type AgentDriver,
 	type AgentDriverContext,
 	ClaudeDriver,
@@ -81,7 +85,7 @@ export class OneShotSession extends EventEmitter {
 		}
 
 		const resumeMessage =
-			request.resumeMessage ?? this.buildWorktreeResumeMessage(request);
+			request.resumeMessage ?? this.getResumeMessageForWorktree(request);
 		this.stateManager.setWorktreeResume({
 			request,
 			resumeMessage,
@@ -160,7 +164,7 @@ export class OneShotSession extends EventEmitter {
 			this.stateManager.resetInvalidGeminiSession();
 
 			const baseRules = currentState.config.rulesContent ?? "";
-			const worktreeInstructions = this.buildWorktreeInstructions();
+			const worktreeInstructions = this.getWorktreeInstructions();
 			const parts = [baseRules, worktreeInstructions].filter(Boolean);
 			systemPrompt = parts.join("\n\n");
 			if (baseRules) {
@@ -169,8 +173,6 @@ export class OneShotSession extends EventEmitter {
 				);
 			}
 		}
-
-		const messageToSend = this.appendWorktreeReminder(message);
 
 		// TODO: Move to shared config
 		const mcpServerUrl = "http://localhost:3001/mcp/sse";
@@ -192,7 +194,7 @@ export class OneShotSession extends EventEmitter {
 
 			const cmd = driver.getCommand(
 				context,
-				messageToSend,
+				message,
 				currentState.config,
 				systemPrompt,
 			);
@@ -515,28 +517,16 @@ export class OneShotSession extends EventEmitter {
 		}
 	}
 
-	private buildWorktreeResumeMessage(request: WorktreeResumeRequest): string {
-		const projectRoot = this.state.projectRoot ?? request.repoPath;
-		const originalMessage = this.state.lastUserMessage ?? "";
-		const lines = [
-			"[SYSTEM CONTEXT]",
-			"Worktree created and activated for this session.",
-			`Branch: ${request.branch}`,
-			`Worktree path: ${request.cwd}`,
-		];
-		if (projectRoot) {
-			lines.push(`Project root: ${projectRoot}`);
-		}
-		lines.push(
-			"Continue the original task from the worktree. Do not create another worktree unless needed.",
-		);
-		if (originalMessage) {
-			lines.push("", "Original request:", originalMessage);
-		}
-		return lines.join("\n");
+	private getResumeMessageForWorktree(request: WorktreeResumeRequest): string {
+		return buildWorktreeResumeMessage({
+			branch: request.branch,
+			worktreePath: request.cwd,
+			projectRoot: this.state.projectRoot ?? request.repoPath,
+			originalMessage: this.state.lastUserMessage,
+		});
 	}
 
-	private buildWorktreeInstructions(): string {
+	private getWorktreeInstructions(): string {
 		const session = this.state;
 
 		// If already in a worktree, skip instructions entirely.
@@ -545,60 +535,10 @@ export class OneShotSession extends EventEmitter {
 			return "";
 		}
 
-		const projectRoot = session.projectRoot ?? session.config.cwd ?? "";
-		const branchSuggestion = `agent/${session.sessionId.slice(0, 8)}`;
-		const lines = [
-			"[Agent Manager Context]",
-			`Session ID: ${session.sessionId}`,
-		];
-		if (projectRoot) {
-			lines.push(`Project root: ${projectRoot}`);
-		}
-		lines.push("Worktree workflow:");
-		lines.push(
-			"- If the task involves code changes, tests, or file edits, create a worktree first.",
-		);
-		lines.push("- Only skip for pure Q/A that does not touch the repo.");
-		lines.push(
-			`- Use repoPath = Project root. Use a meaningful branch name (e.g., feat/task-name). Template: ${branchSuggestion}/<desc>.`,
-		);
-		lines.push(
-			'- Call MCP tool "worktree_create" with { repoPath, branch, sessionId, resume: true }.',
-		);
-		lines.push(
-			"- After calling, stop and wait. The host will resume you with cwd switched to that worktree.",
-		);
-		lines.push(
-			"- If you are already in a worktree, do not request another one.",
-		);
-		return lines.join("\n");
-	}
-
-	private appendWorktreeReminder(message: string): string {
-		const session = this.state;
-		if (session.messageCount === 0 || session.activeWorktree) {
-			return message;
-		}
-
-		const projectRoot = session.projectRoot ?? session.config.cwd ?? "";
-		const branchSuggestion = `agent/${session.sessionId.slice(0, 8)}`;
-		const reminderLines = [
-			"[Worktree Reminder]",
-			`Session ID: ${session.sessionId}`,
-		];
-		if (projectRoot) {
-			reminderLines.push(`Project root: ${projectRoot}`);
-		}
-		reminderLines.push(
-			"If this task involves code changes, create a worktree first.",
-		);
-		reminderLines.push(
-			`Use repoPath = Project root. Use a meaningful branch name (e.g., feat/task-name). Template: ${branchSuggestion}/<desc>.`,
-		);
-		reminderLines.push(
-			"Call tool: worktree_create({ repoPath, branch, sessionId, resume: true }) then wait.",
-		);
-		return `${reminderLines.join("\n")}\n\n${message}`;
+		return buildWorktreeInstructions({
+			sessionId: this.sessionId,
+			projectRoot: session.projectRoot ?? session.config.cwd,
+		});
 	}
 
 	private getDriver(config: AgentConfig): AgentDriver {
