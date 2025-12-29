@@ -1,51 +1,71 @@
 # Agent Manager
 
-Agent Manager is a comprehensive dashboard and orchestration system designed to manage multiple AI agents working in parallel. It leverages Git Worktrees to isolate agent contexts, preventing file conflicts and enabling efficient concurrent development.
+Agent Manager is a powerful orchestration dashboard designed to manage multiple AI agents working in parallel. It functions as an **MCP (Model Context Protocol) Host**, leveraging Git Worktrees to isolate agent contexts, preventing file conflicts and enabling efficient concurrent development.
 
 ## 🚀 Features
 
-- **Centralized Dashboard**: Real-time monitoring of agent status, resource usage (CPU/Memory), and task progress.
-- **Agent Interface**: Interactive chat interface with support for model hot-swapping (GPT-4, Claude, etc.) and MCP (Model Context Protocol) tool visualization.
-- **Git Worktree Management**: Automated handling of Git Worktrees to allow multiple agents to work on different tasks simultaneously without stepping on each other's toes.
-- **Rules & MCP Configuration**: Manage system prompts, agent personalities, and MCP server connections.
-- **Conflict Resolution**: Tools to analyze dependencies and resolve logical conflicts between agent tasks.
+- **Centralized Dashboard**: Real-time monitoring of agent status, resource usage, and active tasks.
+- **Multi-Agent Support**: Native support for **Gemini CLI**, **Claude Code**, and **OpenAI Codex** (via stdio integration).
+- **Git Worktree Isolation**: Automatically manages Git Worktrees to allow multiple agents to work on different features on the same repository simultaneously.
+- **MCP Host Architecture**: 
+    - Acts as a central MCP Host connecting agents to tools.
+    - Exposes Worktrees as MCP Resources (`mcp://worktree/{branch}`).
+    - Provides tools for commit syncing, auto-rebasing, and conflict checking.
+- **Agent Interface**:
+    - Rich chat interface with ANSI support (stdio parsing).
+    - **Model Hot-swapping**: Switch models (e.g., GPT-4 ⇄ Claude) mid-task with context handoff.
+    - **Agent Handoff**: Summarizes context when switching agents.
+- **Project Management**: 
+    - Project-based organization.
+    - Conversion linking.
+- **Modern UI**: Dark mode support, Shadcn UI components, and resilient state management.
+
+## 🛠 Tech Stack
+
+- **Frontend**: Vue 3, Vite, Shadcn UI, Tailwind CSS
+- **Desktop**: Electron
+- **Communication**: oRPC (Type-safe IPC & WebSocket), MCP Protocol
+- **Tooling**: Biome (Linting/Formatting), pnpm (Monorepo)
 
 ## 🏗 Architecture
 
-This project is a monorepo managed by **pnpm**, consisting of:
+The project is structured as a Monorepo:
 
-- **packages/electron**: The main process application (Electron).
-- **packages/web**: The frontend user interface (Vue 3 + Vite).
-- **packages/shared**: Shared types and utilities.
+- **packages/electron**: The main process (MCP Host, Agent Orchestrator).
+- **packages/web**: The Vue 3 frontend dashboard.
+- **packages/shared**: Shared types and oRPC definitions.
 
-## 🛠 Getting Started
+## 📦 Installation & Setup
 
 ### Prerequisites
 
-- Node.js (v20+ recommended)
+- Node.js (v20+)
 - pnpm
+- `git-worktree-runner` (suggested for advanced worktree management)
 
 ### Installation
 
-```bash
-pnpm install
-```
+1. Clone the repository.
+2. Install dependencies:
+    ```bash
+    pnpm install
+    ```
+3. Setup Git Worktree Runner:
+    ```bash
+    ./scripts/setup-gtr.sh
+    ```
 
 ### Development
 
-To start the development environment (Electron + Web):
+Start the development environment (Electron + Web in parallel):
 
 ```bash
 pnpm dev
 ```
 
-## 📂 Project Structure
+## 🗺 Roadmap
 
-```
-├── packages/
-│   ├── electron/    # Electron main process
-│   ├── web/         # Vue 3 frontend
-│   └── shared/      # Shared code
-├── scripts/         # Helper scripts
-└── ...
-```
+- [x] **Phase 1: Foundation**: Electron app, UI setup, oRPC integration.
+- [x] **Phase 2: Agent Management**: CLI spawning, stdio parsing, Hot-swapping.
+- [ ] **Phase 3: MCP Host & Worktrees**: Git Worktree tools, Resources, Orchestration (In Progress).
+- [ ] **Phase 4: Backend**: Cloudflare Workers & D1 integration.
