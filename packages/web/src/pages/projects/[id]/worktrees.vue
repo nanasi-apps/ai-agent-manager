@@ -8,7 +8,6 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Separator } from '@/components/ui/separator'
 import { Loader2, Plus, GitBranch, Trash2 } from 'lucide-vue-next'
 import { orpc } from '@/services/orpc'
 
@@ -24,26 +23,6 @@ interface Worktree {
   prunable: string | null
 }
 
-interface WorktreeStatusEntry {
-  path: string
-  status: string
-}
-
-interface WorktreeStatus {
-  branch: string
-  upstream?: string
-  ahead: number
-  behind: number
-  entries: WorktreeStatusEntry[]
-  raw: string
-}
-
-interface WorktreeDiff {
-  text: string
-  hasChanges: boolean
-  untracked: string[]
-}
-
 interface WorktreeCommit {
   hash: string
   shortHash: string
@@ -56,8 +35,6 @@ const worktrees = ref<Worktree[]>([])
 const isLoading = ref(false)
 const isCreating = ref(false)
 const selectedWorktree = ref<Worktree | null>(null)
-const worktreeStatus = ref<WorktreeStatus | null>(null)
-const worktreeDiff = ref<WorktreeDiff | null>(null)
 const worktreeCommits = ref<WorktreeCommit[]>([])
 const isDetailLoading = ref(false)
 
@@ -80,8 +57,6 @@ const loadWorktrees = async () => {
       }
     } else {
       selectedWorktree.value = null
-      worktreeStatus.value = null
-      worktreeDiff.value = null
       worktreeCommits.value = []
     }
   } catch (e) {
@@ -94,13 +69,7 @@ const loadWorktrees = async () => {
 const loadWorktreeDetails = async (worktree: Worktree) => {
   isDetailLoading.value = true
   try {
-    const [status, diff, commits] = await Promise.all([
-      orpc.getWorktreeStatus({ projectId, path: worktree.path }),
-      orpc.getWorktreeDiff({ projectId, path: worktree.path }),
-      orpc.listWorktreeCommits({ projectId, path: worktree.path, limit: 15 })
-    ])
-    worktreeStatus.value = status
-    worktreeDiff.value = diff
+    const commits = await orpc.listWorktreeCommits({ projectId, path: worktree.path, limit: 15 })
     worktreeCommits.value = commits
   } catch (e) {
     console.error(e)
@@ -224,13 +193,12 @@ onMounted(() => {
     </div>
 
     <div v-else class="border rounded-md">
-      <Table>
+      <Table class="table-fixed">
         <TableHeader>
           <TableRow>
-            <TableHead>Directory</TableHead>
-            <TableHead>Branch</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead class="text-right">Actions</TableHead>
+            <TableHead class="w-[50%]">Directory</TableHead>
+            <TableHead class="w-[40%]">Branch</TableHead>
+            <TableHead class="w-[10%] text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -241,24 +209,19 @@ onMounted(() => {
             :class="selectedWorktree?.path === wt.path ? 'bg-muted/40' : ''"
             @click="selectWorktree(wt)"
           >
-            <TableCell class="font-medium">
-               <div class="flex flex-col">
-                   <span>{{ getWorktreeName(wt.path) }}</span>
-                   <span class="text-xs text-muted-foreground truncate max-w-[300px]" :title="wt.path">{{ wt.path }}</span>
+            <TableCell class="font-medium overflow-hidden">
+               <div class="flex flex-col min-w-0">
+                   <span class="truncate">{{ getWorktreeName(wt.path) }}</span>
+                   <span class="text-xs text-muted-foreground truncate" :title="wt.path">{{ wt.path }}</span>
                </div>
             </TableCell>
-            <TableCell>
-                <div class="flex items-center gap-2">
-                    <GitBranch class="size-3 text-muted-foreground" />
-                    {{ wt.branch }}
+            <TableCell class="overflow-hidden">
+                <div class="flex items-center gap-2 min-w-0">
+                    <span class="shrink-0">
+                      <GitBranch class="size-3 text-muted-foreground" />
+                    </span>
+                    <span class="truncate">{{ wt.branch }}</span>
                 </div>
-            </TableCell>
-            <TableCell>
-              <div class="flex gap-2">
-                  <Badge v-if="wt.isMain" variant="default">Main</Badge>
-                  <Badge v-if="wt.isLocked" variant="outline">Locked</Badge>
-                  <Badge v-if="wt.prunable" variant="destructive">Prunable</Badge>
-              </div>
             </TableCell>
             <TableCell class="text-right">
               <Button 
@@ -276,74 +239,15 @@ onMounted(() => {
       </Table>
     </div>
 
-    <div v-if="selectedWorktree" class="grid gap-6 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
-      <Card>
+    <div v-if="selectedWorktree" class="min-w-0">
+      <Card class="min-w-0">
         <CardHeader>
-          <CardTitle>Worktree Snapshot</CardTitle>
-        </CardHeader>
-        <CardContent class="space-y-4">
-          <div class="flex flex-wrap items-center gap-2">
-            <Badge variant="secondary">{{ selectedWorktree.branch }}</Badge>
-            <Badge v-if="worktreeStatus?.ahead" variant="outline">Ahead {{ worktreeStatus.ahead }}</Badge>
-            <Badge v-if="worktreeStatus?.behind" variant="outline">Behind {{ worktreeStatus.behind }}</Badge>
-            <Badge v-if="selectedWorktree.isMain">Main</Badge>
-            <Badge v-if="selectedWorktree.isLocked" variant="outline">Locked</Badge>
-          </div>
-
-          <Separator />
-
-          <div class="space-y-2">
-            <div class="text-sm font-medium">Status</div>
-            <div v-if="isDetailLoading" class="text-sm text-muted-foreground flex items-center gap-2">
-              <Loader2 class="size-4 animate-spin" />
-              Loading status...
-            </div>
-            <div v-else-if="worktreeStatus?.entries.length" class="space-y-2">
-              <div class="text-xs text-muted-foreground">
-                {{ worktreeStatus.entries.length }} change(s)
-              </div>
-              <div class="grid gap-2 md:grid-cols-2">
-                <div
-                  v-for="entry in worktreeStatus.entries"
-                  :key="entry.path"
-                  class="rounded-md border px-3 py-2 text-xs"
-                >
-                  <div class="font-medium">{{ entry.status }}</div>
-                  <div class="truncate text-muted-foreground" :title="entry.path">{{ entry.path }}</div>
-                </div>
-              </div>
-            </div>
-            <div v-else class="text-sm text-muted-foreground">
-              Working tree clean.
-            </div>
-          </div>
-
-          <Separator />
-
-          <div class="space-y-2">
-            <div class="text-sm font-medium">Working Diff</div>
-            <div v-if="isDetailLoading" class="text-sm text-muted-foreground flex items-center gap-2">
-              <Loader2 class="size-4 animate-spin" />
-              Loading diff...
-            </div>
-            <div v-else-if="worktreeDiff?.hasChanges">
-              <ScrollArea class="h-56 rounded-md border p-3">
-                <pre class="text-xs font-mono whitespace-pre-wrap">{{ worktreeDiff?.text || '' }}</pre>
-              </ScrollArea>
-              <div v-if="worktreeDiff?.untracked.length" class="mt-3 text-xs text-muted-foreground">
-                Untracked: {{ worktreeDiff.untracked.join(', ') }}
-              </div>
-            </div>
-            <div v-else class="text-sm text-muted-foreground">
-              No changes detected.
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Micro-commit Log</CardTitle>
+          <CardTitle class="flex items-center gap-2">
+            Micro-commit Log
+            <Badge variant="secondary" class="font-normal truncate max-w-[300px]" :title="selectedWorktree.branch">
+              {{ selectedWorktree.branch }}
+            </Badge>
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <div v-if="isDetailLoading" class="text-sm text-muted-foreground flex items-center gap-2">
@@ -353,12 +257,12 @@ onMounted(() => {
           <div v-else-if="worktreeCommits.length" class="space-y-3">
             <ScrollArea class="h-80 pr-2">
               <div class="space-y-3">
-                <div v-for="commit in worktreeCommits" :key="commit.hash" class="rounded-md border p-3">
-                  <div class="flex items-center gap-2">
-                    <Badge variant="outline">{{ commit.shortHash }}</Badge>
-                    <span class="text-sm font-medium truncate">{{ commit.subject }}</span>
+                <div v-for="commit in worktreeCommits" :key="commit.hash" class="rounded-md border p-3 min-w-0 overflow-hidden">
+                  <div class="flex items-center gap-2 min-w-0">
+                    <Badge variant="outline" class="shrink-0">{{ commit.shortHash }}</Badge>
+                    <span class="text-sm font-medium truncate" :title="commit.subject">{{ commit.subject }}</span>
                   </div>
-                  <div class="mt-1 text-xs text-muted-foreground">
+                  <div class="mt-1 text-xs text-muted-foreground truncate">
                     {{ commit.author }} · {{ formatCommitDate(commit.date) }}
                   </div>
                 </div>

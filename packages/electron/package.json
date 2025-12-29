@@ -4,9 +4,10 @@
 	"private": true,
 	"main": "dist/main.js",
 	"scripts": {
-		"dev": "concurrently -k \"tsc -w\" \"wait-on dist/main.js tcp:5173 && ELECTRON_DISABLE_SECURITY_WARNINGS=true electron .\"",
+		"dev": "npm run copy:templates && concurrently -k \"tsc -w\" \"wait-on dist/main.js tcp:5173 && ELECTRON_DISABLE_SECURITY_WARNINGS=true electron .\"",
 		"prebuild": "rm -rf dist",
-		"build": "tsc && npm run copy:web && electron-builder --mac --win --linux",
+		"build": "tsc && npm run copy:templates && npm run copy:web && electron-builder --mac --win --linux",
+		"copy:templates": "mkdir -p dist/agents && cp -r src/agents/templates dist/agents/",
 		"copy:web": "mkdir -p dist/renderer && cp -r ../web/dist/* dist/renderer/",
 		"typecheck": "tsc --noEmit"
 	},

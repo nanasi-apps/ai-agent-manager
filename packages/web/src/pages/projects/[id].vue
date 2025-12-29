@@ -67,13 +67,13 @@ watch(projectId, loadData, { immediate: true })
 
       <div v-else>
         <div class="flex items-center justify-between mb-8">
-           <div>
-             <h1 class="text-2xl font-bold">Project Viewer</h1>
-             <p class="text-muted-foreground">
+           <div class="min-w-0 flex-1">
+             <h1 class="text-2xl font-bold truncate">Project Viewer</h1>
+             <p class="text-muted-foreground truncate">
                Viewing project: <span class="font-medium text-foreground">{{ project?.name || projectId }}</span>
              </p>
            </div>
-           <div class="flex items-center gap-2">
+           <div class="flex items-center gap-2 shrink-0 ml-4">
              <TooltipProvider :delay-duration="0">
                 <Tooltip>
                   <TooltipTrigger as-child>
