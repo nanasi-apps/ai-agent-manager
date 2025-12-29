@@ -166,6 +166,8 @@ const getLogSummary = (msg: Message) => {
   if (type === 'tool_result') {
     const resultMatch = content.match(/\[Result: ([^\]]+)\]/)
     if (resultMatch) return `Result (${resultMatch[1]})`
+    if (content.includes('[Output]')) return 'Output'
+    if (content.includes('[File ')) return 'File Change'
     return 'Tool Result'
   }
 
@@ -181,8 +183,8 @@ const getLogSummary = (msg: Message) => {
   return type?.replace('_', ' ').toUpperCase() || 'LOG'
 }
 
-const sanitizeLogContent = (content: string, logType?: LogType) => {
-  if (!logType || logType === 'text') return content
+const getCleanContent = (content: string, logType?: LogType) => {
+  if (!logType || logType === 'text') return content.trim()
   
   let clean = content
   // Remove known prefixes to show cleaner content in the expanded view
@@ -194,13 +196,21 @@ const sanitizeLogContent = (content: string, logType?: LogType) => {
     /^\s*\[Error\]\s*/,
     /^\s*\[System\]\s*/,
     /^\s*\[Using model: [^\]]+\]\s*/,
+    /^\s*\[Output\]\s*/,
+    /^\s*\[File [^:]+: [^\]]+\]\s*/,
+    /^\s*\[Exit code: [^\]]+\]\s*/,
+    /^\s*\[Session started\]\s*/,
   ]
   
   for (const p of prefixes) {
     clean = clean.replace(p, '')
   }
   
-  clean = clean.trim()
+  return clean.trim()
+}
+
+const sanitizeLogContent = (content: string, logType?: LogType) => {
+  const clean = getCleanContent(content, logType)
   
   if (!clean) return '_No content_'
 
@@ -218,7 +228,7 @@ const sanitizeLogContent = (content: string, logType?: LogType) => {
 }
 
 const hasContent = (msg: Message) => {
-  return sanitizeLogContent(msg.content, msg.logType).trim().length > 0
+  return getCleanContent(msg.content, msg.logType).length > 0
 }
 
 const loadModelTemplates = async () => {
