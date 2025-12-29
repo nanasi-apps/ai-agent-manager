@@ -524,6 +524,13 @@ export class OneShotSession extends EventEmitter {
 
 	private buildWorktreeInstructions(): string {
 		const session = this.state;
+
+		// If already in a worktree, skip instructions entirely.
+		// The resume message already contains all necessary context.
+		if (session.activeWorktree) {
+			return "";
+		}
+
 		const projectRoot = session.projectRoot ?? session.config.cwd ?? "";
 		const branchSuggestion = `agent/${session.sessionId.slice(0, 8)}`;
 		const lines = [
@@ -532,11 +539,6 @@ export class OneShotSession extends EventEmitter {
 		];
 		if (projectRoot) {
 			lines.push(`Project root: ${projectRoot}`);
-		}
-		if (session.activeWorktree) {
-			lines.push(
-				`Active worktree: ${session.activeWorktree.branch} (${session.activeWorktree.cwd})`,
-			);
 		}
 		lines.push("Worktree workflow:");
 		lines.push(
