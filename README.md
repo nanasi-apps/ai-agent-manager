@@ -67,5 +67,10 @@ pnpm dev
 
 - [x] **Phase 1: Foundation**: Electron app, UI setup, oRPC integration.
 - [x] **Phase 2: Agent Management**: CLI spawning, stdio parsing, Hot-swapping.
-- [ ] **Phase 3: MCP Host & Worktrees**: Git Worktree tools, Resources, Orchestration (In Progress).
+- [x] **Phase 3: MCP Host & Worktrees**: Git Worktree tools, Resources, Orchestration.
+    - [x] GitWorktreeProvider (`git-worktree-runner` wrapper)
+    - [x] Worktree Resources (`mcp://worktree/{branch}`)
+    - [x] CommitSyncProvider (`commit_and_sync`, `auto_rebase`)
+    - [x] AgentOrchestrationProvider
+- [x] **Phase 3.5: Real-time Communication**: WebSocket streaming support (oRPC).
 - [ ] **Phase 4: Backend**: Cloudflare Workers & D1 integration.
