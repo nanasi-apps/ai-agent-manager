@@ -424,7 +424,7 @@ export class OneShotSession extends EventEmitter {
         lines.push('Worktree workflow:');
         lines.push('- If the task involves code changes, tests, or file edits, create a worktree first.');
         lines.push('- Only skip for pure Q/A that does not touch the repo.');
-        lines.push(`- Use repoPath = Project root. Suggested branch: ${branchSuggestion}.`);
+        lines.push(`- Use repoPath = Project root. Use a meaningful branch name (e.g., feat/task-name). Template: ${branchSuggestion}/<desc>.`);
         lines.push('- Call MCP tool "worktree_create" with { repoPath, branch, sessionId, resume: true }.');
         lines.push('- After calling, stop and wait. The host will resume you with cwd switched to that worktree.');
         lines.push('- If you are already in a worktree, do not request another one.');
@@ -447,7 +447,7 @@ export class OneShotSession extends EventEmitter {
             reminderLines.push(`Project root: ${projectRoot}`);
         }
         reminderLines.push('If this task involves code changes, create a worktree first.');
-        reminderLines.push(`Use repoPath = Project root, branch = ${branchSuggestion}.`);
+        reminderLines.push(`Use repoPath = Project root. Use a meaningful branch name (e.g., feat/task-name). Template: ${branchSuggestion}/<desc>.`);
         reminderLines.push('Call tool: worktree_create({ repoPath, branch, sessionId, resume: true }) then wait.');
         return `${reminderLines.join('\n')}\n\n${message}`;
     }
