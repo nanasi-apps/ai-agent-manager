@@ -6,7 +6,6 @@ import { detectAgentType } from "./agent-type-utils";
 import { MCP_SERVER_URL } from "./constants";
 import { stripAnsi } from "./drivers";
 import { prepareClaudeEnv, prepareGeminiEnv } from "./env-utils";
-import { executeMcpTool, getMcpToolInstructions } from "./mcp-utils";
 import { AgentOutputParser } from "./output-parser";
 
 interface SessionInfo {
@@ -265,43 +264,16 @@ export class PtyAgentManager extends EventEmitter implements IAgentManager {
 					this.emitLog(sessionId, log.data, log.type, log.raw);
 
 					if (log.type === "tool_call" && log.raw) {
-						// eslint-disable-next-line @typescript-eslint/no-explicit-any
-						const raw = log.raw as any;
+						// Tool calls are now handled via HTTP MCP server
+						// The CLI agent communicates directly with the MCP server
+						const raw = log.raw as Record<string, unknown>;
 						const toolName = raw.tool_name || raw.name || raw.tool;
-						const args = raw.parameters || raw.arguments || raw.input || {};
-
 						if (toolName) {
 							this.emitLog(
 								sessionId,
-								`\n[Executing Tool: ${toolName}...]\n`,
+								`\n[Tool Call: ${toolName}]\n`,
 								"system",
 							);
-
-							// Async execution
-							executeMcpTool(toolName, args)
-								.then((result) => {
-									this.emitLog(
-										sessionId,
-										`[Tool Result]\n${result}\n`,
-										"tool_result",
-									);
-
-									// Feed result back to PTY
-									const toolResultMessage = `[Tool Result for ${toolName}]\n${result}`;
-									session.pty.write(toolResultMessage + "\r");
-									session.messageCount++;
-								})
-								.catch((err) => {
-									console.error(
-										`[PtyAgentManager] Tool execution failed:`,
-										err,
-									);
-									this.emitLog(
-										sessionId,
-										`[Error executing tool: ${err}]\n`,
-										"error",
-									);
-								});
 						}
 					}
 				}
@@ -340,21 +312,6 @@ export class PtyAgentManager extends EventEmitter implements IAgentManager {
 	async sendToSession(sessionId: string, message: string) {
 		const session = this.sessions.get(sessionId);
 		if (session) {
-			if (session.messageCount === 0) {
-				try {
-					const mcpInstructions = await getMcpToolInstructions();
-					if (mcpInstructions) {
-						if (session.config.rulesContent) {
-							session.config.rulesContent += mcpInstructions;
-						} else {
-							session.config.rulesContent = mcpInstructions;
-						}
-					}
-				} catch (e) {
-					console.error("Failed to fetch MCP tools", e);
-				}
-			}
-
 			if (session.ready) {
 				console.log(
 					`[PtyAgentManager] Sending message: ${message.substring(0, 50)}...`,

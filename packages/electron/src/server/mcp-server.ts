@@ -3,6 +3,7 @@ import { serve } from "@hono/node-server";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPTransport } from "@hono/mcp";
 import { execFile } from "node:child_process";
+import { homedir } from "node:os";
 import * as fs from "fs/promises";
 import { existsSync } from "fs";
 import * as path from "path";
@@ -13,7 +14,49 @@ import { getAgentManager } from "../agents/agent-manager";
 import { worktreeManager } from "../main/worktree-manager";
 import { getStoreOrThrow } from "@agent-manager/shared";
 
-const execFileAsync = promisify(execFile);
+const execFileAsyncBase = promisify(execFile);
+
+/**
+ * Get an enhanced environment with PATH that includes common binary locations.
+ * This is needed because Electron on macOS doesn't inherit shell PATH.
+ */
+function getEnhancedEnv(): NodeJS.ProcessEnv {
+    if (process.platform !== "darwin") {
+        return process.env;
+    }
+
+    const extraPaths = [
+        "/opt/homebrew/bin",  // Apple Silicon
+        "/usr/local/bin",      // Intel Mac
+        path.join(homedir(), ".local", "bin"),
+    ];
+
+    const currentPath = process.env.PATH || "";
+    const pathsToAdd = extraPaths.filter(p => !currentPath.includes(p));
+
+    if (pathsToAdd.length === 0) {
+        return process.env;
+    }
+
+    return {
+        ...process.env,
+        PATH: [...pathsToAdd, currentPath].join(":"),
+    };
+}
+
+/**
+ * Execute a file with enhanced PATH.
+ */
+async function execFileAsync(
+    command: string,
+    args: string[],
+    options: { cwd: string }
+) {
+    return execFileAsyncBase(command, args, {
+        ...options,
+        env: getEnhancedEnv(),
+    });
+}
 
 async function getCurrentBranch(repoPath: string): Promise<string> {
     const { stdout } = await execFileAsync("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: repoPath });
@@ -192,6 +235,7 @@ export async function startMcpServer(port: number = 3001) {
             },
         },
         async ({ repoPath, branch, sessionId, resume, resumeMessage }) => {
+            console.log(`[McpServer] worktree_create called: branch=${branch}, sessionId=${sessionId}, resume=${resume}`);
             const normalizedBranch = branch.replace(/^refs\/heads\//, "");
             let createOutput = "";
             let createError: string | null = null;
@@ -207,6 +251,7 @@ export async function startMcpServer(port: number = 3001) {
             }
 
             const resumeRequested = resume ?? Boolean(sessionId);
+            console.log(`[McpServer] resumeRequested=${resumeRequested} (resume=${resume}, sessionId=${sessionId})`);
             let worktreePath: string | undefined;
             let resumeError: string | null = null;
             let resumeScheduled = false;
@@ -254,6 +299,7 @@ export async function startMcpServer(port: number = 3001) {
                                 repoPath,
                                 resumeMessage,
                             });
+                            console.log(`[McpServer] requestWorktreeResume returned: ${resumeScheduled}`);
                             if (!resumeScheduled) {
                                 resumeError = "Failed to schedule worktree resume.";
                             } else {

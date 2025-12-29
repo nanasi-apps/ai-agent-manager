@@ -8,7 +8,6 @@ export { availableAgents, getAgentTemplate } from './project';
 // Store types
 export * from './store';
 export * from './worktree';
-export * from './orchestration';
 
 // MCP types
 export type {
@@ -17,6 +16,5 @@ export type {
     McpResource,
     McpResourceTemplate,
     McpResourceContent,
-    McpResourceUpdate,
-    IMcpManager
+    McpResourceUpdate
 } from './mcp';

@@ -8,9 +8,7 @@ import type { AgentConfig, AgentLogPayload, AgentType } from "./types/agent";
 import type { IStore, Project } from "./types/store";
 import { availableAgents, getAgentTemplate } from "./types/project";
 import type { ModelTemplate } from "./types/project";
-import type { IMcpManager } from "./types/mcp";
 import type { IWorktreeManager } from "./types/worktree";
-import type { IOrchestrationManager } from "./types/orchestration";
 import OpenAI from "openai";
 import { GoogleGenAI, type GoogleGenAIOptions } from "@google/genai";
 
@@ -249,9 +247,7 @@ export interface INativeDialog {
 let agentManager: IAgentManager | null = null;
 let store: IStore | null = null;
 let nativeDialog: INativeDialog | null = null;
-let mcpManager: IMcpManager | null = null;
 let worktreeManager: IWorktreeManager | null = null;
-let orchestrationManager: IOrchestrationManager | null = null;
 
 /**
  * Set the agent manager implementation
@@ -274,19 +270,9 @@ export function setNativeDialog(dialogImpl: INativeDialog | null): void {
 	console.log('[Router] Native dialog set');
 }
 
-export function setMcpManager(manager: IMcpManager): void {
-	mcpManager = manager;
-	console.log('[Router] MCP manager set');
-}
-
 export function setWorktreeManager(manager: IWorktreeManager): void {
 	worktreeManager = manager;
 	console.log('[Router] Worktree manager set');
-}
-
-export function setOrchestrationManager(manager: IOrchestrationManager): void {
-	orchestrationManager = manager;
-	console.log('[Router] Orchestration manager set');
 }
 
 function getAgentManagerOrThrow(): IAgentManager {
@@ -307,25 +293,11 @@ function getNativeDialog(): INativeDialog | null {
 	return nativeDialog;
 }
 
-function getMcpManagerOrThrow(): IMcpManager {
-	if (!mcpManager) {
-		throw new Error('MCP manager not initialized. Call setMcpManager first.');
-	}
-	return mcpManager;
-}
-
 function getWorktreeManagerOrThrow(): IWorktreeManager {
 	if (!worktreeManager) {
 		throw new Error('Worktree manager not initialized. Call setWorktreeManager first.');
 	}
 	return worktreeManager;
-}
-
-function getOrchestrationManagerOrThrow(): IOrchestrationManager {
-	if (!orchestrationManager) {
-		throw new Error('Orchestration manager not initialized. Call setOrchestrationManager first.');
-	}
-	return orchestrationManager;
 }
 
 // Zod schema for agent type
@@ -795,94 +767,6 @@ export const appRouter = os.router({
 		.output(z.array(z.string()))
 		.handler(async () => {
 			return getAgentManagerOrThrow().listSessions();
-		}),
-
-	dispatchOrchestrationTask: os
-		.input(z.object({
-			sessionId: z.string(),
-			message: z.string(),
-			command: z.string().optional(),
-			agentType: agentTypeSchema.optional(),
-			agentModel: z.string().optional(),
-			streamJson: z.boolean().optional(),
-			cwd: z.string().optional(),
-			env: z.record(z.string(), z.string()).optional()
-		}))
-		.output(z.object({
-			success: z.boolean(),
-			task: z.object({
-				id: z.string(),
-				sessionId: z.string(),
-				message: z.string(),
-				status: z.string(),
-				createdAt: z.number(),
-				updatedAt: z.number(),
-				error: z.string().optional()
-			}).optional(),
-			error: z.string().optional()
-		}))
-		.handler(async ({ input }) => {
-			try {
-				const task = await getOrchestrationManagerOrThrow().dispatchTask({
-					sessionId: input.sessionId,
-					message: input.message,
-					command: input.command,
-					agentType: input.agentType as AgentType | undefined,
-					agentModel: input.agentModel,
-					streamJson: input.streamJson,
-					cwd: input.cwd,
-					env: input.env
-				});
-				return { success: true, task };
-			} catch (error) {
-				const message = error instanceof Error ? error.message : String(error);
-				return { success: false, error: message };
-			}
-		}),
-
-	listOrchestrationTasks: os
-		.output(z.array(z.object({
-			id: z.string(),
-			sessionId: z.string(),
-			message: z.string(),
-			status: z.string(),
-			createdAt: z.number(),
-			updatedAt: z.number(),
-			error: z.string().optional()
-		})))
-		.handler(async () => {
-			return getOrchestrationManagerOrThrow().listTasks();
-		}),
-
-	getAgentStatuses: os
-		.output(z.array(z.object({
-			sessionId: z.string(),
-			isRunning: z.boolean(),
-			lastSeenAt: z.number().optional()
-		})))
-		.handler(async () => {
-			return getOrchestrationManagerOrThrow().getAgentStatuses();
-		}),
-
-	broadcastContext: os
-		.input(z.object({
-			message: z.string(),
-			sessionIds: z.array(z.string()).optional()
-		}))
-		.output(z.object({
-			success: z.boolean(),
-			sent: z.array(z.string()),
-			failed: z.array(z.object({
-				sessionId: z.string(),
-				error: z.string()
-			}))
-		}))
-		.handler(async ({ input }) => {
-			const result = await getOrchestrationManagerOrThrow().broadcastContext({
-				message: input.message,
-				sessionIds: input.sessionIds
-			});
-			return { success: result.failed.length === 0, ...result };
 		}),
 
 	createConversation: os
@@ -1386,89 +1270,6 @@ ${handoverSummary}
 			}
 
 			return { success: true, message: systemMessage };
-		}),
-
-	// MCP Management
-	listMcpServers: os
-		.output(z.array(z.object({
-			name: z.string(),
-			command: z.string(),
-			args: z.array(z.string()),
-			env: z.record(z.string(), z.string()).optional()
-		})))
-		.handler(async () => {
-			return getMcpManagerOrThrow().getConnectedServers();
-		}),
-
-	addMcpServer: os
-		.input(z.object({
-			name: z.string(),
-			command: z.string(),
-			args: z.array(z.string()),
-			env: z.record(z.string(), z.string()).optional()
-		}))
-		.output(z.object({ success: z.boolean() }))
-		.handler(async ({ input }) => {
-			await getMcpManagerOrThrow().connectToServer(input);
-			return { success: true };
-		}),
-
-	removeMcpServer: os
-		.input(z.object({ name: z.string() }))
-		.output(z.object({ success: z.boolean() }))
-		.handler(async ({ input }) => {
-			await getMcpManagerOrThrow().disconnectServer(input.name);
-			return { success: true };
-		}),
-
-	listMcpTools: os
-		.output(z.array(z.object({
-			name: z.string(),
-			description: z.string().optional(),
-			inputSchema: z.any().optional(),
-			serverName: z.string()
-		})))
-		.handler(async () => {
-			return getMcpManagerOrThrow().listTools();
-		}),
-
-	listMcpResources: os
-		.output(z.array(z.object({
-			uri: z.string(),
-			name: z.string().optional(),
-			description: z.string().optional(),
-			mimeType: z.string().optional(),
-			serverName: z.string()
-		})))
-		.handler(async () => {
-			return getMcpManagerOrThrow().listResources();
-		}),
-
-	listMcpResourceTemplates: os
-		.output(z.array(z.object({
-			uriTemplate: z.string(),
-			name: z.string().optional(),
-			description: z.string().optional(),
-			mimeType: z.string().optional(),
-			serverName: z.string()
-		})))
-		.handler(async () => {
-			return getMcpManagerOrThrow().listResourceTemplates();
-		}),
-
-	readMcpResource: os
-		.input(z.object({
-			serverName: z.string(),
-			uri: z.string()
-		}))
-		.output(z.object({
-			uri: z.string(),
-			mimeType: z.string().optional(),
-			text: z.string().optional(),
-			blob: z.string().optional()
-		}))
-		.handler(async ({ input }) => {
-			return getMcpManagerOrThrow().readResource(input.serverName, input.uri);
 		}),
 
 	// Worktree Management

@@ -92,11 +92,14 @@ export class OneShotSession extends EventEmitter {
 			"system",
 		);
 
-		// Force kill the current process to trigger immediate resume in the new worktree
-		// Use setTimeout to allow the MCP tool response to be sent before killing
-		// handleProcessClose will call handlePendingWorktreeResume which respawns with the new cwd
+		// Check if we have a running process to kill
 		const currentProcess = this.state.currentProcess;
-		if (currentProcess && currentProcess.pid) {
+		const isProcessRunning = currentProcess && currentProcess.pid && !currentProcess.killed;
+
+		if (isProcessRunning) {
+			// Force kill the current process to trigger immediate resume in the new worktree
+			// Use setTimeout to allow the MCP tool response to be sent before killing
+			// handleProcessClose will call handlePendingWorktreeResume which respawns with the new cwd
 			setTimeout(() => {
 				// Double-check the process is still the same one we intended to kill
 				if (
@@ -116,6 +119,17 @@ export class OneShotSession extends EventEmitter {
 					}
 				}
 			}, 500);
+		} else {
+			// Process already exited or was never started - immediately trigger the resume
+			// This handles the race condition where the MCP tool response arrives after
+			// the agent process has already exited
+			console.log(
+				`[OneShotSession ${this.sessionId}] Process not running, triggering immediate worktree resume`,
+			);
+			// Use setImmediate to avoid blocking the MCP response
+			setImmediate(() => {
+				this.handlePendingWorktreeResume();
+			});
 		}
 
 		return true;

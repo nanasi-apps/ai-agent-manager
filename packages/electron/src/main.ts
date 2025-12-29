@@ -1,8 +1,6 @@
 import {
 	setAgentManager,
-	setMcpManager,
 	setNativeDialog,
-	setOrchestrationManager,
 	setStore,
 	setWorktreeManager
 } from "@agent-manager/shared";
@@ -12,25 +10,51 @@ import { homedir } from "os";
 import { unifiedAgentManager, setAgentManager as setElectronAgentManager } from "./agents";
 import { setupAgentLogs } from "./main/agent-logs";
 import { setupIpc } from "./main/ipc";
-import { loadMcpConfig } from "./main/mcp-config";
 import { initializeWindowTheme, setupGlobalThemeHandlers } from "./main/theme";
 import { store } from "./store";
-import { mcpHub } from "./mcp-hub";
 import { worktreeManager } from "./main/worktree-manager";
-import { orchestrationManager } from "./main/orchestration-manager";
 import { startMcpServer } from "./server/mcp-server.js";
 import { startOrpcServer } from "./server/orpc-server";
 
-// Ensure local bin is in PATH for tools like git-gtr
+import { execSync } from "node:child_process";
+
+// Fix PATH for macOS GUI apps (Electron doesn't inherit shell PATH)
+// This ensures git and other CLI tools are found
 const fixPath = () => {
-	const home = homedir();
-	const binPath = path.join(home, '.local', 'bin');
-	const delimiter = process.platform === 'win32' ? ';' : ':';
-	if (!process.env.PATH?.includes(binPath)) {
-		process.env.PATH = `${binPath}${delimiter}${process.env.PATH}`;
-		console.log(`[Main] Added ${binPath} to PATH`);
+	if (process.platform !== "darwin") return;
+
+	try {
+		// Get the PATH from the user's default shell
+		const shell = process.env.SHELL || "/bin/zsh";
+		const shellPath = execSync(`${shell} -ilc 'echo $PATH'`, {
+			encoding: "utf-8",
+			timeout: 5000,
+		}).trim();
+
+		if (shellPath && shellPath !== process.env.PATH) {
+			process.env.PATH = shellPath;
+			console.log("[Main] Fixed PATH from shell");
+		}
+	} catch (error) {
+		console.warn("[Main] Failed to get PATH from shell:", error);
 	}
+
+	// Fallback: ensure common bin paths are included
+	const ensurePathIncludes = (binPath: string) => {
+		const delimiter = ':';
+		if (!process.env.PATH?.includes(binPath)) {
+			process.env.PATH = `${binPath}${delimiter}${process.env.PATH}`;
+			console.log(`[Main] Added ${binPath} to PATH`);
+		}
+	};
+
+	const home = homedir();
+	ensurePathIncludes(path.join(home, '.local', 'bin'));
+	ensurePathIncludes('/opt/homebrew/bin');  // Apple Silicon
+	ensurePathIncludes('/usr/local/bin');      // Intel Mac
 };
+
+// Call fixPath BEFORE any other imports that might use git
 fixPath();
 
 // Set up dependencies for the router
@@ -38,10 +62,7 @@ fixPath();
 setAgentManager(unifiedAgentManager);
 setElectronAgentManager(unifiedAgentManager);
 setStore(store);
-setMcpManager(mcpHub);
 setWorktreeManager(worktreeManager);
-setOrchestrationManager(orchestrationManager);
-orchestrationManager.initialize();
 setNativeDialog({
 	selectDirectory: async () => {
 		const result = await dialog.showOpenDialog({
@@ -79,13 +100,7 @@ app.whenReady().then(() => {
 	store.setDataPath(userDataPath);
 	console.log(`[Main] Store initialized with path: ${userDataPath}`);
 
-	// Initialize MCP Servers
-	const mcpConfig = loadMcpConfig();
-	for (const server of mcpConfig.servers) {
-		mcpHub.connectToServer(server).catch((err) => {
-			console.error(`[Main] Failed to connect to MCP server ${server.name}:`, err);
-		});
-	}
+
 
 	createWindow();
 
