@@ -150,9 +150,56 @@ const copyMessage = async (content: string, id: string) => {
   }
 }
 
+const getLogSummary = (msg: Message) => {
+  const content = msg.content || ''
+  const type = msg.logType
+
+  if (type === 'tool_call') {
+    const toolMatch = content.match(/\[Tool: ([^\]]+)\]/)
+    if (toolMatch) return toolMatch[1]
+    const execMatch = content.match(/\[Executing: ([^\]]+)\]/)
+    if (execMatch) return execMatch[1]
+    return 'Tool Call'
+  }
+  
+  if (type === 'tool_result') {
+    const resultMatch = content.match(/\[Result: ([^\]]+)\]/)
+    if (resultMatch) return `Result (${resultMatch[1]})`
+    return 'Tool Result'
+  }
+
+  if (type === 'error') return 'Error'
+  if (type === 'thinking') return 'Thinking'
+  
+  if (type === 'system') {
+    const modelMatch = content.match(/\[Using model: ([^\]]+)\]/)
+    if (modelMatch) return `Model: ${modelMatch[1]}`
+    return 'System'
+  }
+
+  return type?.replace('_', ' ').toUpperCase() || 'LOG'
+}
+
 const sanitizeLogContent = (content: string, logType?: LogType) => {
   if (!logType || logType === 'text') return content
-  return content.replace(/\[[^\]]+\]/g, '')
+  
+  let clean = content
+  // Remove known prefixes to show cleaner content in the expanded view
+  const prefixes = [
+    /^\s*\[Tool: [^\]]+\]\s*/,
+    /^\s*\[Executing: [^\]]+\]\s*/,
+    /^\s*\[Result(: [^\]]+)?\]\s*/,
+    /^\s*\[Thinking\]\s*/,
+    /^\s*\[Error\]\s*/,
+    /^\s*\[System\]\s*/,
+    /^\s*\[Using model: [^\]]+\]\s*/,
+  ]
+  
+  for (const p of prefixes) {
+    clean = clean.replace(p, '')
+  }
+  
+  return clean
 }
 
 const loadModelTemplates = async () => {
@@ -674,8 +721,8 @@ const formatTime = (timestamp: number) => {
                   <Sparkles v-else-if="msg.logType === 'thinking'" class="size-3.5 text-purple-500 shrink-0" />
                   <AlertCircle v-else class="size-3.5 text-yellow-500 shrink-0" />
 
-                  <span class="text-xs font-medium font-mono uppercase text-muted-foreground">
-                    {{ msg.logType?.replace('_', ' ') }}
+                  <span class="text-xs font-medium font-mono uppercase text-muted-foreground truncate max-w-[200px]">
+                    {{ getLogSummary(msg) }}
                   </span>
                   
                    <!-- Timestamp (faint) -->
