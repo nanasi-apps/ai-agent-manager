@@ -163,6 +163,11 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
 		};
 	}
 
+	getSessionConfig(sessionId: string): AgentConfig | undefined {
+		const session = this.sessions.get(sessionId);
+		return session?.config;
+	}
+
 	private emitLog(
 		sessionId: string,
 		data: string,

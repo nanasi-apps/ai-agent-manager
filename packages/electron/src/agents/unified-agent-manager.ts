@@ -84,6 +84,10 @@ export class UnifiedAgentManager extends EventEmitter implements IAgentManager {
 	): { geminiHome?: string; claudeHome?: string } | undefined {
 		return oneShotAgentManager.getSessionHomes?.(sessionId);
 	}
+
+	getSessionConfig(sessionId: string): AgentConfig | undefined {
+		return oneShotAgentManager.getSessionConfig(sessionId);
+	}
 }
 
 export const unifiedAgentManager = new UnifiedAgentManager();
