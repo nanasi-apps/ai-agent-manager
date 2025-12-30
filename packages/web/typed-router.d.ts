@@ -51,6 +51,13 @@ declare module 'vue-router/auto-routes' {
       Record<never, never>,
       | never
     >,
+    '/mcp': RouteRecordInfo<
+      '/mcp',
+      '/mcp',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
     '/projects/[id]': RouteRecordInfo<
       '/projects/[id]',
       '/projects/:id',
@@ -121,6 +128,12 @@ declare module 'vue-router/auto-routes' {
     'src/pages/inbox.vue': {
       routes:
         | '/inbox'
+      views:
+        | never
+    }
+    'src/pages/mcp.vue': {
+      routes:
+        | '/mcp'
       views:
         | never
     }

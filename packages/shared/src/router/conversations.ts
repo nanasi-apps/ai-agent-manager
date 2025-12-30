@@ -151,7 +151,7 @@ export const conversationsRouter = {
 							apiSettings.openaiBaseUrl,
 						)
 					) {
-						agentEnv.OPENAI_BASE_URL = apiSettings.openaiBaseUrl;
+						agentEnv.OPENAI_BASE_URL = apiSettings.openaiBaseUrl!;
 					}
 				}
 
@@ -169,12 +169,12 @@ export const conversationsRouter = {
 					sessionId,
 					agentTemplate.agent.command,
 					{
-					...agentTemplate.agent,
-					model: resolvedModel,
-					reasoning: resolvedReasoning,
-					cwd: agentCwd,
-					rulesContent,
-					env: { ...agentTemplate.agent.env, ...agentEnv },
+						...agentTemplate.agent,
+						model: resolvedModel,
+						reasoning: resolvedReasoning,
+						cwd: agentCwd,
+						rulesContent,
+						env: { ...agentTemplate.agent.env, ...agentEnv },
 					},
 				);
 			}
@@ -288,7 +288,7 @@ export const conversationsRouter = {
 							apiSettings.openaiBaseUrl,
 						)
 					) {
-						agentEnv.OPENAI_BASE_URL = apiSettings.openaiBaseUrl;
+						agentEnv.OPENAI_BASE_URL = apiSettings.openaiBaseUrl!;
 					}
 				}
 

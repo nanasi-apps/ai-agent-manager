@@ -9,16 +9,24 @@ import {
 	Cpu,
 	GitBranch,
 	Loader2,
+	Plug,
 	Send,
-	Settings2,
+	Server,
 	Sparkles,
 	Square,
 	Terminal,
+	X,
 } from "lucide-vue-next";
 import { computed, nextTick, onMounted, ref, watch } from "vue";
 import { onBeforeRouteLeave, useRoute } from "vue-router";
 import { Avatar } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+	ResizableHandle,
+	ResizablePanel,
+	ResizablePanelGroup,
+} from "@/components/ui/resizable";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { useMarkdown } from "@/composables/useMarkdown";
@@ -71,6 +79,33 @@ const isUpdatingReasoning = ref(false);
 const currentBranch = ref<string | null>(null);
 const projectId = ref<string | null>(null);
 
+// MCP related state
+interface McpServerEntry {
+	name: string;
+	source: 'gemini' | 'claude-desktop' | 'claude-code' | 'agent-manager';
+	enabled: boolean;
+	config: {
+		url?: string;
+		command?: string;
+		args?: string[];
+		type?: string;
+	};
+}
+interface McpTool {
+	name: string;
+	description?: string;
+	inputSchema?: unknown;
+}
+const isMcpSheetOpen = ref(false);
+const isLoadingMcp = ref(false);
+const sessionMcpServers = ref<McpServerEntry[]>([]);
+const globalMcpServers = ref<McpServerEntry[]>([]);
+const mcpAgentType = ref<string | undefined>();
+const expandedMcpServer = ref<string | null>(null);
+const mcpServerTools = ref<McpTool[]>([]);
+const isLoadingMcpTools = ref(false);
+const mcpToolsError = ref<string | null>(null);
+
 const reasoningDraft = ref<ReasoningLevel>("middle");
 const currentReasoning = ref<ReasoningLevel | null>(null);
 
@@ -120,7 +155,6 @@ const formatReasoningLabel = (level: ReasoningLevel) => {
 
 const scrollAreaRef = ref<InstanceType<typeof ScrollArea> | null>(null);
 const messagesEndRef = ref<HTMLElement | null>(null);
-const showSystemLogs = ref(true);
 
 const toggleMessage = (id: string) => {
 	if (expandedMessageIds.value.has(id)) {
@@ -654,6 +688,9 @@ async function initSession(id: string) {
 
 	sessionId.value = id;
 	messages.value = [];
+	isMcpSheetOpen.value = false;
+	expandedMcpServer.value = null;
+	mcpServerTools.value = [];
 	// Don't clear title here to prevent flickering - let loadConversation update it
 	// conversationTitle.value = ''
 	// titleDraft.value = ''
@@ -715,6 +752,65 @@ const stopGeneration = async () => {
 	}
 	isGenerating.value = false;
 	isLoading.value = false;
+};
+
+const loadMcpServers = async () => {
+	isLoadingMcp.value = true;
+	try {
+		const result = await orpc.getSessionMcpServers({ sessionId: sessionId.value });
+		sessionMcpServers.value = result.sessionServers;
+		globalMcpServers.value = result.globalServers;
+		mcpAgentType.value = result.agentType;
+	} catch (err) {
+		console.error("Failed to load MCP servers:", err);
+	} finally {
+		isLoadingMcp.value = false;
+	}
+};
+
+const toggleMcpSheet = () => {
+	isMcpSheetOpen.value = !isMcpSheetOpen.value;
+	if (isMcpSheetOpen.value) {
+		loadMcpServers();
+	}
+};
+
+const getMcpConnectionInfo = (server: McpServerEntry) => {
+	if (server.config.url) {
+		return server.config.url;
+	}
+	if (server.config.command) {
+		const args = server.config.args?.join(" ") || "";
+		return `${server.config.command} ${args}`.trim();
+	}
+	return "—";
+};
+
+const loadMcpServerTools = async (server: McpServerEntry) => {
+	isLoadingMcpTools.value = true;
+	mcpToolsError.value = null;
+	mcpServerTools.value = [];
+	try {
+		const result = await orpc.listMcpTools(server);
+		mcpServerTools.value = result;
+	} catch (err: any) {
+		console.error("Failed to load MCP tools:", err);
+		mcpToolsError.value = err.message || "Failed to load tools";
+	} finally {
+		isLoadingMcpTools.value = false;
+	}
+};
+
+const toggleMcpServer = (server: McpServerEntry) => {
+	const serverKey = `${server.source}-${server.name}`;
+	if (expandedMcpServer.value === serverKey) {
+		expandedMcpServer.value = null;
+		mcpServerTools.value = [];
+		mcpToolsError.value = null;
+	} else {
+		expandedMcpServer.value = serverKey;
+		loadMcpServerTools(server);
+	}
 };
 
 onMounted(async () => {
@@ -807,16 +903,18 @@ const formatTime = (timestamp: number) => {
           variant="ghost"
           size="icon"
           class="h-8 w-8 text-muted-foreground"
-          :class="{ 'bg-accent text-accent-foreground': showSystemLogs }"
-          @click="showSystemLogs = !showSystemLogs"
-          :title="showSystemLogs ? 'Hide logs' : 'Show logs'"
+          :class="{ 'bg-accent text-accent-foreground': isMcpSheetOpen }"
+          @click="toggleMcpSheet"
+          title="View MCP Servers"
         >
-          <Settings2 class="size-4" />
+          <Plug class="size-4" />
         </Button>
       </div>
     </div>
 
-    <div class="flex-1 flex flex-col min-h-0">
+    <ResizablePanelGroup :key="isMcpSheetOpen ? 'open' : 'closed'" direction="horizontal" class="flex-1 min-h-0">
+      <ResizablePanel :default-size="isMcpSheetOpen ? 80 : 100" :min-size="30">
+        <div class="flex flex-col h-full min-w-0">
         <!-- Messages Area -->
         <ScrollArea class="flex-1 min-h-0" ref="scrollAreaRef">
           <div class="flex flex-col gap-2 p-4 max-w-3xl mx-auto">
@@ -875,7 +973,7 @@ const formatTime = (timestamp: number) => {
               </div>
 
               <!-- Type 2: System / Tool / Thinking Log (Minimal Timeline Style) -->
-              <div v-else-if="showSystemLogs || msg.logType === 'error'" class="flex flex-col gap-0.5 py-0.5 px-4 group">
+              <div v-else-if="msg.logType === 'error'" class="flex flex-col gap-0.5 py-0.5 px-4 group">
                  <!-- Header -->
                 <div 
                   @click="!isAlwaysOpen(msg) && hasContent(msg) && toggleMessage(msg.id)"
@@ -1030,6 +1128,204 @@ const formatTime = (timestamp: number) => {
             </form>
           </div>
         </div>
-      </div>
+        </div>
+      </ResizablePanel>
+    
+      <ResizableHandle v-if="isMcpSheetOpen" />
+
+      <!-- MCP Sidebar -->
+      <Transition name="sidebar">
+        <ResizablePanel 
+          v-if="isMcpSheetOpen"
+          :default-size="20"
+          :min-size="10"
+          class="bg-background flex flex-col min-w-[250px] max-w-[30vw] overflow-hidden"
+        >
+          <div class="h-12 border-b px-4 flex items-center justify-between shrink-0">
+          <div class="flex items-center gap-2 font-semibold text-sm">
+            <Plug class="size-4" />
+            MCP Servers
+            <Badge v-if="mcpAgentType" variant="outline" class="text-[10px] h-5 ml-1">
+              {{ mcpAgentType }}
+            </Badge>
+          </div>
+          <Button variant="ghost" size="icon" class="size-7" @click="isMcpSheetOpen = false">
+            <X class="size-4" />
+          </Button>
+        </div>
+        
+        <ScrollArea class="flex-1 min-h-0 h-full">
+          <div class="p-4 space-y-6">
+            <div v-if="isLoadingMcp" class="flex items-center justify-center py-8">
+              <Loader2 class="size-6 animate-spin text-muted-foreground" />
+            </div>
+
+            <template v-else>
+              <!-- Session-specific (Injected) MCP Servers -->
+              <div>
+                <h3 class="text-sm font-semibold mb-3 flex items-center gap-2">
+                  <Server class="size-4 text-primary" />
+                  Injected Servers
+                </h3>
+                <div v-if="sessionMcpServers.length === 0" class="text-sm text-muted-foreground italic pl-6">
+                  No injected servers for this session.
+                </div>
+                <div v-else class="space-y-2">
+                  <div
+                    v-for="server in sessionMcpServers"
+                    :key="`session-${server.name}`"
+                    class="p-3 rounded-lg border bg-card cursor-pointer hover:border-primary/50 transition-colors"
+                    @click="toggleMcpServer(server)"
+                  >
+                    <div class="flex items-center justify-between">
+                      <div class="flex items-center gap-2">
+                        <component 
+                          :is="expandedMcpServer === `${server.source}-${server.name}` ? ChevronDown : ChevronRight" 
+                          class="size-3.5 text-muted-foreground"
+                        />
+                        <span class="font-medium text-sm">{{ server.name }}</span>
+                      </div>
+                      <Badge variant="secondary" class="text-xs">
+                        {{ server.config.url ? (server.config.type || 'HTTP') : 'stdio' }}
+                      </Badge>
+                    </div>
+                    <p class="text-xs text-muted-foreground mt-1 font-mono truncate pl-5">
+                      {{ getMcpConnectionInfo(server) }}
+                    </p>
+
+                    <!-- Tools List -->
+                    <Transition name="accordion">
+                    <div v-if="expandedMcpServer === `${server.source}-${server.name}`" class="mt-3 border-primary/20 space-y-2 py-1" @click.stop>
+                      <div v-if="isLoadingMcpTools" class="flex items-center gap-2 py-2">
+                        <Loader2 class="size-3 animate-spin text-muted-foreground" />
+                        <span class="text-xs text-muted-foreground">Loading tools...</span>
+                      </div>
+                      <div v-else-if="mcpToolsError" class="text-xs text-red-500 py-2">
+                        {{ mcpToolsError }}
+                      </div>
+                      <div v-else-if="mcpServerTools.length === 0" class="text-xs text-muted-foreground py-2 italic">
+                        No tools found.
+                      </div>
+                      <div v-else class="grid gap-2">
+                        <div v-for="tool in mcpServerTools" :key="tool.name" class="group/tool bg-muted/20 rounded p-2 border border-transparent hover:border-border transition-colors">
+                          <div class="flex items-center justify-between gap-2 overflow-hidden">
+                            <span class="text-xs font-mono font-bold text-primary truncate" :title="tool.name">{{ tool.name }}</span>
+                          </div>
+                          <p v-if="tool.description" class="text-[10px] text-muted-foreground mt-1 line-clamp-2">
+                            {{ tool.description }}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    </Transition>
+                  </div>
+                </div>
+              </div>
+
+              <!-- General (Global) MCP Servers -->
+              <div>
+                <h3 class="text-sm font-semibold mb-3 flex items-center gap-2">
+                  <Terminal class="size-4 text-primary" />
+                  Global Servers
+                </h3>
+                <div v-if="globalMcpServers.length === 0" class="text-sm text-muted-foreground italic pl-6">
+                  No global servers configured.
+                </div>
+                <div v-else class="space-y-2">
+                  <div
+                    v-for="server in globalMcpServers"
+                    :key="`global-${server.name}`"
+                    class="p-3 rounded-lg border bg-muted/30 cursor-pointer hover:border-primary/50 transition-colors"
+                    @click="toggleMcpServer(server)"
+                  >
+                    <div class="flex items-center justify-between">
+                      <div class="flex items-center gap-2">
+                        <component 
+                          :is="expandedMcpServer === `${server.source}-${server.name}` ? ChevronDown : ChevronRight" 
+                          class="size-3.5 text-muted-foreground"
+                        />
+                        <span class="font-medium text-sm">{{ server.name }}</span>
+                      </div>
+                      <Badge variant="outline" class="text-xs">
+                        {{ server.config.url ? (server.config.type || 'HTTP') : 'stdio' }}
+                      </Badge>
+                    </div>
+                    <p class="text-xs text-muted-foreground mt-1 font-mono truncate pl-5">
+                      {{ getMcpConnectionInfo(server) }}
+                    </p>
+
+                    <!-- Tools List -->
+                    <Transition name="accordion">
+                    <div v-if="expandedMcpServer === `${server.source}-${server.name}`" class="mt-3 space-y-2 py-1" @click.stop>
+                      <div v-if="isLoadingMcpTools" class="flex items-center gap-2 py-2">
+                        <Loader2 class="size-3 animate-spin text-muted-foreground" />
+                        <span class="text-xs text-muted-foreground">Loading tools...</span>
+                      </div>
+                      <div v-else-if="mcpToolsError" class="text-xs text-red-500 py-2">
+                        {{ mcpToolsError }}
+                      </div>
+                      <div v-else-if="mcpServerTools.length === 0" class="text-xs text-muted-foreground py-2 italic">
+                        No tools found.
+                      </div>
+                      <div v-else class="grid gap-2">
+                        <div v-for="tool in mcpServerTools" :key="tool.name" class="group/tool bg-muted/20 rounded p-2 border border-transparent hover:border-border transition-colors">
+                          <div class="flex items-center justify-between gap-2 overflow-hidden">
+                            <span class="text-xs font-mono font-bold text-primary truncate" :title="tool.name">{{ tool.name }}</span>
+                          </div>
+                          <p v-if="tool.description" class="text-[10px] text-muted-foreground mt-1 line-clamp-2">
+                            {{ tool.description }}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    </Transition>
+                  </div>
+                </div>
+              </div>
+            </template>
+
+            <!-- Future Feature Note -->
+            <div class="p-3 rounded-lg border border-dashed bg-muted/20 text-xs text-muted-foreground">
+              <strong>Coming Soon:</strong> Enable/disable MCP servers per conversation.
+            </div>
+          </div>
+        </ScrollArea>
+      </ResizablePanel>
+      </Transition>
+    </ResizablePanelGroup>
   </div>
 </template>
+
+<style scoped>
+.sidebar-enter-active,
+.sidebar-leave-active {
+  transition: all 0.3s ease-in-out;
+  overflow: hidden;
+}
+
+.sidebar-enter-from,
+.sidebar-leave-to {
+  flex-grow: 0.00001 !important;
+  min-width: 0 !important;
+  max-width: 0 !important;
+  opacity: 0;
+  transform: translateX(20px);
+}
+
+.accordion-enter-active,
+.accordion-leave-active {
+  transition: all 0.3s ease-in-out;
+  max-height: 1000px;
+  overflow: hidden;
+}
+
+.accordion-enter-from,
+.accordion-leave-to {
+  max-height: 0;
+  opacity: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  margin-top: 0;
+  border: none;
+}
+</style>

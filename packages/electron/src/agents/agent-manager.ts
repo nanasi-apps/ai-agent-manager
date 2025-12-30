@@ -31,6 +31,9 @@ export interface IAgentManager {
 		request: WorktreeResumeRequest,
 	): boolean;
 	getSessionCwd?(sessionId: string): string | undefined;
+	getSessionHomes?(
+		sessionId: string,
+	): { geminiHome?: string; claudeHome?: string } | undefined;
 }
 
 export interface WorktreeResumeRequest {

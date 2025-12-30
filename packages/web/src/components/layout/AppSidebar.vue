@@ -8,6 +8,7 @@ import {
 	Inbox,
 	Loader2,
 	PanelLeft,
+	Plug,
 	Plus,
 	Search,
 	Settings,
@@ -149,6 +150,11 @@ const bottomItems = [
 		title: "Agents Manager",
 		url: "/agents",
 		icon: Bot,
+	},
+	{
+		title: "MCP Servers",
+		url: "/mcp",
+		icon: Plug,
 	},
 	{
 		title: "Rules",

@@ -152,6 +152,17 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
 		return session?.config.cwd;
 	}
 
+	getSessionHomes(
+		sessionId: string,
+	): { geminiHome?: string; claudeHome?: string } | undefined {
+		const session = this.sessions.get(sessionId);
+		if (!session) return undefined;
+		return {
+			geminiHome: session.state.geminiHome,
+			claudeHome: session.state.claudeHome,
+		};
+	}
+
 	private emitLog(
 		sessionId: string,
 		data: string,

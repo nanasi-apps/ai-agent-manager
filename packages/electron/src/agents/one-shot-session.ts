@@ -175,8 +175,8 @@ export class OneShotSession extends EventEmitter {
 			}
 		}
 
-		// TODO: Move to shared config
-		const mcpServerUrl = "http://localhost:3001/mcp/sse";
+		// Session-specific MCP URL for per-session tool configuration
+		const mcpServerUrl = `http://localhost:3001/mcp/${this.sessionId}/sse`;
 
 		try {
 			const driver = this.getDriver(currentState.config);

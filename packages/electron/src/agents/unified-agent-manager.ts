@@ -78,6 +78,12 @@ export class UnifiedAgentManager extends EventEmitter implements IAgentManager {
 			oneShotAgentManager.requestWorktreeResume?.(sessionId, request) ?? false
 		);
 	}
+
+	getSessionHomes(
+		sessionId: string,
+	): { geminiHome?: string; claudeHome?: string } | undefined {
+		return oneShotAgentManager.getSessionHomes?.(sessionId);
+	}
 }
 
 export const unifiedAgentManager = new UnifiedAgentManager();

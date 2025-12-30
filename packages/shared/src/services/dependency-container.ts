@@ -41,6 +41,10 @@ export interface IAgentManager {
 	): boolean;
 	/** Get the current working directory for a session */
 	getSessionCwd?(sessionId: string): string | undefined;
+	/** Get the temp home directories for a session (for MCP config inspection) */
+	getSessionHomes?(
+		sessionId: string,
+	): { geminiHome?: string; claudeHome?: string } | undefined;
 }
 
 export interface INativeDialog {

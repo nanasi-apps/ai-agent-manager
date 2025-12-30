@@ -1,7 +1,12 @@
 import { execFile } from "node:child_process";
 import { homedir } from "node:os";
 import { promisify } from "node:util";
-import { getStoreOrThrow } from "@agent-manager/shared";
+import {
+	getSessionMcpServersLogic,
+	getStoreOrThrow,
+	listMcpToolsLogic,
+	mcpRouter,
+} from "@agent-manager/shared";
 import { StreamableHTTPTransport } from "@hono/mcp";
 import { serve } from "@hono/node-server";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -603,10 +608,10 @@ export async function startMcpServer(port: number = 3001) {
 				const args = ["add"];
 				if (all) {
 					args.push("-A");
-				} else if (paths?.length !== undefined ) {
+				} else if (paths?.length !== undefined) {
 					args.push("--", ...paths);
 				}
-					
+
 				const result = await runGit(repoPath, args);
 				return {
 					content: [{ type: "text", text: result }],
@@ -1047,6 +1052,60 @@ export async function startMcpServer(port: number = 3001) {
 	);
 
 	server.registerTool(
+		"list_available_mcp_tools",
+		{
+			description:
+				"List all available MCP tools across all configured servers for this session",
+			inputSchema: {
+				sessionId: z.string().describe("The current session ID"),
+			},
+		},
+		async ({ sessionId }) => {
+			try {
+				const { sessionServers, globalServers } =
+					await getSessionMcpServersLogic(sessionId);
+
+				const allServers = [...sessionServers, ...globalServers];
+				const allTools: any[] = [];
+
+				for (const serverEntry of allServers) {
+					// Skip ourselves to avoid redundant listing
+					if (serverEntry.name === "agents-manager-mcp") continue;
+
+					try {
+						const tools = await listMcpToolsLogic(serverEntry);
+						allTools.push({
+							server: serverEntry.name,
+							source: serverEntry.source,
+							tools: tools.map((t: any) => ({
+								name: t.name,
+								description: t.description,
+							})),
+						});
+					} catch (e) {
+						allTools.push({
+							server: serverEntry.name,
+							source: serverEntry.source,
+							error: String(e),
+						});
+					}
+				}
+
+				return {
+					content: [{ type: "text", text: JSON.stringify(allTools, null, 2) }],
+				};
+			} catch (error: any) {
+				return {
+					content: [
+						{ type: "text", text: `Error listing MCP tools: ${error.message}` },
+					],
+					isError: true,
+				};
+			}
+		},
+	);
+
+	server.registerTool(
 		"list_directory",
 		{
 			description: "List directory contents",
@@ -1099,6 +1158,17 @@ export async function startMcpServer(port: number = 3001) {
 		console.log(`[McpServer] Response status: ${c.res.status}`);
 	});
 
+	// Session-specific MCP endpoint: /mcp/:sessionId/*
+	// This allows per-session tool configuration in the future
+	app.all("/mcp/:sessionId/*", async (c) => {
+		const sessionId = c.req.param("sessionId");
+		console.log(`[McpServer] Handling session-specific MCP request: sessionId=${sessionId}, url=${c.req.url}`);
+		// For now, use the shared server instance
+		// In the future, this could use mcpSessionManager to get a session-specific instance
+		return transport.handleRequest(c as any);
+	});
+
+	// Default MCP endpoint (backward compatible)
 	app.all("/mcp/*", async (c) => {
 		console.log(`[McpServer] Handling MCP request: ${c.req.url}`);
 		return transport.handleRequest(c as any);
