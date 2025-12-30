@@ -1105,7 +1105,7 @@ const formatTime = (timestamp: number) => {
               </div>
 
               <!-- Type 2: System / Tool / Thinking Log (Minimal Timeline Style) -->
-              <div v-else-if="msg.logType === 'error'" class="flex flex-col gap-0.5 py-0.5 px-4 group">
+              <div v-else class="flex flex-col gap-0.5 py-0.5 px-4 group">
                  <!-- Header -->
                 <div 
                   @click="!isAlwaysOpen(msg) && hasContent(msg) && toggleMessage(msg.id)"
