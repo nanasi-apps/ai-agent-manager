@@ -1,3 +1,5 @@
+import type { ReasoningLevel } from "./agent";
+
 /**
  * Chat message
  */
@@ -29,6 +31,7 @@ export interface Conversation {
 	messages: Message[];
 	agentType?: string;
 	agentModel?: string;
+	agentReasoning?: ReasoningLevel;
 	/** Current working directory for the agent */
 	cwd?: string;
 }

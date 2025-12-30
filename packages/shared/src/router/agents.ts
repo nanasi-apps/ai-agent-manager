@@ -9,6 +9,7 @@ import {
 import type { AgentType } from "../types/agent";
 
 const agentTypeSchema = z.string();
+const reasoningLevelSchema = z.enum(["low", "middle", "high", "extraHigh"]);
 
 export const agentsRouter = {
 	startAgent: os
@@ -18,6 +19,7 @@ export const agentsRouter = {
 				sessionId: z.string().default("debug-session"),
 				agentType: agentTypeSchema.optional(),
 				agentModel: z.string().optional(),
+				agentReasoning: reasoningLevelSchema.optional(),
 				streamJson: z.boolean().optional(),
 				cwd: z.string().optional(),
 			}),
@@ -34,6 +36,7 @@ export const agentsRouter = {
 					type: (input.agentType as AgentType) || "custom",
 					command: input.command,
 					model: input.agentModel,
+					reasoning: input.agentReasoning,
 					streamJson: input.streamJson,
 					cwd: input.cwd,
 				});

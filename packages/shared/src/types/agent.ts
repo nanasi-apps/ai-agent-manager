@@ -7,6 +7,8 @@
  */
 export type AgentType = "gemini" | "claude" | "codex" | "cat" | "custom";
 
+export type ReasoningLevel = "low" | "middle" | "high" | "extraHigh";
+
 /**
  * Configuration for an agent session
  */
@@ -15,6 +17,8 @@ export interface AgentConfig {
 	command: string;
 	/** Optional model name for CLIs that support it */
 	model?: string;
+	/** Optional reasoning level for GPT-style models */
+	reasoning?: ReasoningLevel;
 	/** Working directory for the agent */
 	cwd?: string;
 	/** Environment variables to pass */

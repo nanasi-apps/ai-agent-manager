@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import type { ReasoningLevel } from "@agent-manager/shared";
+import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { Button } from "@/components/ui/button";
 import {
@@ -38,10 +39,18 @@ const route = useRoute();
 const input = ref("");
 const selectedProjectId = ref("");
 const selectedModelId = ref("");
+const selectedReasoning = ref<ReasoningLevel>("middle");
 const projects = ref<Project[]>([]);
 const modelTemplates = ref<ModelTemplate[]>([]);
 const isLoading = ref(false);
 const isInitializing = ref(true);
+
+const reasoningOptions: { label: string; value: ReasoningLevel }[] = [
+	{ label: "Low", value: "low" },
+	{ label: "Middle", value: "middle" },
+	{ label: "High", value: "high" },
+	{ label: "Extra High", value: "extraHigh" },
+];
 
 const formatModelLabel = (model: ModelTemplate) => {
 	if (!model.agentName || model.name.includes(model.agentName)) {
@@ -49,6 +58,17 @@ const formatModelLabel = (model: ModelTemplate) => {
 	}
 	return `${model.name} (${model.agentName})`;
 };
+
+const selectedModelTemplate = computed(() =>
+	modelTemplates.value.find((m) => m.id === selectedModelId.value),
+);
+
+const supportsReasoning = computed(() => {
+	const template = selectedModelTemplate.value;
+	if (!template || template.agentType !== "codex") return false;
+	if (!template.model) return true;
+	return template.model.toLowerCase().startsWith("gpt");
+});
 
 const loadData = async () => {
 	isInitializing.value = true;
@@ -96,6 +116,13 @@ watch(isOpen, (val) => {
 	if (val) loadData();
 });
 
+watch(selectedModelId, () => {
+	if (!supportsReasoning.value) return;
+	if (!selectedReasoning.value) {
+		selectedReasoning.value = "middle";
+	}
+});
+
 const handleStart = async () => {
 	if (!input.value.trim() || !selectedProjectId.value || !selectedModelId.value)
 		return;
@@ -107,6 +134,7 @@ const handleStart = async () => {
 			projectId: selectedProjectId.value,
 			initialMessage: input.value,
 			modelId: selectedModelId.value,
+			reasoning: supportsReasoning.value ? selectedReasoning.value : undefined,
 		});
 
 		window.dispatchEvent(new Event("agent-manager:data-change"));
@@ -177,6 +205,23 @@ const handleKeydown = (e: KeyboardEvent) => {
                              <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-muted-foreground">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><path d="m6 9 6 6 6-6"/></svg>
                             </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div v-if="supportsReasoning" class="space-y-2 min-w-0">
+                    <label class="text-xs font-medium text-muted-foreground">Reasoning</label>
+                    <div class="relative">
+                        <select
+                            v-model="selectedReasoning"
+                            class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 appearance-none"
+                        >
+                            <option v-for="option in reasoningOptions" :key="option.value" :value="option.value">
+                                {{ option.label }}
+                            </option>
+                        </select>
+                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-muted-foreground">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><path d="m6 9 6 6 6-6"/></svg>
                         </div>
                     </div>
                 </div>

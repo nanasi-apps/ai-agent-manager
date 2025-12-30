@@ -5,14 +5,55 @@ import {
 	getAgentManagerOrThrow,
 	getStoreOrThrow,
 } from "../services/dependency-container";
-import { parseModelId } from "../services/model-fetcher";
+import {
+	parseModelId,
+	shouldUseOpenAIBaseUrl,
+} from "../services/model-fetcher";
 import { resolveProjectRules } from "../services/rules-resolver";
 import {
 	buildHandoverContext,
 	HANDOVER_SUMMARY_PROMPT,
 } from "../templates/handover-templates";
+import type { ReasoningLevel } from "../types/agent";
 import { getAgentTemplate } from "../types/project";
 import { generateUUID } from "../utils";
+
+const reasoningLevelSchema = z.enum(["low", "middle", "high", "extraHigh"]);
+const DEFAULT_REASONING_LEVEL: ReasoningLevel = "middle";
+
+function shouldUseReasoning(
+	agentCliType: string,
+	model?: string,
+): boolean {
+	if (agentCliType !== "codex") return false;
+	if (!model) return true;
+	return model.toLowerCase().startsWith("gpt");
+}
+
+function resolveReasoning(
+	agentCliType: string,
+	model?: string,
+	reasoning?: ReasoningLevel,
+): ReasoningLevel | undefined {
+	if (!shouldUseReasoning(agentCliType, model)) return undefined;
+	return reasoning ?? DEFAULT_REASONING_LEVEL;
+}
+
+function formatReasoningLabel(level?: ReasoningLevel): string {
+	if (!level) return "Default";
+	switch (level) {
+		case "extraHigh":
+			return "Extra High";
+		case "middle":
+			return "Middle";
+		case "high":
+			return "High";
+		case "low":
+			return "Low";
+		default:
+			return "Default";
+	}
+}
 
 export const conversationsRouter = {
 	createConversation: os
@@ -23,6 +64,7 @@ export const conversationsRouter = {
 				modelId: z.string().optional(),
 				agentType: z.string().optional(),
 				agentModel: z.string().optional(),
+				reasoning: reasoningLevelSchema.optional(),
 			}),
 		)
 		.output(
@@ -55,6 +97,11 @@ export const conversationsRouter = {
 				throw new Error(`Agent type not found: ${resolvedAgentType}`);
 			}
 			const resolvedModel = parsedModel?.model || input.agentModel;
+			const resolvedReasoning = resolveReasoning(
+				agentTemplate.agent.type,
+				resolvedModel,
+				input.reasoning,
+			);
 
 			// Determine the cwd for the agent
 			const agentCwd = project.rootPath || agentTemplate.agent.cwd;
@@ -69,6 +116,7 @@ export const conversationsRouter = {
 				updatedAt: now,
 				agentType: resolvedAgentType,
 				agentModel: resolvedModel,
+				agentReasoning: resolvedReasoning,
 				cwd: agentCwd,
 				messages: [
 					{
@@ -97,7 +145,12 @@ export const conversationsRouter = {
 					if (apiSettings.openaiApiKey) {
 						agentEnv.OPENAI_API_KEY = apiSettings.openaiApiKey;
 					}
-					if (apiSettings.openaiBaseUrl) {
+					if (
+						shouldUseOpenAIBaseUrl(
+							resolvedModel,
+							apiSettings.openaiBaseUrl,
+						)
+					) {
 						agentEnv.OPENAI_BASE_URL = apiSettings.openaiBaseUrl;
 					}
 				}
@@ -116,11 +169,12 @@ export const conversationsRouter = {
 					sessionId,
 					agentTemplate.agent.command,
 					{
-						...agentTemplate.agent,
-						model: resolvedModel,
-						cwd: agentCwd,
-						rulesContent,
-						env: { ...agentTemplate.agent.env, ...agentEnv },
+					...agentTemplate.agent,
+					model: resolvedModel,
+					reasoning: resolvedReasoning,
+					cwd: agentCwd,
+					rulesContent,
+					env: { ...agentTemplate.agent.env, ...agentEnv },
 					},
 				);
 			}
@@ -143,6 +197,7 @@ export const conversationsRouter = {
 					updatedAt: z.number(),
 					agentType: z.string().optional(),
 					agentModel: z.string().optional(),
+					agentReasoning: reasoningLevelSchema.optional(),
 					cwd: z.string().optional(),
 				})
 				.nullable(),
@@ -201,6 +256,16 @@ export const conversationsRouter = {
 
 				const project = storeInstance.getProject(conv.projectId);
 				const cwd = project?.rootPath || agentTemplate.agent.cwd;
+				const resolvedReasoning = resolveReasoning(
+					agentTemplate.agent.type,
+					conv.agentModel,
+					conv.agentReasoning,
+				);
+				if (!conv.agentReasoning && resolvedReasoning) {
+					storeInstance.updateConversation(input.sessionId, {
+						agentReasoning: resolvedReasoning,
+					});
+				}
 
 				console.warn(
 					`Session ${input.sessionId} not found, restarting with command: ${agentTemplate.agent.command}`,
@@ -217,7 +282,12 @@ export const conversationsRouter = {
 					if (apiSettings.openaiApiKey) {
 						agentEnv.OPENAI_API_KEY = apiSettings.openaiApiKey;
 					}
-					if (apiSettings.openaiBaseUrl) {
+					if (
+						shouldUseOpenAIBaseUrl(
+							conv.agentModel,
+							apiSettings.openaiBaseUrl,
+						)
+					) {
 						agentEnv.OPENAI_BASE_URL = apiSettings.openaiBaseUrl;
 					}
 				}
@@ -238,6 +308,7 @@ export const conversationsRouter = {
 					{
 						...agentTemplate.agent,
 						model: conv.agentModel,
+						reasoning: resolvedReasoning,
 						cwd,
 						rulesContent,
 						env: { ...agentTemplate.agent.env, ...agentEnv },
@@ -368,6 +439,7 @@ export const conversationsRouter = {
 				modelId: z.string().optional(),
 				agentType: z.string().optional(),
 				agentModel: z.string().optional(),
+				reasoning: reasoningLevelSchema.optional(),
 			}),
 		)
 		.output(
@@ -389,7 +461,8 @@ export const conversationsRouter = {
 			}
 
 			const parsedModel = input.modelId ? parseModelId(input.modelId) : null;
-			const resolvedAgentType = parsedModel?.agentType || input.agentType;
+			const resolvedAgentType =
+				parsedModel?.agentType || input.agentType || conv.agentType;
 
 			if (!resolvedAgentType) {
 				return { success: false, message: "Model or agent type is required." };
@@ -407,7 +480,13 @@ export const conversationsRouter = {
 				? getAgentTemplate(conv.agentType)
 				: undefined;
 			const sameCli = currentTemplate?.agent.type === nextTemplate.agent.type;
-			const resolvedModel = parsedModel?.model || input.agentModel;
+			const resolvedModel =
+				parsedModel?.model || input.agentModel || conv.agentModel;
+			const resolvedReasoning = resolveReasoning(
+				nextTemplate.agent.type,
+				resolvedModel,
+				input.reasoning ?? conv.agentReasoning,
+			);
 			const nextModelLabel = resolvedModel;
 
 			const project = storeInstance.getProject(conv.projectId);
@@ -415,11 +494,21 @@ export const conversationsRouter = {
 
 			const previousName = currentTemplate?.name || conv.agentType || "unknown";
 			const label = nextModelLabel || nextTemplate.name;
-			const systemMessage = `Switched agent from ${previousName} to ${label}.`;
+			const agentChanged = conv.agentType !== resolvedAgentType;
+			const modelChanged = conv.agentModel !== resolvedModel;
+			const reasoningChanged = conv.agentReasoning !== resolvedReasoning;
+			const agentOrModelChanged = agentChanged || modelChanged;
+			if (!agentOrModelChanged && !reasoningChanged) {
+				return { success: true, message: "Agent settings unchanged." };
+			}
+			const systemMessage = agentOrModelChanged
+				? `Switched agent from ${previousName} to ${label}.`
+				: `Updated reasoning for ${label} to ${formatReasoningLabel(resolvedReasoning)}.`;
 
 			storeInstance.updateConversation(input.sessionId, {
 				agentType: resolvedAgentType,
 				agentModel: resolvedModel,
+				agentReasoning: resolvedReasoning,
 			});
 
 			storeInstance.addMessage(input.sessionId, {
@@ -598,6 +687,7 @@ export const conversationsRouter = {
 				{
 					...nextTemplate.agent,
 					model: resolvedModel,
+					reasoning: resolvedReasoning,
 					cwd,
 				},
 			);

@@ -28,6 +28,7 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
 			type: config?.type ?? "custom",
 			command,
 			model: config?.model,
+			reasoning: config?.reasoning,
 			cwd: config?.cwd,
 			env: config?.env,
 			streamJson: config?.streamJson ?? false,

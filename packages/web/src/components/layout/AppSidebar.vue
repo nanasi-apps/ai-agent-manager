@@ -276,33 +276,35 @@ function handleMouseUp() {
                    </SidebarMenuAction>
                  </div>
 
-                 <CollapsibleContent>
-                   <SidebarMenuSub v-if="project.conversations.length">
-                     <SidebarMenuSubItem v-for="conv in project.conversations.slice(0, 5)" :key="conv.id">
-                       <SidebarMenuSubButton 
-                         as-child 
-                         :isActive="activeItem === conv.id"
-                         @click="handleItemClick(conv.id)"
-                       >
-                         <router-link :to="`/conversions/${conv.id}`" class="flex items-center justify-between gap-1 w-full overflow-hidden">
-                           <span class="truncate">{{ conv.title }}</span>
-                           <Loader2 v-if="conv.isRunning" class="size-3 animate-spin shrink-0 text-muted-foreground mr-1" />
-                         </router-link>
-                       </SidebarMenuSubButton>
-                     </SidebarMenuSubItem>
-                     <SidebarMenuSubItem v-if="project.conversations.length > 5">
-                        <SidebarMenuSubButton as-child>
-                           <router-link :to="`/projects/${project.id}`" class="text-xs text-muted-foreground hover:text-foreground">
-                              View all...
+                 <CollapsibleContent class="project-collapsible">
+                   <div class="project-collapsible__inner">
+                     <SidebarMenuSub v-if="project.conversations.length">
+                       <SidebarMenuSubItem v-for="conv in project.conversations.slice(0, 5)" :key="conv.id">
+                         <SidebarMenuSubButton 
+                           as-child 
+                           :isActive="activeItem === conv.id"
+                           @click="handleItemClick(conv.id)"
+                         >
+                           <router-link :to="`/conversions/${conv.id}`" class="flex items-center justify-between gap-1 w-full overflow-hidden">
+                             <span class="truncate">{{ conv.title }}</span>
+                             <Loader2 v-if="conv.isRunning" class="size-3 animate-spin shrink-0 text-muted-foreground mr-1" />
                            </router-link>
-                        </SidebarMenuSubButton>
-                     </SidebarMenuSubItem>
-                   </SidebarMenuSub>
-                   <SidebarMenuSub v-else>
-                      <SidebarMenuSubItem>
-                         <span class="text-xs text-muted-foreground px-2 py-1">No conversations</span>
-                      </SidebarMenuSubItem>
-                   </SidebarMenuSub>
+                         </SidebarMenuSubButton>
+                       </SidebarMenuSubItem>
+                       <SidebarMenuSubItem v-if="project.conversations.length > 5">
+                          <SidebarMenuSubButton as-child>
+                             <router-link :to="`/projects/${project.id}`" class="text-xs text-muted-foreground hover:text-foreground">
+                                View all...
+                             </router-link>
+                          </SidebarMenuSubButton>
+                       </SidebarMenuSubItem>
+                     </SidebarMenuSub>
+                     <SidebarMenuSub v-else>
+                        <SidebarMenuSubItem>
+                           <span class="text-xs text-muted-foreground px-2 py-1">No conversations</span>
+                        </SidebarMenuSubItem>
+                     </SidebarMenuSub>
+                   </div>
                  </CollapsibleContent>
                </SidebarMenuItem>
              </Collapsible>
@@ -398,5 +400,30 @@ function handleMouseUp() {
 }
 .no-scrollbar::-webkit-scrollbar {
   display: none; /* Chrome, Safari and Opera */
+}
+
+.project-collapsible {
+  --radix-collapsible-content-height: var(--reka-collapsible-content-height);
+  --animate-collapsible-down: collapsible-down 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-collapsible-up: collapsible-up 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transform-origin: top;
+  will-change: height, opacity, transform;
+}
+
+.project-collapsible__inner {
+  transform-origin: top;
+  transition:
+    opacity 0.18s ease,
+    transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.project-collapsible[data-state="open"] .project-collapsible__inner {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.project-collapsible[data-state="closed"] .project-collapsible__inner {
+  opacity: 0;
+  transform: translateY(-6px);
 }
 </style>

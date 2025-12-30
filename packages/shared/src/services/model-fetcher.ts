@@ -49,6 +49,17 @@ export function getModelsForCliType(cliType: string): string[] {
 	return HARDCODED_MODELS[cliType] ?? [];
 }
 
+export function shouldUseOpenAIBaseUrl(
+	model?: string,
+	baseUrl?: string,
+): boolean {
+	if (!baseUrl) return false;
+	const isCustomEndpoint = !baseUrl.includes("openai.com");
+	if (!isCustomEndpoint) return true;
+	if (!model) return true;
+	return !(HARDCODED_MODELS["codex"] ?? []).includes(model);
+}
+
 /**
  * Fetch available models from OpenAI-compatible API
  * Works with OpenAI, Azure, DeepSeek, and other compatible endpoints

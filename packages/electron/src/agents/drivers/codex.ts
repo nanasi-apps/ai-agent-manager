@@ -1,4 +1,4 @@
-import type { AgentConfig } from "@agent-manager/shared";
+import type { AgentConfig, ReasoningLevel } from "@agent-manager/shared";
 import type {
 	AgentDriver,
 	AgentDriverCommand,
@@ -41,6 +41,8 @@ export class CodexDriver implements AgentDriver {
 			mcpArgs.push("-c", `mcp_servers.agents-manager-mcp.enabled=true`);
 		}
 
+		const reasoningArgs = buildReasoningArgs(config.model, config.reasoning);
+
 		if (context.messageCount === 0) {
 			// First message: start fresh
 			// Usage: codex exec [OPTIONS] [PROMPT]
@@ -51,6 +53,7 @@ export class CodexDriver implements AgentDriver {
 				...fullAutoArgs,
 				...jsonArgs,
 				...modelArgs,
+				...reasoningArgs,
 				...mcpArgs,
 				escapedMessage,
 			];
@@ -62,9 +65,10 @@ export class CodexDriver implements AgentDriver {
 			args = [
 				"exec",
 				...jsonArgs,
-				"resume",
 				...modelArgs,
+				...reasoningArgs,
 				...mcpArgs,
+				"resume",
 				context.codexThreadId,
 				escapedMessage,
 			];
@@ -80,6 +84,7 @@ export class CodexDriver implements AgentDriver {
 				...fullAutoArgs,
 				...jsonArgs,
 				...modelArgs,
+				...reasoningArgs,
 				...mcpArgs,
 				escapedMessage,
 			];
@@ -90,4 +95,26 @@ export class CodexDriver implements AgentDriver {
 			args,
 		};
 	}
+}
+
+function buildReasoningArgs(
+	model?: string,
+	reasoning?: ReasoningLevel,
+): string[] {
+	if (!isGptModel(model)) return [];
+
+	const resolvedReasoning = reasoning ?? "middle";
+	const mapped = mapReasoningLevel(resolvedReasoning);
+	return ["-c", `reasoning="${mapped}"`];
+}
+
+function isGptModel(model?: string): boolean {
+	if (!model) return true;
+	return model.toLowerCase().startsWith("gpt");
+}
+
+function mapReasoningLevel(level: ReasoningLevel): string {
+	if (level === "middle") return "medium";
+	if (level === "extraHigh") return "extra_high";
+	return level;
 }

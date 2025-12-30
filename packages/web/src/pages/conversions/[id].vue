@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { AgentLogPayload } from "@agent-manager/shared";
+import type { AgentLogPayload, ReasoningLevel } from "@agent-manager/shared";
 import {
 	AlertCircle,
 	Check,
@@ -15,7 +15,7 @@ import {
 	Square,
 	Terminal,
 } from "lucide-vue-next";
-import { nextTick, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onMounted, ref, watch } from "vue";
 import { onBeforeRouteLeave, useRoute } from "vue-router";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -67,14 +67,55 @@ const currentModelId = ref("");
 const conversationAgentType = ref<string | null>(null);
 const conversationAgentModel = ref<string | null>(null);
 const isSwappingModel = ref(false);
+const isUpdatingReasoning = ref(false);
 const currentBranch = ref<string | null>(null);
 const projectId = ref<string | null>(null);
+
+const reasoningDraft = ref<ReasoningLevel>("middle");
+const currentReasoning = ref<ReasoningLevel | null>(null);
+
+const reasoningOptions: { label: string; value: ReasoningLevel }[] = [
+	{ label: "Low", value: "low" },
+	{ label: "Middle", value: "middle" },
+	{ label: "High", value: "high" },
+	{ label: "Extra High", value: "extraHigh" },
+];
+
+const selectedModelTemplate = computed(() =>
+	modelTemplates.value.find((m) => m.id === modelIdDraft.value),
+);
+
+const supportsReasoning = computed(() => {
+	const template = selectedModelTemplate.value;
+	if (!template || template.agentType !== "codex") return false;
+	if (!template.model) return true;
+	return template.model.toLowerCase().startsWith("gpt");
+});
+
+const isUpdatingAgent = computed(
+	() => isSwappingModel.value || isUpdatingReasoning.value,
+);
 
 const formatModelLabel = (model: ModelTemplate) => {
 	if (!model.agentName || model.name.includes(model.agentName)) {
 		return model.name;
 	}
 	return `${model.name} (${model.agentName})`;
+};
+
+const formatReasoningLabel = (level: ReasoningLevel) => {
+	switch (level) {
+		case "extraHigh":
+			return "Extra High";
+		case "middle":
+			return "Middle";
+		case "high":
+			return "High";
+		case "low":
+			return "Low";
+		default:
+			return level;
+	}
 };
 
 const scrollAreaRef = ref<InstanceType<typeof ScrollArea> | null>(null);
@@ -271,10 +312,17 @@ const applyConversationModelSelection = () => {
 	modelIdDraft.value = nextId;
 };
 
-const setModelFromConversation = (agentType?: string, agentModel?: string) => {
+const setModelFromConversation = (
+	agentType?: string,
+	agentModel?: string,
+	agentReasoning?: ReasoningLevel,
+) => {
 	conversationAgentType.value = agentType || null;
 	conversationAgentModel.value = agentModel || null;
 	applyConversationModelSelection();
+	const nextReasoning = agentReasoning ?? "middle";
+	currentReasoning.value = nextReasoning;
+	reasoningDraft.value = nextReasoning;
 };
 
 const swapModel = async () => {
@@ -303,12 +351,14 @@ const swapModel = async () => {
 		const result = await orpc.swapConversationAgent({
 			sessionId: sessionId.value,
 			modelId: nextId,
+			reasoning: supportsReasoning.value ? reasoningDraft.value : undefined,
 		});
 		if (!result.success) {
 			throw new Error(result.message || "Failed to swap model");
 		}
 
 		currentModelId.value = nextId;
+		currentReasoning.value = supportsReasoning.value ? reasoningDraft.value : null;
 		if (result.message) {
 			messages.value.push({
 				id: crypto.randomUUID(),
@@ -335,10 +385,71 @@ const swapModel = async () => {
 	}
 };
 
+const updateReasoning = async () => {
+	if (!supportsReasoning.value) return;
+
+	const nextReasoning = reasoningDraft.value;
+	if (nextReasoning === currentReasoning.value || isUpdatingReasoning.value)
+		return;
+
+	isUpdatingReasoning.value = true;
+	messages.value.push({
+		id: crypto.randomUUID(),
+		role: "system",
+		content: `Updating reasoning to **${formatReasoningLabel(nextReasoning)}**...`,
+		timestamp: Date.now(),
+		logType: "system",
+	});
+	scrollToBottom();
+
+	try {
+		const result = await orpc.swapConversationAgent({
+			sessionId: sessionId.value,
+			modelId: currentModelId.value,
+			reasoning: nextReasoning,
+		});
+		if (!result.success) {
+			throw new Error(result.message || "Failed to update reasoning");
+		}
+
+		currentReasoning.value = nextReasoning;
+		if (result.message) {
+			messages.value.push({
+				id: crypto.randomUUID(),
+				role: "system",
+				content: result.message,
+				timestamp: Date.now(),
+				logType: "system",
+			});
+		}
+		window.dispatchEvent(new Event("agent-manager:data-change"));
+		scrollToBottom();
+	} catch (err) {
+		console.error("Failed to update reasoning:", err);
+		reasoningDraft.value = currentReasoning.value ?? "middle";
+		messages.value.push({
+			id: crypto.randomUUID(),
+			role: "system",
+			content: `Failed to update reasoning: ${err}`,
+			timestamp: Date.now(),
+			logType: "error",
+		});
+	} finally {
+		isUpdatingReasoning.value = false;
+	}
+};
+
 watch(modelIdDraft, async (newVal) => {
 	if (newVal && newVal !== currentModelId.value) {
 		await swapModel();
 	}
+});
+
+watch(reasoningDraft, async (newVal) => {
+	if (!supportsReasoning.value) return;
+	if (newVal === currentReasoning.value) return;
+	if (isSwappingModel.value || isUpdatingReasoning.value) return;
+	await updateReasoning();
 });
 
 const appendAgentLog = (payload: AgentLogPayload) => {
@@ -511,14 +622,18 @@ const loadConversationMeta = async (id: string) => {
 			conversationTitle.value = conv.title;
 			titleDraft.value = conv.title;
 			projectId.value = conv.projectId;
-			setModelFromConversation(conv.agentType, conv.agentModel);
+			setModelFromConversation(
+				conv.agentType,
+				conv.agentModel,
+				conv.agentReasoning,
+			);
 			// Load branch info using sessionId (for agent's cwd) with projectId as fallback
 			loadBranchInfo(id, conv.projectId);
 		} else {
 			conversationTitle.value = "Untitled Session";
 			titleDraft.value = conversationTitle.value;
 			projectId.value = null;
-			setModelFromConversation(undefined, undefined);
+			setModelFromConversation(undefined, undefined, undefined);
 		}
 	} catch (err) {
 		console.error("Failed to load conversation metadata:", err);
@@ -878,7 +993,7 @@ const formatTime = (timestamp: number) => {
                       <select
                         v-model="modelIdDraft"
                         class="h-6 w-auto min-w-[140px] rounded-md border border-input bg-transparent px-2 text-[10px] shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 appearance-none pr-6 cursor-pointer hover:bg-accent/50"
-                        :disabled="isSwappingModel || isLoading || modelTemplates.length === 0"
+                        :disabled="isUpdatingAgent || isLoading || modelTemplates.length === 0"
                       >
                         <option v-for="m in modelTemplates" :key="m.id" :value="m.id">
                           {{ formatModelLabel(m) }}
@@ -886,6 +1001,23 @@ const formatTime = (timestamp: number) => {
                       </select>
                       <div class="pointer-events-none absolute inset-y-0 right-0 gap-1 px-2 flex items-center text-muted-foreground">
                         <Loader2 v-if="isSwappingModel" class="size-2.5 animate-spin" />
+                        <ChevronDown class="size-3" />
+                      </div>
+                    </div>
+                 </div>
+
+                 <div v-if="supportsReasoning" class="flex items-center gap-2">
+                    <div class="relative min-w-[110px]">
+                      <select
+                        v-model="reasoningDraft"
+                        class="h-6 w-auto min-w-[110px] rounded-md border border-input bg-transparent px-2 text-[10px] shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 appearance-none pr-6 cursor-pointer hover:bg-accent/50"
+                        :disabled="isUpdatingAgent || isLoading"
+                      >
+                        <option v-for="option in reasoningOptions" :key="option.value" :value="option.value">
+                          {{ option.label }}
+                        </option>
+                      </select>
+                      <div class="pointer-events-none absolute inset-y-0 right-0 gap-1 px-2 flex items-center text-muted-foreground">
                         <ChevronDown class="size-3" />
                       </div>
                     </div>

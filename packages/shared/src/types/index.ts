@@ -1,5 +1,10 @@
 // Agent types
-export type { AgentConfig, AgentLogPayload, AgentType } from "./agent";
+export type {
+	AgentConfig,
+	AgentLogPayload,
+	AgentType,
+	ReasoningLevel,
+} from "./agent";
 // MCP types
 export type {
 	McpResource,
