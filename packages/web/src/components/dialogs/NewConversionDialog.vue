@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ReasoningLevel } from "@agent-manager/shared";
+import type { AgentMode, ReasoningLevel } from "@agent-manager/shared";
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { Button } from "@/components/ui/button";
@@ -40,6 +40,7 @@ const input = ref("");
 const selectedProjectId = ref("");
 const selectedModelId = ref("");
 const selectedReasoning = ref<ReasoningLevel>("middle");
+const selectedMode = ref<AgentMode>("regular");
 const projects = ref<Project[]>([]);
 const modelTemplates = ref<ModelTemplate[]>([]);
 const isLoading = ref(false);
@@ -50,6 +51,12 @@ const reasoningOptions: { label: string; value: ReasoningLevel }[] = [
 	{ label: "Middle", value: "middle" },
 	{ label: "High", value: "high" },
 	{ label: "Extra High", value: "extraHigh" },
+];
+
+const modeOptions: { label: string; value: AgentMode }[] = [
+	{ label: "Ask", value: "ask" },
+	{ label: "Plan", value: "plan" },
+	{ label: "Agent", value: "regular" },
 ];
 
 const formatModelLabel = (model: ModelTemplate) => {
@@ -135,6 +142,7 @@ const handleStart = async () => {
 			initialMessage: input.value,
 			modelId: selectedModelId.value,
 			reasoning: supportsReasoning.value ? selectedReasoning.value : undefined,
+			mode: selectedMode.value,
 		});
 
 		window.dispatchEvent(new Event("agent-manager:data-change"));
@@ -217,6 +225,23 @@ const handleKeydown = (e: KeyboardEvent) => {
                             class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 appearance-none"
                         >
                             <option v-for="option in reasoningOptions" :key="option.value" :value="option.value">
+                                {{ option.label }}
+                            </option>
+                        </select>
+                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-muted-foreground">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><path d="m6 9 6 6 6-6"/></svg>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="space-y-2 min-w-0">
+                    <label class="text-xs font-medium text-muted-foreground">Mode</label>
+                    <div class="relative">
+                        <select
+                            v-model="selectedMode"
+                            class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 appearance-none"
+                        >
+                            <option v-for="option in modeOptions" :key="option.value" :value="option.value">
                                 {{ option.label }}
                             </option>
                         </select>

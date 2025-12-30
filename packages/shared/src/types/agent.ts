@@ -7,6 +7,8 @@
  */
 export type AgentType = "gemini" | "claude" | "codex" | "cat" | "custom";
 
+export type AgentMode = "regular" | "plan" | "ask";
+
 export type ReasoningLevel = "low" | "middle" | "high" | "extraHigh";
 
 /**
@@ -14,6 +16,8 @@ export type ReasoningLevel = "low" | "middle" | "high" | "extraHigh";
  */
 export interface AgentConfig {
 	type: AgentType;
+	/** Operation mode (regular = normal, plan = thinking/planning only) */
+	mode?: AgentMode;
 	command: string;
 	/** Optional model name for CLIs that support it */
 	model?: string;

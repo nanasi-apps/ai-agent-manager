@@ -14,12 +14,15 @@ import {
 	buildHandoverContext,
 	HANDOVER_SUMMARY_PROMPT,
 } from "../templates/handover-templates";
-import type { ReasoningLevel } from "../types/agent";
+import { getModePrompt } from "../templates/mode-prompts";
+import type { AgentMode, ReasoningLevel } from "../types/agent";
 import { getAgentTemplate } from "../types/project";
 import { generateUUID } from "../utils";
 
 const reasoningLevelSchema = z.enum(["low", "middle", "high", "extraHigh"]);
+const agentModeSchema = z.enum(["regular", "plan", "ask"]);
 const DEFAULT_REASONING_LEVEL: ReasoningLevel = "middle";
+const DEFAULT_AGENT_MODE: AgentMode = "regular";
 
 function shouldUseReasoning(
 	agentCliType: string,
@@ -65,6 +68,7 @@ export const conversationsRouter = {
 				agentType: z.string().optional(),
 				agentModel: z.string().optional(),
 				reasoning: reasoningLevelSchema.optional(),
+				mode: agentModeSchema.optional(),
 			}),
 		)
 		.output(
@@ -102,6 +106,7 @@ export const conversationsRouter = {
 				resolvedModel,
 				input.reasoning,
 			);
+			const resolvedMode = input.mode ?? DEFAULT_AGENT_MODE;
 
 			// Determine the cwd for the agent
 			const agentCwd = project.rootPath || agentTemplate.agent.cwd;
@@ -117,6 +122,7 @@ export const conversationsRouter = {
 				agentType: resolvedAgentType,
 				agentModel: resolvedModel,
 				agentReasoning: resolvedReasoning,
+				agentMode: resolvedMode,
 				cwd: agentCwd,
 				messages: [
 					{
@@ -134,7 +140,12 @@ export const conversationsRouter = {
 				);
 				console.log(`Command: ${agentTemplate.agent.command}`);
 
-				const rulesContent = await resolveProjectRules(input.projectId);
+				// Resolve prompt for the specific mode (Ask, Plan, or default)
+				const modePrompt = getModePrompt(resolvedMode);
+				const projectRules = await resolveProjectRules(input.projectId);
+				const rulesContent = modePrompt
+					? `${modePrompt}\n\n${projectRules}`
+					: projectRules;
 
 				// Build environment variables with API credentials
 				const apiSettings = storeInstance.getApiSettings();
@@ -172,6 +183,7 @@ export const conversationsRouter = {
 						...agentTemplate.agent,
 						model: resolvedModel,
 						reasoning: resolvedReasoning,
+						mode: resolvedMode,
 						cwd: agentCwd,
 						rulesContent,
 						env: { ...agentTemplate.agent.env, ...agentEnv },
@@ -198,6 +210,7 @@ export const conversationsRouter = {
 					agentType: z.string().optional(),
 					agentModel: z.string().optional(),
 					agentReasoning: reasoningLevelSchema.optional(),
+					agentMode: agentModeSchema.optional(),
 					cwd: z.string().optional(),
 					disabledMcpTools: z.array(z.string()).optional(),
 				})
@@ -272,7 +285,12 @@ export const conversationsRouter = {
 					`Session ${input.sessionId} not found, restarting with command: ${agentTemplate.agent.command}`,
 				);
 
-				const rulesContent = await resolveProjectRules(conv.projectId);
+				// Resolve prompt for the specific mode (Ask, Plan, or default)
+				const modePrompt = getModePrompt(conv.agentMode || "regular");
+				const projectRules = await resolveProjectRules(conv.projectId);
+				const rulesContent = modePrompt
+					? `${modePrompt}\n\n${projectRules}`
+					: projectRules;
 
 				// Build environment variables with API credentials
 				const apiSettings = storeInstance.getApiSettings();
@@ -310,6 +328,7 @@ export const conversationsRouter = {
 						...agentTemplate.agent,
 						model: conv.agentModel,
 						reasoning: resolvedReasoning,
+						mode: conv.agentMode,
 						cwd,
 						rulesContent,
 						env: { ...agentTemplate.agent.env, ...agentEnv },
@@ -441,6 +460,7 @@ export const conversationsRouter = {
 				agentType: z.string().optional(),
 				agentModel: z.string().optional(),
 				reasoning: reasoningLevelSchema.optional(),
+				mode: agentModeSchema.optional(),
 			}),
 		)
 		.output(
@@ -498,13 +518,20 @@ export const conversationsRouter = {
 			const agentChanged = conv.agentType !== resolvedAgentType;
 			const modelChanged = conv.agentModel !== resolvedModel;
 			const reasoningChanged = conv.agentReasoning !== resolvedReasoning;
-			const agentOrModelChanged = agentChanged || modelChanged;
+			const modeChanged = input.mode && input.mode !== conv.agentMode;
+			const agentOrModelChanged = agentChanged || modelChanged || modeChanged;
 			if (!agentOrModelChanged && !reasoningChanged) {
 				return { success: true, message: "Agent settings unchanged." };
 			}
 			const systemMessage = agentOrModelChanged
 				? `Switched agent from ${previousName} to ${label}.`
 				: `Updated reasoning for ${label} to ${formatReasoningLabel(resolvedReasoning)}.`;
+
+			if (modeChanged) {
+				storeInstance.updateConversation(input.sessionId, {
+					agentMode: input.mode,
+				});
+			}
 
 			storeInstance.updateConversation(input.sessionId, {
 				agentType: resolvedAgentType,
@@ -682,6 +709,14 @@ export const conversationsRouter = {
 			}
 
 			// NOW reset the session after we've captured the metadata
+			const resolvedMode = input.mode ?? conv.agentMode ?? "regular";
+
+			const modePrompt = getModePrompt(resolvedMode);
+			const projectRules = await resolveProjectRules(conv.projectId);
+			const rulesContent = modePrompt
+				? `${modePrompt}\n\n${projectRules}`
+				: projectRules;
+
 			agentManagerInstance.resetSession(
 				input.sessionId,
 				nextTemplate.agent.command,
@@ -689,7 +724,9 @@ export const conversationsRouter = {
 					...nextTemplate.agent,
 					model: resolvedModel,
 					reasoning: resolvedReasoning,
+					mode: resolvedMode,
 					cwd,
+					rulesContent,
 				},
 			);
 

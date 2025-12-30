@@ -7,6 +7,7 @@ export interface GeminiEnvOptions {
 	existingHome?: string;
 	apiKey?: string;
 	baseUrl?: string;
+	mode?: "regular" | "plan" | "ask";
 }
 
 export async function prepareGeminiEnv(
@@ -30,13 +31,13 @@ export async function prepareGeminiEnv(
 	try {
 		const { tmpdir } = await import("os");
 		if (existingHome) {
-			await ensureGeminiSettings(existingHome, mcpServerUrl, false, !!apiKey);
+			await ensureGeminiSettings(existingHome, mcpServerUrl, options.mode, false, !!apiKey);
 			return { ...env, HOME: existingHome };
 		}
 
 		const uniqueId = Math.random().toString(36).substring(7);
 		const tempHome = path.join(tmpdir(), `agent-manager-gemini-${uniqueId}`);
-		await ensureGeminiSettings(tempHome, mcpServerUrl, true, !!apiKey);
+		await ensureGeminiSettings(tempHome, mcpServerUrl, options.mode, true, !!apiKey);
 
 		return { ...env, HOME: tempHome };
 	} catch (error) {
@@ -100,6 +101,7 @@ export function prepareCodexEnv(options: CodexEnvOptions): NodeJS.ProcessEnv {
 async function ensureGeminiSettings(
 	homeDir: string,
 	mcpServerUrl: string,
+	mode: "regular" | "plan" | "ask" | undefined,
 	copyAuth: boolean,
 	useApiKey: boolean = false,
 ): Promise<void> {
@@ -139,6 +141,9 @@ async function ensureGeminiSettings(
 				selectedType?: string;
 			};
 		};
+		tools?: {
+			exclude?: string[];
+		};
 	}
 
 	let settings: GeminiSettings = { mcpServers: {} };
@@ -161,6 +166,19 @@ async function ensureGeminiSettings(
 		settings.security.auth.selectedType = "gemini-api-key";
 		console.log(
 			"[EnvUtils] Configured Gemini security.auth.selectedType = gemini-api-key",
+		);
+	}
+
+	// Plan or Ask mode: exclude prohibited tools (cognitive control)
+	if (mode === "plan" || mode === "ask") {
+		if (!settings.tools) settings.tools = {};
+		settings.tools.exclude = [
+			...(settings.tools.exclude || []),
+			"googleSearch",
+			"codeExecution",
+		];
+		console.log(
+			`[EnvUtils] ${mode} Mode: excluding googleSearch, codeExecution in settings.json`,
 		);
 	}
 

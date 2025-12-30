@@ -2,6 +2,7 @@
 export type {
 	AgentConfig,
 	AgentLogPayload,
+	AgentMode,
 	AgentType,
 	ReasoningLevel,
 } from "./agent";

@@ -270,6 +270,7 @@ export class OneShotSession extends EventEmitter {
 				existingHome: state.geminiHome,
 				apiKey: state.config.env?.GEMINI_API_KEY,
 				baseUrl: state.config.env?.GOOGLE_GEMINI_BASE_URL,
+				mode: state.config.mode,
 			});
 			if (geminiEnv.HOME) {
 				this.stateManager.setGeminiHome(geminiEnv.HOME);

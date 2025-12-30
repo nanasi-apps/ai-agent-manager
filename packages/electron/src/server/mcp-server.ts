@@ -131,6 +131,37 @@ export async function startMcpServer(port: number = 3001) {
 						isError: true,
 					};
 				}
+
+				// Check Plan Mode via active session config
+				const manager = getAgentManager();
+				// @ts-ignore - access session safely
+				const session = manager.getSession?.(context.sessionId);
+				if (session?.config?.mode === "plan" || session?.config?.mode === "ask") {
+					// Plan/Ask mode: strictly forbid file operations and git
+					const forbiddenPatterns = [
+						"read_file",
+						"write_file",
+						"replace_file_content",
+						"git_",
+						"worktree_",
+						"list_directory",
+						"run_command",
+					];
+					if (forbiddenPatterns.some((p) => name.startsWith(p))) {
+						console.log(
+							`[McpServer] Blocking tool ${name} for session ${context.sessionId} (${session.config.mode} Mode)`,
+						);
+						return {
+							content: [
+								{
+									type: "text",
+									text: `Tool '${name}' is not available in ${session.config.mode} Mode.`,
+								},
+							],
+							isError: true,
+						};
+					}
+				}
 			}
 			return handler(args, extra);
 		});
@@ -1218,6 +1249,27 @@ export async function startMcpServer(port: number = 3001) {
 							(t: any) =>
 								!conv.disabledMcpTools!.includes(`agents-manager-mcp-${t.name}`),
 						);
+					}
+
+					// Plan/Ask Mode: Filter out action tools from the list being returned
+					const manager = getAgentManager();
+					// @ts-ignore
+					const session = manager.getSession?.(context.sessionId);
+					if (session?.config?.mode === "plan" || session?.config?.mode === "ask") {
+						result.tools = result.tools.filter((t: any) => {
+							const forbiddenPatterns = [
+								"read_file",
+								"write_file",
+								"replace_file_content",
+								"git_",
+								"worktree_",
+								"list_directory",
+								"run_command",
+							];
+							return !forbiddenPatterns.some((pattern) =>
+								t.name.startsWith(pattern),
+							);
+						});
 					}
 				}
 				return result;

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { AgentLogPayload, ReasoningLevel } from "@agent-manager/shared";
+import type { AgentLogPayload, AgentMode, ReasoningLevel } from "@agent-manager/shared";
 import {
 	AlertCircle,
 	Check,
@@ -76,6 +76,7 @@ const conversationAgentType = ref<string | null>(null);
 const conversationAgentModel = ref<string | null>(null);
 const isSwappingModel = ref(false);
 const isUpdatingReasoning = ref(false);
+const isUpdatingMode = ref(false);
 const currentBranch = ref<string | null>(null);
 const projectId = ref<string | null>(null);
 
@@ -109,12 +110,20 @@ const disabledMcpTools = ref(new Set<string>());
 
 const reasoningDraft = ref<ReasoningLevel>("middle");
 const currentReasoning = ref<ReasoningLevel | null>(null);
+const modeDraft = ref<AgentMode>("regular");
+const currentMode = ref<AgentMode | null>(null);
 
 const reasoningOptions: { label: string; value: ReasoningLevel }[] = [
 	{ label: "Low", value: "low" },
 	{ label: "Middle", value: "middle" },
 	{ label: "High", value: "high" },
 	{ label: "Extra High", value: "extraHigh" },
+];
+
+const modeOptions: { label: string; value: AgentMode }[] = [
+	{ label: "Ask", value: "ask" },
+	{ label: "Plan", value: "plan" },
+	{ label: "Agent", value: "regular" },
 ];
 
 const selectedModelTemplate = computed(() =>
@@ -129,7 +138,7 @@ const supportsReasoning = computed(() => {
 });
 
 const isUpdatingAgent = computed(
-	() => isSwappingModel.value || isUpdatingReasoning.value,
+	() => isSwappingModel.value || isUpdatingReasoning.value || isUpdatingMode.value,
 );
 
 const formatModelLabel = (model: ModelTemplate) => {
@@ -151,6 +160,19 @@ const formatReasoningLabel = (level: ReasoningLevel) => {
 			return "Low";
 		default:
 			return level;
+	}
+};
+
+const formatModeLabel = (mode: AgentMode) => {
+	switch (mode) {
+		case "plan":
+			return "Plan";
+		case "regular":
+			return "Agent";
+		case "ask":
+			return "Ask";
+		default:
+			return mode;
 	}
 };
 
@@ -351,6 +373,7 @@ const setModelFromConversation = (
 	agentType?: string,
 	agentModel?: string,
 	agentReasoning?: ReasoningLevel,
+	agentMode?: AgentMode,
 ) => {
 	conversationAgentType.value = agentType || null;
 	conversationAgentModel.value = agentModel || null;
@@ -358,6 +381,10 @@ const setModelFromConversation = (
 	const nextReasoning = agentReasoning ?? "middle";
 	currentReasoning.value = nextReasoning;
 	reasoningDraft.value = nextReasoning;
+
+	const nextMode = agentMode ?? "regular";
+	currentMode.value = nextMode;
+	modeDraft.value = nextMode;
 };
 
 const swapModel = async () => {
@@ -474,6 +501,56 @@ const updateReasoning = async () => {
 	}
 };
 
+const updateMode = async () => {
+	const nextMode = modeDraft.value;
+	if (nextMode === currentMode.value || isUpdatingMode.value) return;
+
+	isUpdatingMode.value = true;
+	messages.value.push({
+		id: crypto.randomUUID(),
+		role: "system",
+		content: `Updating mode to **${formatModeLabel(nextMode)}**...`,
+		timestamp: Date.now(),
+		logType: "system",
+	});
+	scrollToBottom();
+
+	try {
+		const result = await orpc.swapConversationAgent({
+			sessionId: sessionId.value,
+			mode: nextMode,
+		});
+		if (!result.success) {
+			throw new Error(result.message || "Failed to update mode");
+		}
+
+		currentMode.value = nextMode;
+		if (result.message) {
+			messages.value.push({
+				id: crypto.randomUUID(),
+				role: "system",
+				content: result.message,
+				timestamp: Date.now(),
+				logType: "system",
+			});
+		}
+		window.dispatchEvent(new Event("agent-manager:data-change"));
+		scrollToBottom();
+	} catch (err) {
+		console.error("Failed to update mode:", err);
+		modeDraft.value = currentMode.value ?? "regular";
+		messages.value.push({
+			id: crypto.randomUUID(),
+			role: "system",
+			content: `Failed to update mode: ${err}`,
+			timestamp: Date.now(),
+			logType: "error",
+		});
+	} finally {
+		isUpdatingMode.value = false;
+	}
+};
+
 watch(modelIdDraft, async (newVal) => {
 	if (newVal && newVal !== currentModelId.value) {
 		await swapModel();
@@ -484,7 +561,15 @@ watch(reasoningDraft, async (newVal) => {
 	if (!supportsReasoning.value) return;
 	if (newVal === currentReasoning.value) return;
 	if (isSwappingModel.value || isUpdatingReasoning.value) return;
+	if (isSwappingModel.value || isUpdatingReasoning.value) return;
 	await updateReasoning();
+});
+
+watch(modeDraft, async (newVal) => {
+	if (newVal === currentMode.value) return;
+	if (isSwappingModel.value || isUpdatingReasoning.value || isUpdatingMode.value)
+		return;
+	await updateMode();
 });
 
 const appendAgentLog = (payload: AgentLogPayload) => {
@@ -661,6 +746,7 @@ const loadConversationMeta = async (id: string) => {
 				conv.agentType,
 				conv.agentModel,
 				conv.agentReasoning,
+				conv.agentMode,
 			);
 			// Load branch info using sessionId (for agent's cwd) with projectId as fallback
 			loadBranchInfo(id, conv.projectId);
@@ -673,7 +759,7 @@ const loadConversationMeta = async (id: string) => {
 			conversationTitle.value = "Untitled Session";
 			titleDraft.value = conversationTitle.value;
 			projectId.value = null;
-			setModelFromConversation(undefined, undefined, undefined);
+			setModelFromConversation(undefined, undefined, undefined, undefined);
 		}
 	} catch (err) {
 		console.error("Failed to load conversation metadata:", err);
@@ -1131,40 +1217,58 @@ const formatTime = (timestamp: number) => {
               </div>
 
               <div class="flex items-center justify-between mt-2 px-1">
-                 <!-- Model Selector (Moved here) -->
+                 <!-- Selectors Group -->
                  <div class="flex items-center gap-2">
-                    <div class="relative min-w-[120px]">
-                      <select
-                        v-model="modelIdDraft"
-                        class="h-6 w-auto min-w-[140px] rounded-md border border-input bg-transparent px-2 text-[10px] shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 appearance-none pr-6 cursor-pointer hover:bg-accent/50"
-                        :disabled="isUpdatingAgent || isLoading || modelTemplates.length === 0"
-                      >
-                        <option v-for="m in modelTemplates" :key="m.id" :value="m.id">
-                          {{ formatModelLabel(m) }}
-                        </option>
-                      </select>
-                      <div class="pointer-events-none absolute inset-y-0 right-0 gap-1 px-2 flex items-center text-muted-foreground">
-                        <Loader2 v-if="isSwappingModel" class="size-2.5 animate-spin" />
-                        <ChevronDown class="size-3" />
-                      </div>
-                    </div>
-                 </div>
+                     <!-- Model Selector -->
+                     <div class="relative min-w-[120px]">
+                       <select
+                         v-model="modelIdDraft"
+                         class="h-6 w-auto min-w-[140px] rounded-md border border-input bg-transparent px-2 text-[10px] shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 appearance-none pr-6 cursor-pointer hover:bg-accent/50"
+                         :disabled="isUpdatingAgent || isLoading || modelTemplates.length === 0"
+                       >
+                         <option v-for="m in modelTemplates" :key="m.id" :value="m.id">
+                           {{ formatModelLabel(m) }}
+                         </option>
+                       </select>
+                       <div class="pointer-events-none absolute inset-y-0 right-0 gap-1 px-2 flex items-center text-muted-foreground">
+                         <Loader2 v-if="isSwappingModel" class="size-2.5 animate-spin" />
+                         <ChevronDown class="size-3" />
+                       </div>
+                     </div>
 
-                 <div v-if="supportsReasoning" class="flex items-center gap-2">
-                    <div class="relative min-w-[110px]">
+                  <!-- Mode Selector (Planning) -->
+                  <div class="relative min-w-[80px]">
                       <select
-                        v-model="reasoningDraft"
-                        class="h-6 w-auto min-w-[110px] rounded-md border border-input bg-transparent px-2 text-[10px] shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 appearance-none pr-6 cursor-pointer hover:bg-accent/50"
+                        v-model="modeDraft"
+                        class="h-6 w-auto min-w-[80px] rounded-md border border-input bg-transparent px-2 text-[10px] shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 appearance-none pr-6 cursor-pointer hover:bg-accent/50"
                         :disabled="isUpdatingAgent || isLoading"
                       >
-                        <option v-for="option in reasoningOptions" :key="option.value" :value="option.value">
+                        <option v-for="option in modeOptions" :key="option.value" :value="option.value">
                           {{ option.label }}
                         </option>
                       </select>
                       <div class="pointer-events-none absolute inset-y-0 right-0 gap-1 px-2 flex items-center text-muted-foreground">
+                         <Loader2 v-if="isUpdatingMode" class="size-2.5 animate-spin" />
                         <ChevronDown class="size-3" />
                       </div>
                     </div>
+
+                    <!-- Reasoning Selector -->
+                    <div v-if="supportsReasoning" class="relative min-w-[110px]">
+                       <select
+                         v-model="reasoningDraft"
+                         class="h-6 w-auto min-w-[110px] rounded-md border border-input bg-transparent px-2 text-[10px] shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 appearance-none pr-6 cursor-pointer hover:bg-accent/50"
+                         :disabled="isUpdatingAgent || isLoading"
+                       >
+                         <option v-for="option in reasoningOptions" :key="option.value" :value="option.value">
+                           {{ option.label }}
+                         </option>
+                       </select>
+                       <div class="pointer-events-none absolute inset-y-0 right-0 gap-1 px-2 flex items-center text-muted-foreground">
+                          <Loader2 v-if="isUpdatingReasoning" class="size-2.5 animate-spin" />
+                         <ChevronDown class="size-3" />
+                       </div>
+                     </div>
                  </div>
 
                 <p class="text-[10px] text-muted-foreground">

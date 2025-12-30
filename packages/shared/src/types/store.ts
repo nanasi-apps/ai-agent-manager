@@ -1,4 +1,4 @@
-import type { ReasoningLevel } from "./agent";
+import type { AgentMode, ReasoningLevel } from "./agent";
 
 /**
  * Chat message
@@ -32,6 +32,7 @@ export interface Conversation {
 	agentType?: string;
 	agentModel?: string;
 	agentReasoning?: ReasoningLevel;
+	agentMode?: AgentMode;
 	/** Current working directory for the agent */
 	cwd?: string;
 	/** List of disabled MCP tools for this conversation */
