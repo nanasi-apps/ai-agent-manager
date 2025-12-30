@@ -1,5 +1,9 @@
 import { EventEmitter } from "node:events";
-import type { AgentConfig, AgentLogPayload } from "@agent-manager/shared";
+import type {
+	AgentConfig,
+	AgentLogPayload,
+	AgentStatePayload,
+} from "@agent-manager/shared";
 import type { IAgentManager, WorktreeResumeRequest } from "./agent-manager";
 import { oneShotAgentManager } from "./oneshot-agent-manager";
 
@@ -14,6 +18,9 @@ export class UnifiedAgentManager extends EventEmitter implements IAgentManager {
 		// Forward logs from the CLI manager
 		oneShotAgentManager.on("log", (payload: AgentLogPayload) => {
 			this.emit("log", payload);
+		});
+		oneShotAgentManager.on("state-changed", (payload: AgentStatePayload) => {
+			this.emit("state-changed", payload);
 		});
 	}
 

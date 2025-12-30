@@ -44,3 +44,11 @@ export interface AgentLogPayload {
 	type?: "text" | "tool_call" | "tool_result" | "thinking" | "error" | "system";
 	raw?: unknown;
 }
+
+export type AgentStateValue = string | Record<string, unknown>;
+
+export interface AgentStatePayload {
+	sessionId: string;
+	value: AgentStateValue;
+	context: Record<string, unknown>;
+}

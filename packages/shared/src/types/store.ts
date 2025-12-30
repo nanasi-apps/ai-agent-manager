@@ -37,6 +37,8 @@ export interface Conversation {
 	cwd?: string;
 	/** List of disabled MCP tools for this conversation */
 	disabledMcpTools?: string[];
+	/** Persisted agent session state (XState snapshot) */
+	agentState?: unknown;
 }
 
 /**

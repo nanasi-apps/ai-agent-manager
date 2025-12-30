@@ -2,6 +2,8 @@ import { EventEmitter } from "node:events";
 import type { AgentConfig, AgentLogPayload } from "@agent-manager/shared";
 import type { IAgentManager, WorktreeResumeRequest } from "./agent-manager";
 import { OneShotSession } from "./one-shot-session";
+import type { AgentStateChangePayload } from "./types";
+import { store } from "../store";
 
 /**
  * One-shot agent manager for CLIs that work best in non-interactive mode
@@ -36,11 +38,15 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
 			rulesContent: config?.rulesContent,
 		};
 
-		const session = new OneShotSession(sessionId, agentConfig);
+		const persistedState = store.getConversation(sessionId)?.agentState;
+		const session = new OneShotSession(sessionId, agentConfig, persistedState);
 
 		// Forward logs from session
 		session.on("log", (payload: AgentLogPayload) => {
 			this.emit("log", payload);
+		});
+		session.on("state-changed", (payload: AgentStateChangePayload) => {
+			this.emit("state-changed", payload);
 		});
 
 		this.sessions.set(sessionId, session);

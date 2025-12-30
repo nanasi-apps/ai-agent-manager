@@ -1,5 +1,5 @@
 import type { ChildProcess } from "node:child_process";
-import type { AgentConfig } from "@agent-manager/shared";
+import type { AgentConfig, AgentStatePayload } from "@agent-manager/shared";
 import type { WorktreeResumeRequest } from "./agent-manager";
 
 export interface ActiveWorktreeContext {
@@ -36,4 +36,8 @@ export interface SessionState {
 	invalidGeminiSession?: boolean;
 	pendingHandover?: string;
 	lastUserMessage?: string;
+}
+
+export interface AgentStateChangePayload extends AgentStatePayload {
+	persistedState?: unknown;
 }

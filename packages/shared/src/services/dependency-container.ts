@@ -1,4 +1,8 @@
-import type { AgentConfig, AgentLogPayload } from "../types/agent";
+import type {
+	AgentConfig,
+	AgentLogPayload,
+	AgentStatePayload,
+} from "../types/agent";
 import type { IStore } from "../types/store";
 import type { IWorktreeManager } from "../types/worktree";
 
@@ -22,6 +26,10 @@ export interface IAgentManager {
 	isProcessing?(sessionId: string): boolean;
 	listSessions(): string[];
 	on(event: "log", listener: (payload: AgentLogPayload) => void): void;
+	on(
+		event: "state-changed",
+		listener: (payload: AgentStatePayload) => void,
+	): void;
 	getSessionMetadata(
 		sessionId: string,
 	): { geminiSessionId?: string; codexThreadId?: string } | undefined;

@@ -22,7 +22,6 @@ export {
 export type { ParsedLog, ParsedLogMetadata } from "./output-parser";
 // Output parser
 export { AgentOutputParser } from "./output-parser";
-export { PtyAgentManager, ptyAgentManager } from "./pty-agent-manager";
 export {
 	UnifiedAgentManager,
 	unifiedAgentManager,

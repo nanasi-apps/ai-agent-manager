@@ -13,6 +13,7 @@ import {
 	unifiedAgentManager,
 } from "./agents";
 import { setupAgentLogs } from "./main/agent-logs";
+import { setupAgentState } from "./main/agent-state";
 import { setupIpc } from "./main/ipc";
 import { initializeWindowTheme, setupGlobalThemeHandlers } from "./main/theme";
 import { worktreeManager } from "./main/worktree-manager";
@@ -119,6 +120,7 @@ app.whenReady().then(() => {
 	setupIpc();
 	setupGlobalThemeHandlers();
 	setupAgentLogs();
+	setupAgentState();
 
 	// Start ORPC WebSocket server
 	console.log("[Main] Starting ORPC WebSocket server...");

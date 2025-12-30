@@ -3,6 +3,8 @@ export type {
 	AgentConfig,
 	AgentLogPayload,
 	AgentMode,
+	AgentStatePayload,
+	AgentStateValue,
 	AgentType,
 	ReasoningLevel,
 } from "./agent";

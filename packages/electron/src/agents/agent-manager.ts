@@ -1,4 +1,8 @@
-import type { AgentConfig, AgentLogPayload } from "@agent-manager/shared";
+import type {
+	AgentConfig,
+	AgentLogPayload,
+	AgentStatePayload,
+} from "@agent-manager/shared";
 
 /**
  * Interface for AgentManager implementations
@@ -21,6 +25,10 @@ export interface IAgentManager {
 	isProcessing?(sessionId: string): boolean;
 	listSessions(): string[];
 	on(event: "log", listener: (payload: AgentLogPayload) => void): void;
+	on(
+		event: "state-changed",
+		listener: (payload: AgentStatePayload) => void,
+	): void;
 	getSessionMetadata?(
 		sessionId: string,
 	): { geminiSessionId?: string; codexThreadId?: string } | undefined;
@@ -35,6 +43,10 @@ export interface IAgentManager {
 		sessionId: string,
 	): { geminiHome?: string; claudeHome?: string } | undefined;
 	getSessionConfig?(sessionId: string): AgentConfig | undefined;
+}
+
+export interface AgentManagerProxy extends IAgentManager {
+	instance(): IAgentManager;
 }
 
 export interface WorktreeResumeRequest {
@@ -68,10 +80,33 @@ export function getAgentManager(): IAgentManager {
 	return activeAgentManager;
 }
 
+function on(event: "log", listener: (payload: AgentLogPayload) => void): void;
+function on(
+	event: "state-changed",
+	listener: (payload: AgentStatePayload) => void,
+): void;
+function on(
+	event: "log" | "state-changed",
+	listener:
+		| ((payload: AgentLogPayload) => void)
+		| ((payload: AgentStatePayload) => void),
+): void {
+	if (event === "log") {
+		return getAgentManager().on(
+			"log",
+			listener as (payload: AgentLogPayload) => void,
+		);
+	}
+	return getAgentManager().on(
+		"state-changed",
+		listener as (payload: AgentStatePayload) => void,
+	);
+}
+
 /**
  * Proxy object for convenient access to agent manager methods
  */
-export const agentManager = {
+export const agentManager: AgentManagerProxy = {
 	instance(): IAgentManager {
 		return getAgentManager();
 	},
@@ -104,9 +139,7 @@ export const agentManager = {
 	listSessions() {
 		return getAgentManager().listSessions();
 	},
-	on(event: "log", listener: (payload: AgentLogPayload) => void) {
-		return getAgentManager().on(event, listener);
-	},
+	on,
 	requestWorktreeResume(sessionId: string, request: WorktreeResumeRequest) {
 		return (
 			getAgentManager().requestWorktreeResume?.(sessionId, request) ?? false

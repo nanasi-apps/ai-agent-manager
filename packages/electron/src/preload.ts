@@ -1,4 +1,4 @@
-import type { AgentLogPayload } from "@agent-manager/shared";
+import type { AgentLogPayload, AgentStatePayload } from "@agent-manager/shared";
 import { contextBridge, ipcRenderer } from "electron";
 
 contextBridge.exposeInMainWorld("electronAPI", {
@@ -11,6 +11,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
 	},
 	onAgentLog: (callback: (payload: AgentLogPayload) => void) => {
 		ipcRenderer.on("agent-log", (_event, payload) => callback(payload));
+	},
+	onAgentStateChanged: (callback: (payload: AgentStatePayload) => void) => {
+		ipcRenderer.on("agent:state-changed", (_event, payload) =>
+			callback(payload),
+		);
 	},
 });
 

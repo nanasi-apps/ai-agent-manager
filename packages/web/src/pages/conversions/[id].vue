@@ -1,5 +1,10 @@
 <script setup lang="ts">
-import type { AgentLogPayload, AgentMode, ReasoningLevel } from "@agent-manager/shared";
+import type {
+	AgentLogPayload,
+	AgentMode,
+	AgentStatePayload,
+	ReasoningLevel,
+} from "@agent-manager/shared";
 import {
 	AlertCircle,
 	Check,
@@ -30,6 +35,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { useMarkdown } from "@/composables/useMarkdown";
+import { onAgentStateChangedPort } from "@/services/agent-state-port";
 import { orpc } from "@/services/orpc";
 
 type LogType =
@@ -112,6 +118,18 @@ const reasoningDraft = ref<ReasoningLevel>("middle");
 const currentReasoning = ref<ReasoningLevel | null>(null);
 const modeDraft = ref<AgentMode>("regular");
 const currentMode = ref<AgentMode | null>(null);
+
+const matchesStateValue = (
+	value: AgentStatePayload["value"],
+	target: string,
+): boolean => {
+	if (typeof value === "string") return value === target;
+	if (!value || typeof value !== "object") return false;
+	if (target in value) return true;
+	return Object.values(value).some((child) =>
+		matchesStateValue(child as AgentStatePayload["value"], target),
+	);
+};
 
 const reasoningOptions: { label: string; value: ReasoningLevel }[] = [
 	{ label: "Low", value: "low" },
@@ -971,7 +989,20 @@ onMounted(async () => {
 			}
 		};
 
+		const handleStateChanged = (payload: AgentStatePayload) => {
+			if (payload.sessionId !== sessionId.value) return;
+			const isBusy =
+				matchesStateValue(payload.value, "processing") ||
+				matchesStateValue(payload.value, "worktreeSwitching") ||
+				matchesStateValue(payload.value, "awaitingConfirmation");
+			isGenerating.value = isBusy;
+		};
+
 		window.electronAPI.onAgentLog(handleLog);
+		const removeStatePortListener = onAgentStateChangedPort(handleStateChanged);
+		if (!removeStatePortListener) {
+			window.electronAPI.onAgentStateChanged(handleStateChanged);
+		}
 	} else {
 		isConnected.value = false;
 		messages.value.push({

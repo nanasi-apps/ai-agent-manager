@@ -3,9 +3,9 @@ import { EventEmitter } from "node:events";
 import { statSync } from "node:fs";
 import type { AgentConfig, AgentLogPayload } from "@agent-manager/shared";
 import * as fs from "fs/promises";
-import { createActor } from "xstate";
-import { agentMachine } from "./machines/agent-machine";
-import type { SessionState } from "./types";
+import { createActor, type SnapshotFrom } from "xstate";
+import { agentMachine, type AgentContext } from "./machines/agent-machine";
+import type { AgentStateChangePayload, SessionState } from "./types";
 import type { WorktreeResumeRequest } from "./agent-manager";
 import { isAgentType } from "./agent-type-utils";
 import {
@@ -26,6 +26,8 @@ import {
 } from "./env-utils";
 import { AgentOutputParser } from "./output-parser";
 
+type AgentMachineSnapshot = SnapshotFrom<typeof agentMachine>;
+
 export class OneShotSession extends EventEmitter {
 	private actor;
 	private currentProcess?: ChildProcess;
@@ -34,16 +36,119 @@ export class OneShotSession extends EventEmitter {
 	constructor(
 		public readonly sessionId: string,
 		config: AgentConfig,
+		persistedState?: unknown,
 	) {
 		super();
+		const restoredState = this.normalizePersistedState(
+			persistedState,
+			sessionId,
+			config,
+		);
 		this.actor = createActor(agentMachine, {
 			input: {
 				sessionId,
 				config,
-			}
+			},
+			...(restoredState ? { state: restoredState } : {}),
+		});
+		this.actor.subscribe((snapshot) => {
+			const payload: AgentStateChangePayload = {
+				sessionId: this.sessionId,
+				value: snapshot.value,
+				context: this.buildRendererContext(snapshot.context as AgentContext),
+				persistedState: this.buildPersistedStateForStore(),
+			};
+			this.emit("state-changed", payload);
 		});
 		this.actor.start();
 		this.parser = new AgentOutputParser();
+	}
+
+	private normalizePersistedState(
+		persistedState: unknown,
+		sessionId: string,
+		config: AgentConfig,
+	): AgentMachineSnapshot | undefined {
+		if (!persistedState || typeof persistedState !== "object") {
+			return undefined;
+		}
+
+		const state = persistedState as AgentMachineSnapshot & {
+			context?: Partial<AgentContext>;
+		};
+		const persistedContext = state.context;
+		if (!persistedContext || typeof persistedContext !== "object") {
+			return undefined;
+		}
+
+		const persistedConfig = persistedContext.config;
+		if (persistedConfig?.type && persistedConfig.type !== config.type) {
+			return undefined;
+		}
+
+		const mergedConfig: AgentConfig = {
+			...persistedConfig,
+			...config,
+			env: { ...(persistedConfig?.env ?? {}), ...(config.env ?? {}) },
+		};
+
+		const nextContext: AgentContext = {
+			...persistedContext,
+			sessionId,
+			config: mergedConfig,
+			projectRoot: persistedContext.projectRoot ?? config.cwd ?? ".",
+			messageCount: persistedContext.messageCount ?? 0,
+			buffer: persistedContext.buffer ?? "",
+		};
+
+		if (nextContext.activeWorktree?.cwd) {
+			nextContext.config = {
+				...nextContext.config,
+				cwd: nextContext.activeWorktree.cwd,
+			};
+		}
+
+		return {
+			...state,
+			context: nextContext,
+		};
+	}
+
+	private buildRendererContext(context: AgentContext): Record<string, unknown> {
+		const { env: _env, ...config } = context.config;
+		const pendingWorktreeResume = context.pendingWorktreeResume
+			? { ...context.pendingWorktreeResume, resumeMessage: undefined }
+			: undefined;
+
+		return {
+			...context,
+			config,
+			pendingWorktreeResume,
+		};
+	}
+
+	private buildPersistedStateForStore(): unknown {
+		const persisted = this.actor.getPersistedSnapshot() as
+			| (AgentMachineSnapshot & { context?: AgentContext })
+			| undefined;
+		if (!persisted || typeof persisted !== "object") {
+			return persisted;
+		}
+
+		const context = persisted.context;
+		if (!context || typeof context !== "object") {
+			return persisted;
+		}
+
+		const { env: _env, ...config } = context.config;
+
+		return {
+			...persisted,
+			context: {
+				...context,
+				config,
+			},
+		};
 	}
 
 	get state(): SessionState {

@@ -1,4 +1,4 @@
-import type { AgentLogPayload } from "@agent-manager/shared";
+import type { AgentLogPayload, AgentStatePayload } from "@agent-manager/shared";
 
 /**
  * Electron API exposed via preload script
@@ -9,6 +9,7 @@ export interface ElectronAPI {
 	setThemeSource: (mode: "system" | "light" | "dark") => Promise<boolean>;
 	onThemeChanged: (callback: (isDark: boolean) => void) => void;
 	onAgentLog: (callback: (payload: AgentLogPayload) => void) => void;
+	onAgentStateChanged: (callback: (payload: AgentStatePayload) => void) => void;
 }
 
 declare global {
