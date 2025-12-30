@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { execFile } from "node:child_process";
 import { homedir } from "node:os";
 import { promisify } from "node:util";
@@ -15,6 +16,7 @@ import * as fs from "fs/promises";
 import { Hono } from "hono";
 import * as path from "path";
 import { z } from "zod";
+import { ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { getAgentManager } from "../agents/agent-manager";
 import {
 	buildConflictResolutionMessage,
@@ -22,6 +24,11 @@ import {
 } from "../agents/context-builder";
 import { splitCommand } from "../agents/drivers/interface";
 import { worktreeManager } from "../main/worktree-manager";
+
+const sessionContext = new AsyncLocalStorage<{
+	sessionId: string;
+	isSuperuser: boolean;
+}>();
 
 const execFileAsyncBase = promisify(execFile);
 
@@ -98,6 +105,37 @@ export async function startMcpServer(port: number = 3001) {
 		version: "1.0.0",
 	});
 
+	const registerTool = (
+		name: string,
+		schema: { description?: string; inputSchema?: any },
+		handler: (args: any, extra: any) => Promise<any>,
+	) => {
+		server.registerTool(name, schema, async (args: any, extra: any) => {
+			const context = sessionContext.getStore();
+			// console.log(`[McpServer] Tool ${name} called. SessionId: ${context?.sessionId}`);
+			if (context?.sessionId) {
+				const conv = getStoreOrThrow().getConversation(context.sessionId);
+				// Check exact match "agents-manager-mcp-{toolName}" as stored by UI
+				const key = `agents-manager-mcp-${name}`;
+				if (conv?.disabledMcpTools?.includes(key)) {
+					console.log(
+						`[McpServer] Blocking disabled tool ${name} for session ${context.sessionId}`,
+					);
+					return {
+						content: [
+							{
+								type: "text",
+								text: `Tool '${name}' is disabled for this session by the user.`,
+							},
+						],
+						isError: true,
+					};
+				}
+			}
+			return handler(args, extra);
+		});
+	};
+
 	const runGtr = async (repoPath: string, args: string[]) => {
 		try {
 			const { stdout, stderr } = await execFileAsync("git", ["gtr", ...args], {
@@ -146,7 +184,7 @@ export async function startMcpServer(port: number = 3001) {
 	};
 
 	// Register FS tools
-	server.registerTool(
+	registerTool(
 		"read_file",
 		{
 			description: "Read file contents",
@@ -184,7 +222,7 @@ export async function startMcpServer(port: number = 3001) {
 		},
 	);
 
-	server.registerTool(
+	registerTool(
 		"write_file",
 		{
 			description: "Write content to a file",
@@ -226,7 +264,7 @@ export async function startMcpServer(port: number = 3001) {
 		},
 	);
 
-	server.registerTool(
+	registerTool(
 		"replace_file_content",
 		{
 			description: "Replace content in a file",
@@ -284,7 +322,7 @@ export async function startMcpServer(port: number = 3001) {
 		},
 	);
 
-	server.registerTool(
+	registerTool(
 		"pre_file_edit",
 		{
 			description: "Pre-edit hook for file operations",
@@ -311,7 +349,7 @@ export async function startMcpServer(port: number = 3001) {
 		},
 	);
 
-	server.registerTool(
+	registerTool(
 		"post_file_edit",
 		{
 			description: "Post-edit hook for file operations",
@@ -349,7 +387,7 @@ export async function startMcpServer(port: number = 3001) {
 	);
 
 	// Register Git tools
-	server.registerTool(
+	registerTool(
 		"git_status",
 		{
 			description: "Get git status for a repository",
@@ -385,7 +423,7 @@ export async function startMcpServer(port: number = 3001) {
 		},
 	);
 
-	server.registerTool(
+	registerTool(
 		"git_diff",
 		{
 			description: "Get git diff output",
@@ -425,7 +463,7 @@ export async function startMcpServer(port: number = 3001) {
 		},
 	);
 
-	server.registerTool(
+	registerTool(
 		"git_log",
 		{
 			description: "Get git log output",
@@ -472,7 +510,7 @@ export async function startMcpServer(port: number = 3001) {
 		},
 	);
 
-	server.registerTool(
+	registerTool(
 		"git_branch_list",
 		{
 			description: "List git branches",
@@ -502,7 +540,7 @@ export async function startMcpServer(port: number = 3001) {
 		},
 	);
 
-	server.registerTool(
+	registerTool(
 		"git_current_branch",
 		{
 			description: "Get current git branch",
@@ -532,7 +570,7 @@ export async function startMcpServer(port: number = 3001) {
 		},
 	);
 
-	server.registerTool(
+	registerTool(
 		"git_checkout",
 		{
 			description: "Checkout or create a git branch",
@@ -574,7 +612,7 @@ export async function startMcpServer(port: number = 3001) {
 		},
 	);
 
-	server.registerTool(
+	registerTool(
 		"git_add",
 		{
 			description: "Stage files for commit",
@@ -627,7 +665,7 @@ export async function startMcpServer(port: number = 3001) {
 		},
 	);
 
-	server.registerTool(
+	registerTool(
 		"git_commit",
 		{
 			description: "Create a git commit",
@@ -673,7 +711,7 @@ export async function startMcpServer(port: number = 3001) {
 		},
 	);
 
-	server.registerTool(
+	registerTool(
 		"git_show",
 		{
 			description: "Show a git object or commit",
@@ -708,7 +746,7 @@ export async function startMcpServer(port: number = 3001) {
 		},
 	);
 
-	server.registerTool(
+	registerTool(
 		"worktree_create",
 		{
 			description: "Create a git worktree for a branch",
@@ -867,7 +905,7 @@ export async function startMcpServer(port: number = 3001) {
 		},
 	);
 
-	server.registerTool(
+	registerTool(
 		"worktree_list",
 		{
 			description: "List all git worktrees",
@@ -894,7 +932,7 @@ export async function startMcpServer(port: number = 3001) {
 		},
 	);
 
-	server.registerTool(
+	registerTool(
 		"worktree_remove",
 		{
 			description: "Remove a git worktree",
@@ -922,7 +960,7 @@ export async function startMcpServer(port: number = 3001) {
 		},
 	);
 
-	server.registerTool(
+	registerTool(
 		"worktree_complete",
 		{
 			description: "Merge worktree branch and remove it",
@@ -1005,7 +1043,7 @@ export async function startMcpServer(port: number = 3001) {
 		},
 	);
 
-	server.registerTool(
+	registerTool(
 		"worktree_run",
 		{
 			description: "Run a command in a worktree",
@@ -1051,7 +1089,7 @@ export async function startMcpServer(port: number = 3001) {
 		},
 	);
 
-	server.registerTool(
+	registerTool(
 		"list_available_mcp_tools",
 		{
 			description:
@@ -1105,7 +1143,7 @@ export async function startMcpServer(port: number = 3001) {
 		},
 	);
 
-	server.registerTool(
+	registerTool(
 		"list_directory",
 		{
 			description: "List directory contents",
@@ -1158,14 +1196,49 @@ export async function startMcpServer(port: number = 3001) {
 		console.log(`[McpServer] Response status: ${c.res.status}`);
 	});
 
+	// Override tools/list handler to filter disabled tools
+	// Wrap tools/list handler to filter disabled tools
+	// We wait a tick to let McpServer register its default handler, then wrap it
+	setTimeout(() => {
+		const internalServer = (server as any).server;
+		// Access the internal request handlers map (implementation detail of @modelcontextprotocol/sdk)
+		const originalHandler = internalServer._requestHandlers?.get("tools/list");
+
+		if (originalHandler) {
+			console.log("[McpServer] successfully wrapped tools/list handler");
+			internalServer.setRequestHandler(ListToolsRequestSchema, async (req: any, extra: any) => {
+				// Call original handler to get the full list with correct schema conversion
+				const result = await originalHandler(req, extra);
+				const context = sessionContext.getStore();
+
+				if (context?.sessionId && !context.isSuperuser && result.tools) {
+					const conv = getStoreOrThrow().getConversation(context.sessionId);
+					if (conv?.disabledMcpTools) {
+						result.tools = result.tools.filter(
+							(t: any) =>
+								!conv.disabledMcpTools!.includes(`agents-manager-mcp-${t.name}`),
+						);
+					}
+				}
+				return result;
+			});
+		} else {
+			console.warn("[McpServer] Failed to wrap tools/list: original handler not found");
+		}
+	}, 100);
+
 	// Session-specific MCP endpoint: /mcp/:sessionId/*
 	// This allows per-session tool configuration in the future
 	app.all("/mcp/:sessionId/*", async (c) => {
 		const sessionId = c.req.param("sessionId");
-		console.log(`[McpServer] Handling session-specific MCP request: sessionId=${sessionId}, url=${c.req.url}`);
-		// For now, use the shared server instance
-		// In the future, this could use mcpSessionManager to get a session-specific instance
-		return transport.handleRequest(c as any);
+		const isSuperuser = c.req.query("superuser") === "true";
+		// console.log(
+		// 	`[McpServer] Handling session-specific MCP request: sessionId=${sessionId}, superuser=${isSuperuser}, url=${c.req.url}`,
+		// );
+		// Run request in session context
+		return sessionContext.run({ sessionId, isSuperuser }, () =>
+			transport.handleRequest(c as any),
+		);
 	});
 
 	// Default MCP endpoint (backward compatible)

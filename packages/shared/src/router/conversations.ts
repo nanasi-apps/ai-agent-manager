@@ -199,6 +199,7 @@ export const conversationsRouter = {
 					agentModel: z.string().optional(),
 					agentReasoning: reasoningLevelSchema.optional(),
 					cwd: z.string().optional(),
+					disabledMcpTools: z.array(z.string()).optional(),
 				})
 				.nullable(),
 		)
@@ -705,5 +706,35 @@ export const conversationsRouter = {
 			}
 
 			return { success: true, message: systemMessage };
+		}),
+
+	toggleConversationMcpTool: os
+		.input(
+			z.object({
+				sessionId: z.string(),
+				serverName: z.string(),
+				toolName: z.string(),
+				enabled: z.boolean(),
+			}),
+		)
+		.output(z.object({ success: z.boolean() }))
+		.handler(async ({ input }) => {
+			const storeInstance = getStoreOrThrow();
+			const conv = storeInstance.getConversation(input.sessionId);
+			if (!conv) return { success: false };
+
+			const currentDisabled = new Set(conv.disabledMcpTools || []);
+			const key = `${input.serverName}-${input.toolName}`;
+
+			if (input.enabled) {
+				currentDisabled.delete(key);
+			} else {
+				currentDisabled.add(key);
+			}
+
+			storeInstance.updateConversation(input.sessionId, {
+				disabledMcpTools: Array.from(currentDisabled),
+			});
+			return { success: true };
 		}),
 };

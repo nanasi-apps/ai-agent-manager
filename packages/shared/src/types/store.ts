@@ -9,12 +9,12 @@ export interface Message {
 	content: string;
 	timestamp: number;
 	logType?:
-		| "text"
-		| "tool_call"
-		| "tool_result"
-		| "thinking"
-		| "error"
-		| "system";
+	| "text"
+	| "tool_call"
+	| "tool_result"
+	| "thinking"
+	| "error"
+	| "system";
 }
 
 /**
@@ -34,6 +34,8 @@ export interface Conversation {
 	agentReasoning?: ReasoningLevel;
 	/** Current working directory for the agent */
 	cwd?: string;
+	/** List of disabled MCP tools for this conversation */
+	disabledMcpTools?: string[];
 }
 
 /**

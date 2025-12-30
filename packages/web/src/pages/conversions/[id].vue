@@ -105,6 +105,7 @@ const expandedMcpServer = ref<string | null>(null);
 const mcpServerTools = ref<McpTool[]>([]);
 const isLoadingMcpTools = ref(false);
 const mcpToolsError = ref<string | null>(null);
+const disabledMcpTools = ref(new Set<string>());
 
 const reasoningDraft = ref<ReasoningLevel>("middle");
 const currentReasoning = ref<ReasoningLevel | null>(null);
@@ -663,6 +664,11 @@ const loadConversationMeta = async (id: string) => {
 			);
 			// Load branch info using sessionId (for agent's cwd) with projectId as fallback
 			loadBranchInfo(id, conv.projectId);
+			if (conv.disabledMcpTools) {
+				disabledMcpTools.value = new Set(conv.disabledMcpTools);
+			} else {
+				disabledMcpTools.value = new Set();
+			}
 		} else {
 			conversationTitle.value = "Untitled Session";
 			titleDraft.value = conversationTitle.value;
@@ -791,13 +797,53 @@ const loadMcpServerTools = async (server: McpServerEntry) => {
 	mcpToolsError.value = null;
 	mcpServerTools.value = [];
 	try {
-		const result = await orpc.listMcpTools(server);
+		const serverForUi = { ...server };
+		if (serverForUi.config && serverForUi.config.url) {
+			const url = new URL(serverForUi.config.url);
+			url.searchParams.set("superuser", "true");
+			serverForUi.config.url = url.toString();
+		}
+		const result = await orpc.listMcpTools(serverForUi);
 		mcpServerTools.value = result;
 	} catch (err: any) {
 		console.error("Failed to load MCP tools:", err);
 		mcpToolsError.value = err.message || "Failed to load tools";
 	} finally {
 		isLoadingMcpTools.value = false;
+	}
+};
+
+const isToolDisabled = (server: McpServerEntry, tool: McpTool) => {
+	return disabledMcpTools.value.has(`${server.name}-${tool.name}`);
+};
+
+const handleToolClick = async (server: McpServerEntry, tool: McpTool) => {
+	const key = `${server.name}-${tool.name}`;
+	const isCurrentlyDisabled = disabledMcpTools.value.has(key);
+	const nextEnabled = isCurrentlyDisabled; // If disabled, we want to enable (true)
+
+	// Optimistic update
+	if (nextEnabled) {
+		disabledMcpTools.value.delete(key);
+	} else {
+		disabledMcpTools.value.add(key);
+	}
+
+	try {
+		await orpc.toggleConversationMcpTool({
+			sessionId: sessionId.value,
+			serverName: server.name,
+			toolName: tool.name,
+			enabled: nextEnabled,
+		});
+	} catch (err) {
+		console.error("Failed to toggle tool:", err);
+		// Revert
+		if (nextEnabled) {
+			disabledMcpTools.value.add(key);
+		} else {
+			disabledMcpTools.value.delete(key);
+		}
 	}
 };
 
@@ -1207,7 +1253,13 @@ const formatTime = (timestamp: number) => {
                         No tools found.
                       </div>
                       <div v-else class="grid gap-2">
-                        <div v-for="tool in mcpServerTools" :key="tool.name" class="group/tool bg-muted/20 rounded p-2 border border-transparent hover:border-border transition-colors">
+                        <div 
+                          v-for="tool in mcpServerTools" 
+                          :key="tool.name" 
+                          class="group/tool bg-muted/20 rounded p-2 border border-transparent hover:border-border transition-colors cursor-pointer select-none"
+                          :class="{ 'opacity-50 grayscale': isToolDisabled(server, tool) }"
+                          @click="handleToolClick(server, tool)"
+                        >
                           <div class="flex items-center justify-between gap-2 overflow-hidden">
                             <span class="text-xs font-mono font-bold text-primary truncate" :title="tool.name">{{ tool.name }}</span>
                           </div>
