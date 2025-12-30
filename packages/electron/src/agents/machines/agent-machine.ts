@@ -55,6 +55,7 @@ export const agentMachine = setup({
   types: {
     context: {} as AgentContext,
     events: {} as AgentEvents,
+    input: {} as { sessionId: string; config: AgentConfig; projectRoot?: string },
   },
   actions: {
     incrementMessageCount: assign({
@@ -126,7 +127,7 @@ export const agentMachine = setup({
   context: ({ input }: { input: { sessionId: string; config: AgentConfig; projectRoot?: string } }) => ({
     sessionId: input.sessionId,
     config: input.config,
-    projectRoot: input.projectRoot ?? input.config.cwd,
+    projectRoot: input.projectRoot ?? input.config.cwd ?? ".",
     messageCount: 0,
     buffer: "",
   }),
