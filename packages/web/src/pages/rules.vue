@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { FileText, Loader2, Plus, Save, Trash2 } from "lucide-vue-next";
 import { onMounted, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -14,6 +15,8 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { orpc } from "@/services/orpc";
+
+const { t } = useI18n();
 
 interface GlobalRule {
 	id: string;
@@ -108,7 +111,7 @@ const createRule = async () => {
 };
 
 const deleteRule = async (id: string) => {
-	if (!confirm("Are you sure you want to delete this rule?")) return;
+	if (!confirm(t('rules.confirmDelete'))) return;
 	try {
 		await orpc.deleteGlobalRule({ id });
 		await loadRules();
@@ -140,7 +143,7 @@ onMounted(() => {
     <!-- Left Sidebar: List of Rules -->
     <div class="w-64 flex flex-col border-r pr-6">
        <div class="flex items-center justify-between mb-4">
-           <h2 class="text-xl font-bold">Global Rules</h2>
+           <h2 class="text-xl font-bold">{{ t('rules.title') }}</h2>
            <Button size="icon" variant="ghost" @click="openNewRuleDialog">
                <Plus class="size-4" />
            </Button>
@@ -163,7 +166,7 @@ onMounted(() => {
                  />
                </Button>
                <div v-if="rules.length === 0 && !isLoading" class="text-sm text-muted-foreground text-center py-4">
-                   No rules found.
+                   {{ t('rules.noRules') }}
                </div>
            </div>
        </ScrollArea>
@@ -180,7 +183,7 @@ onMounted(() => {
                 <Button :disabled="isSaving" @click="saveCurrentRule">
                     <Loader2 v-if="isSaving" class="w-4 h-4 mr-2 animate-spin" />
                     <Save class="w-4 h-4 mr-2" v-else />
-                    Save Rule
+                    {{ t('rules.saveRule') }}
                 </Button>
             </div>
             
@@ -196,7 +199,7 @@ onMounted(() => {
         <div v-else class="flex-1 flex items-center justify-center text-muted-foreground">
             <div class="text-center">
                 <FileText class="size-12 mx-auto mb-2 opacity-20" />
-                <p>Select a rule to edit</p>
+                <p>{{ t('rules.selectRule') }}</p>
             </div>
         </div>
     </div>
@@ -205,19 +208,19 @@ onMounted(() => {
     <Dialog :open="isNewRuleOpen" @update:open="isNewRuleOpen = $event">
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Create Global Rule</DialogTitle>
+          <DialogTitle>{{ t('rules.createTitle') }}</DialogTitle>
           <DialogDescription>
-            Enter a name for the new rule (e.g., "Coding Standards", "Git Workflow").
+            {{ t('rules.createDesc') }}
           </DialogDescription>
         </DialogHeader>
         <div class="py-4">
-           <Input v-model="newRuleName" placeholder="Rule Name" @keydown.enter="createRule" />
+           <Input v-model="newRuleName" :placeholder="t('rules.placeholder')" @keydown.enter="createRule" />
         </div>
         <DialogFooter>
-          <Button variant="outline" @click="isNewRuleOpen = false">Cancel</Button>
+          <Button variant="outline" @click="isNewRuleOpen = false">{{ t('general.cancel') }}</Button>
           <Button :disabled="!newRuleName.trim() || isCreating" @click="createRule">
              <Loader2 v-if="isCreating" class="size-4 animate-spin mr-2" />
-             Create
+             {{ t('general.create') }}
           </Button>
         </DialogFooter>
       </DialogContent>

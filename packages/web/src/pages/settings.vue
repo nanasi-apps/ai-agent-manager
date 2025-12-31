@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Check, Eye, EyeOff, Key, Loader2 } from "lucide-vue-next";
 import { computed, onMounted, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,6 +14,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { orpc } from "@/services/orpc";
+
+const { t } = useI18n();
 
 interface ApiSettings {
 	openaiApiKey?: string;
@@ -123,23 +126,23 @@ onMounted(() => {
 <template>
   <div class="p-4 space-y-8">
     <div>
-      <h1 class="text-2xl font-bold mb-2">Settings</h1>
-      <p class="text-muted-foreground">Configure your application settings.</p>
+      <h1 class="text-2xl font-bold mb-2">{{ t('settings.title') }}</h1>
+      <p class="text-muted-foreground">{{ t('settings.description') }}</p>
     </div>
 
     <!-- API Settings Section -->
     <div class="space-y-4">
       <div class="flex items-center gap-2">
         <Key class="size-5" />
-        <h2 class="text-xl font-semibold">API Settings</h2>
+        <h2 class="text-xl font-semibold">{{ t('settings.apiSettings') }}</h2>
       </div>
       <p class="text-sm text-muted-foreground">
-        Configure API keys for direct API-based agents (OpenAI API, Gemini API).
+        {{ t('settings.apiSettingsDesc') }}
       </p>
 
       <div v-if="apiLoading" class="flex items-center gap-2 text-muted-foreground">
         <Loader2 class="size-4 animate-spin" />
-        Loading API settings...
+        {{ t('settings.loading') }}
       </div>
 
       <div v-else class="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -147,20 +150,20 @@ onMounted(() => {
         <Card>
           <CardHeader>
             <div class="flex items-center justify-between">
-              <CardTitle class="text-base">OpenAI API</CardTitle>
+              <CardTitle class="text-base">{{ t('settings.openai.title') }}</CardTitle>
               <Badge v-if="hasOpenaiKey" variant="secondary" class="text-green-600">
                 <Check class="size-3 mr-1" />
-                Configured
+                {{ t('settings.openai.configured') }}
               </Badge>
-              <Badge v-else variant="outline">Not Set</Badge>
+              <Badge v-else variant="outline">{{ t('settings.openai.notSet') }}</Badge>
             </div>
             <CardDescription>
-              Used for OpenAI API agent and compatible services.
+              {{ t('settings.openai.desc') }}
             </CardDescription>
           </CardHeader>
           <CardContent class="space-y-4">
             <div class="space-y-2">
-              <Label>API Key</Label>
+              <Label>{{ t('settings.openai.apiKey') }}</Label>
               <div class="flex gap-2">
                 <div class="relative flex-1">
                   <Input
@@ -184,19 +187,19 @@ onMounted(() => {
                   @click="clearOpenaiKey"
                   :disabled="apiSaving"
                 >
-                  Clear
+                  {{ t('general.clear') }}
                 </Button>
               </div>
             </div>
             <div class="space-y-2">
-              <Label>Base URL (optional)</Label>
+              <Label>{{ t('settings.openai.baseUrl') }}</Label>
               <Input
                 v-model="openaiBaseUrlInput"
                 type="url"
                 placeholder="https://api.openai.com/v1"
               />
               <p class="text-xs text-muted-foreground">
-                Custom endpoint for Azure OpenAI or compatible APIs.
+                {{ t('settings.openai.baseUrlDesc') }}
               </p>
             </div>
           </CardContent>
@@ -206,20 +209,20 @@ onMounted(() => {
         <Card>
           <CardHeader>
             <div class="flex items-center justify-between">
-              <CardTitle class="text-base">Gemini API</CardTitle>
+              <CardTitle class="text-base">{{ t('settings.gemini.title') }}</CardTitle>
               <Badge v-if="hasGeminiKey" variant="secondary" class="text-green-600">
                 <Check class="size-3 mr-1" />
-                Configured
+                {{ t('settings.gemini.configured') }}
               </Badge>
-              <Badge v-else variant="outline">Not Set</Badge>
+              <Badge v-else variant="outline">{{ t('settings.gemini.notSet') }}</Badge>
             </div>
             <CardDescription>
-              Used for Gemini API agent.
+              {{ t('settings.gemini.desc') }}
             </CardDescription>
           </CardHeader>
           <CardContent class="space-y-4">
             <div class="space-y-2">
-              <Label>API Key</Label>
+              <Label>{{ t('settings.gemini.apiKey') }}</Label>
               <div class="flex gap-2">
                 <div class="relative flex-1">
                   <Input
@@ -243,19 +246,19 @@ onMounted(() => {
                   @click="clearGeminiKey"
                   :disabled="apiSaving"
                 >
-                  Clear
+                  {{ t('general.clear') }}
                 </Button>
               </div>
             </div>
             <div class="space-y-2">
-              <Label>Base URL (optional)</Label>
+              <Label>{{ t('settings.gemini.baseUrl') }}</Label>
               <Input
                 v-model="geminiBaseUrlInput"
                 type="url"
                 placeholder="https://generativelanguage.googleapis.com"
               />
               <p class="text-xs text-muted-foreground">
-                Custom endpoint for Gemini API proxy.
+                 {{ t('settings.gemini.baseUrlDesc') }}
               </p>
             </div>
           </CardContent>
@@ -266,7 +269,7 @@ onMounted(() => {
         <Button @click="saveApiSettings" :disabled="apiSaving || apiLoading">
           <Loader2 v-if="apiSaving" class="size-4 mr-2 animate-spin" />
           <Check v-else-if="apiSaveSuccess" class="size-4 mr-2" />
-          {{ apiSaveSuccess ? 'Saved!' : 'Save API Settings' }}
+          {{ apiSaveSuccess ? t('general.saved') : t('settings.saveButton') }}
         </Button>
       </div>
     </div>

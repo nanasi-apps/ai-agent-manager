@@ -1,6 +1,15 @@
 {
   "general": {
-    "cancel": "キャンセル"
+    "cancel": "キャンセル",
+    "save": "保存",
+    "saved": "保存しました！",
+    "delete": "削除",
+    "create": "作成",
+    "loading": "読み込み中...",
+    "refresh": "更新",
+    "enabled": "有効",
+    "disabled": "無効",
+    "clear": "クリア"
   },
   "sidebar": {
     "dashboard": "ダッシュボード",
@@ -18,5 +27,79 @@
     "overview": "概要",
     "close": "サイドバーを閉じる",
     "toggle": "切り替え"
+  },
+  "dashboard": {
+    "title": "ダッシュボード",
+    "subtitle": "最近の作業を続けるか、サイドバーからプロジェクトを選択してください。",
+    "recentConversations": "最近の会話",
+    "noConversations": "最近の会話はありません。サイドバーからプロジェクトを選択して開始してください！"
+  },
+  "inbox": {
+    "title": "インボックス",
+    "message": "ここにメッセージが表示されます。"
+  },
+  "agents": {
+    "title": "エージェント管理",
+    "description": "オーケストレーション機能は現在無効化されているか、リファクタリング中です。"
+  },
+  "mcp": {
+    "title": "MCPサーバー",
+    "description": "AI CLIツールで設定されたMCP (Model Context Protocol) サーバーを表示します",
+    "refresh": "更新",
+    "allServers": "設定済みの全MCPサーバー",
+    "allServersDesc": "すべてのサポートされているCLIツールからのサーバー",
+    "sourceServers": "{source} サーバー",
+    "sourceServersDesc": "{source} 用に設定されたサーバー",
+    "noServers": "MCPサーバーが設定されていません",
+    "noServersIn": "{source} にMCPサーバーが設定されていません",
+    "configureHint": "Gemini CLIまたはClaudeでサーバーを設定すると、ここに表示されます。",
+    "comingSoon": "近日公開: MCPサーバーのセッションごとの有効化/無効化、カスタムサーバーの追加、各サーバーから利用可能なツールの表示。",
+    "table": {
+        "name": "名前",
+        "source": "ソース",
+        "type": "タイプ",
+        "connection": "接続",
+        "status": "ステータス"
+    }
+  },
+  "rules": {
+      "title": "グローバルルール",
+      "noRules": "ルールが見つかりません。",
+      "selectRule": "編集するルールを選択してください",
+      "saveRule": "ルールを保存",
+      "createTitle": "グローバルルールの作成",
+      "createDesc": "新しいルールの名前を入力してください（例：「コーディング規約」、「Gitワークフロー」）。",
+      "placeholder": "ルール名",
+      "confirmDelete": "このルールを削除してもよろしいですか？"
+  },
+  "settings": {
+      "title": "設定",
+      "description": "アプリケーションの設定を行います。",
+      "apiSettings": "API設定",
+      "apiSettingsDesc": "直接APIベースのエージェント（OpenAI API、Gemini API）のAPIキーを設定します。",
+      "loading": "API設定を読み込み中...",
+      "openai": {
+          "title": "OpenAI API",
+          "desc": "OpenAI APIエージェントおよび互換サービスに使用されます。",
+          "configured": "設定済み",
+          "notSet": "未設定",
+          "apiKey": "APIキー",
+          "baseUrl": "ベースURL（オプション）",
+          "baseUrlDesc": "Azure OpenAIまたは互換API用のカスタムエンドポイント。"
+      },
+      "gemini": {
+          "title": "Gemini API",
+          "desc": "Gemini APIエージェントに使用されます。",
+          "configured": "設定済み",
+          "notSet": "未設定",
+          "apiKey": "APIキー",
+          "baseUrl": "ベースURL（オプション）",
+          "baseUrlDesc": "Gemini APIプロキシ用のカスタムエンドポイント。"
+      },
+      "saveButton": "API設定を保存"
+  },
+  "time": {
+      "justNow": "たった今",
+      "ago": "{time}前"
   }
 }
