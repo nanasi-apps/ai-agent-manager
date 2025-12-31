@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import type { AgentMode, ReasoningLevel } from "@agent-manager/shared";
+import { computed } from "vue";
 import { ChevronDown, Loader2, Send, Square } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { ModelTemplate } from "@/composables/useConversation";
+import { groupModelTemplates } from "@/lib/modelTemplateGroups";
 
 const props = defineProps<{
 	input: string;
@@ -42,12 +44,9 @@ const modeOptions: { label: string; value: AgentMode }[] = [
 	{ label: "Agent", value: "regular" },
 ];
 
-const formatModelLabel = (model: ModelTemplate) => {
-	if (!model.agentName || model.name.includes(model.agentName)) {
-		return model.name;
-	}
-	return `${model.name} (${model.agentName})`;
-};
+const groupedModelTemplates = computed(() =>
+	groupModelTemplates(props.modelTemplates),
+);
 
 const handleKeydown = (e: KeyboardEvent) => {
 	if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
@@ -119,9 +118,15 @@ const handleKeydown = (e: KeyboardEvent) => {
 								class="h-6 w-auto min-w-[140px] rounded-md border border-input bg-transparent px-2 text-[10px] shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 appearance-none pr-6 cursor-pointer hover:bg-accent/50"
 								:disabled="isUpdatingAgent || isLoading || modelTemplates.length === 0"
 							>
-								<option v-for="m in modelTemplates" :key="m.id" :value="m.id">
-									{{ formatModelLabel(m) }}
-								</option>
+								<optgroup
+									v-for="group in groupedModelTemplates"
+									:key="group.agentType"
+									:label="group.label"
+								>
+									<option v-for="m in group.models" :key="m.id" :value="m.id">
+										{{ m.name }}
+									</option>
+								</optgroup>
 							</select>
 							<div
 								class="pointer-events-none absolute inset-y-0 right-0 gap-1 px-2 flex items-center text-muted-foreground"

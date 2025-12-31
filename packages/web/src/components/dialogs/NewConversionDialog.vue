@@ -12,20 +12,14 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import type { ModelTemplate } from "@/composables/useConversation";
 import { useNewConversionDialog } from "@/composables/useNewConversionDialog";
+import { groupModelTemplates } from "@/lib/modelTemplateGroups";
 import { orpc } from "@/services/orpc";
 
 interface Project {
 	id: string;
 	name: string;
-}
-
-interface ModelTemplate {
-	id: string;
-	name: string;
-	agentType: string;
-	agentName: string;
-	model?: string;
 }
 
 const {
@@ -59,12 +53,9 @@ const modeOptions: { label: string; value: AgentMode }[] = [
 	{ label: "Agent", value: "regular" },
 ];
 
-const formatModelLabel = (model: ModelTemplate) => {
-	if (!model.agentName || model.name.includes(model.agentName)) {
-		return model.name;
-	}
-	return `${model.name} (${model.agentName})`;
-};
+const groupedModelTemplates = computed(() =>
+	groupModelTemplates(modelTemplates.value),
+);
 
 const selectedModelTemplate = computed(() =>
 	modelTemplates.value.find((m) => m.id === selectedModelId.value),
@@ -206,9 +197,15 @@ const handleKeydown = (e: KeyboardEvent) => {
                                 v-model="selectedModelId"
                                 class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 appearance-none"
                             >
-                                <option v-for="m in modelTemplates" :key="m.id" :value="m.id">
-                                    {{ formatModelLabel(m) }}
-                                </option>
+                                <optgroup
+                                    v-for="group in groupedModelTemplates"
+                                    :key="group.agentType"
+                                    :label="group.label"
+                                >
+                                    <option v-for="m in group.models" :key="m.id" :value="m.id">
+                                        {{ m.name }}
+                                    </option>
+                                </optgroup>
                             </select>
                              <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-muted-foreground">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><path d="m6 9 6 6 6-6"/></svg>
