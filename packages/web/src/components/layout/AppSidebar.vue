@@ -47,10 +47,6 @@ const { t } = useI18n();
 
 const projects = ref<ProjectWithConversations[]>([]);
 
-const anyAgentProcessing = computed(() => {
-	return projects.value.some((p) => p.conversations.some((c) => c.isRunning));
-});
-
 // Main navigation items.
 const navItems = computed(() => [
 	{

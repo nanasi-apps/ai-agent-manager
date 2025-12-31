@@ -2,6 +2,7 @@
 import { Check, Eye, EyeOff, Key, Loader2, Globe } from "lucide-vue-next";
 import { computed, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
+import { watchDebounced } from "@vueuse/core";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -69,7 +70,7 @@ async function loadApiSettings() {
 	}
 }
 
-async function saveApiSettings() {
+async function saveApiSettings(isAutoSave = false) {
 	apiSaving.value = true;
 	apiSaveSuccess.value = false;
 	try {
@@ -96,17 +97,27 @@ async function saveApiSettings() {
 
 		if (Object.keys(updates).length > 0) {
 			await orpc.updateApiSettings(updates);
-			// Clear key inputs after save
-			openaiApiKeyInput.value = "";
-			geminiApiKeyInput.value = "";
-			
+
 			// Update locale immediately
 			if (updates.language) {
 				locale.value = updates.language;
 			}
+
+			if (isAutoSave) {
+				// Update local state to reflect changes without reloading/clearing inputs
+				if (updates.openaiApiKey) apiSettings.value.openaiApiKey = "***";
+				if (updates.geminiApiKey) apiSettings.value.geminiApiKey = "***";
+				if (updates.openaiBaseUrl !== undefined) apiSettings.value.openaiBaseUrl = updates.openaiBaseUrl;
+				if (updates.geminiBaseUrl !== undefined) apiSettings.value.geminiBaseUrl = updates.geminiBaseUrl;
+				if (updates.language) apiSettings.value.language = updates.language;
+			} else {
+				// Clear key inputs after manual save
+				openaiApiKeyInput.value = "";
+				geminiApiKeyInput.value = "";
+				// Reload to get updated state
+				await loadApiSettings();
+			}
 			
-			// Reload to get updated state
-			await loadApiSettings();
 			apiSaveSuccess.value = true;
 			setTimeout(() => {
 				apiSaveSuccess.value = false;
@@ -118,6 +129,21 @@ async function saveApiSettings() {
 		apiSaving.value = false;
 	}
 }
+
+// Auto-save watcher
+watchDebounced(
+	[
+		openaiApiKeyInput,
+		openaiBaseUrlInput,
+		geminiApiKeyInput,
+		geminiBaseUrlInput,
+		selectedLanguage,
+	],
+	() => {
+		saveApiSettings(true);
+	},
+	{ debounce: 1000, maxWait: 5000 },
+);
 
 async function clearOpenaiKey() {
 	apiSaving.value = true;
