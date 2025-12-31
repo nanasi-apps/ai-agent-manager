@@ -426,8 +426,14 @@ export const conversationsRouter = {
 			const project = storeInstance.getProject(conv.projectId);
 			const cwd = project?.rootPath || nextTemplate.agent.cwd;
 
-			const previousName = currentTemplate?.name || conv.agentType || "unknown";
-			const label = nextModelLabel || nextTemplate.name;
+			const previousCliName = currentTemplate?.name || conv.agentType || "unknown";
+			const previousModel = conv.agentModel || "default";
+			const previousLabel = `${previousCliName} ${previousModel}`;
+
+			const nextCliName = nextTemplate.name;
+			const nextModel = resolvedModel || "default";
+			const nextLabel = `${nextCliName} ${nextModel}`;
+
 			const agentChanged = conv.agentType !== resolvedAgentType;
 			const modelChanged = conv.agentModel !== resolvedModel;
 			const reasoningChanged = conv.agentReasoning !== resolvedReasoning;
@@ -437,8 +443,8 @@ export const conversationsRouter = {
 				return { success: true, message: "Agent settings unchanged." };
 			}
 			const systemMessage = agentOrModelChanged
-				? `Switched agent from ${previousName} to ${label}.`
-				: `Updated reasoning for ${label} to ${formatReasoningLabel(resolvedReasoning)}.`;
+				? `Switched agent from ${previousLabel} to ${nextLabel}.`
+				: `Updated reasoning for ${nextLabel} to ${formatReasoningLabel(resolvedReasoning)}.`;
 
 			if (modeChanged) {
 				storeInstance.updateConversation(input.sessionId, {
