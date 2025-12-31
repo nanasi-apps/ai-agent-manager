@@ -1,7 +1,7 @@
 export { execFileAsync, getEnhancedEnv } from "./exec-helpers";
 export {
-    getCurrentBranch,
-    getConflictedFiles,
-    runGit,
-    runGtr,
+	getConflictedFiles,
+	getCurrentBranch,
+	runGit,
+	runGtr,
 } from "./git-helpers";

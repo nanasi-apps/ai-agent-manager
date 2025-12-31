@@ -4,8 +4,6 @@ import { statSync } from "node:fs";
 import type { AgentConfig, AgentLogPayload } from "@agent-manager/shared";
 import * as fs from "fs/promises";
 import { createActor, type SnapshotFrom } from "xstate";
-import { agentMachine, type AgentContext } from "./machines/agent-machine";
-import type { AgentStateChangePayload, SessionState } from "./types";
 import type { WorktreeResumeRequest } from "./agent-manager";
 import { isAgentType } from "./agent-type-utils";
 import {
@@ -24,7 +22,9 @@ import {
 	prepareCodexEnv,
 	prepareGeminiEnv,
 } from "./env-utils";
+import { type AgentContext, agentMachine } from "./machines/agent-machine";
 import { AgentOutputParser } from "./output-parser";
+import type { AgentStateChangePayload, SessionState } from "./types";
 
 type AgentMachineSnapshot = SnapshotFrom<typeof agentMachine>;
 
@@ -227,10 +227,10 @@ export class OneShotSession extends EventEmitter {
 
 		const resumeMessage =
 			request.resumeMessage ?? this.getResumeMessageForWorktree(request);
-		
+
 		this.actor.send({
 			type: "SET_PENDING_WORKTREE_RESUME",
-			pending: { request, resumeMessage }
+			pending: { request, resumeMessage },
 		});
 
 		this.emitLog(
@@ -244,10 +244,7 @@ export class OneShotSession extends EventEmitter {
 
 		if (isProcessRunning) {
 			setTimeout(() => {
-				if (
-					this.currentProcess === currentProcess &&
-					currentProcess.pid
-				) {
+				if (this.currentProcess === currentProcess && currentProcess.pid) {
 					console.log(
 						`[OneShotSession ${this.sessionId}] Killing process (pid=${currentProcess.pid}) for worktree switch`,
 					);
@@ -299,7 +296,7 @@ export class OneShotSession extends EventEmitter {
 		if (currentState.messageCount === 0) {
 			// this.stateManager.resetInvalidGeminiSession();
 			// Handled by machine logic or needs event?
-			
+
 			const baseRules = currentState.config.rulesContent ?? "";
 			const worktreeInstructions = this.getWorktreeInstructions();
 			const parts = [baseRules, worktreeInstructions].filter(Boolean);
@@ -358,7 +355,7 @@ export class OneShotSession extends EventEmitter {
 				cwd: finalCwd,
 				env: spawnEnv,
 				shell: true,
-				detached: true, 
+				detached: true,
 			});
 
 			this.currentProcess = child;
@@ -403,7 +400,10 @@ export class OneShotSession extends EventEmitter {
 				mode: state.config.mode,
 			});
 			if (geminiEnv.HOME) {
-				this.actor.send({ type: "SET_AGENT_DATA", data: { geminiHome: geminiEnv.HOME } });
+				this.actor.send({
+					type: "SET_AGENT_DATA",
+					data: { geminiHome: geminiEnv.HOME },
+				});
 			}
 			spawnEnv = { ...spawnEnv, ...geminiEnv };
 		}
@@ -419,7 +419,10 @@ export class OneShotSession extends EventEmitter {
 		if (isClaude) {
 			const claudeEnv = await prepareClaudeEnv(mcpServerUrl, state.claudeHome);
 			if (claudeEnv.CLAUDE_CONFIG_DIR) {
-				this.actor.send({ type: "SET_AGENT_DATA", data: { claudeHome: claudeEnv.CLAUDE_CONFIG_DIR } });
+				this.actor.send({
+					type: "SET_AGENT_DATA",
+					data: { claudeHome: claudeEnv.CLAUDE_CONFIG_DIR },
+				});
 			}
 			spawnEnv = { ...spawnEnv, ...claudeEnv };
 		}
@@ -466,7 +469,7 @@ export class OneShotSession extends EventEmitter {
 		// Transition to idle
 		this.actor.send({ type: "AGENT_COMPLETE" });
 		this.currentProcess = undefined;
-		
+
 		console.log(
 			`[OneShotSession ${this.sessionId}] Process exited with code ${code}, hasPendingResume=${hasPendingResume}`,
 		);
@@ -544,12 +547,15 @@ export class OneShotSession extends EventEmitter {
 
 				for (const log of logs) {
 					if (log.metadata?.geminiSessionId) {
-						this.actor.send({ type: "SET_GEMINI_SESSION", id: log.metadata.geminiSessionId });
+						this.actor.send({
+							type: "SET_GEMINI_SESSION",
+							id: log.metadata.geminiSessionId,
+						});
 					}
 					if (log.metadata?.codexThreadId) {
 						// this.stateManager.setCodexThreadId(log.metadata.codexThreadId);
 						// Need event for codex too or generic setAgentData
-						// I didn't add SET_CODEX_THREAD_ID. 
+						// I didn't add SET_CODEX_THREAD_ID.
 						// I'll ignore for now or assume it's part of context not needing explicit set?
 						// Wait, it is persistent. I need to set it.
 						// I'll use SET_AGENT_DATA if I add it? No, generic is risky.
@@ -587,7 +593,7 @@ export class OneShotSession extends EventEmitter {
 				cwd: pending.request.cwd,
 				branch: pending.request.branch,
 				repoPath: pending.request.repoPath,
-			}
+			},
 		});
 
 		this.emitLog(
@@ -612,7 +618,10 @@ export class OneShotSession extends EventEmitter {
 		const fallbackCwd = state.projectRoot;
 		if (fallbackCwd && (await this.pathExists(fallbackCwd))) {
 			if (requestedCwd) {
-				this.actor.send({ type: "UPDATE_CONFIG", config: { cwd: fallbackCwd } });
+				this.actor.send({
+					type: "UPDATE_CONFIG",
+					config: { cwd: fallbackCwd },
+				});
 				if (state.activeWorktree) {
 					this.actor.send({ type: "CLEAR_ACTIVE_WORKTREE" });
 				}

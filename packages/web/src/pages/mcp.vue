@@ -54,7 +54,9 @@ const servers = ref<McpServersBySource>({
 	claudeCode: [],
 });
 const isLoading = ref(false);
-const activeFilter = ref<"all" | "gemini" | "claude-desktop" | "claude-code">("all");
+const activeFilter = ref<"all" | "gemini" | "claude-desktop" | "claude-code">(
+	"all",
+);
 
 const loadServers = async () => {
 	isLoading.value = true;
@@ -100,7 +102,9 @@ const getSourceLabel = (source: McpServerEntry["source"]) => {
 	}
 };
 
-const getSourceVariant = (source: McpServerEntry["source"]): "default" | "secondary" | "outline" => {
+const getSourceVariant = (
+	source: McpServerEntry["source"],
+): "default" | "secondary" | "outline" => {
 	switch (source) {
 		case "gemini":
 			return "default";

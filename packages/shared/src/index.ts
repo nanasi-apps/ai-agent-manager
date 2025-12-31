@@ -5,10 +5,10 @@ export type { AppRouter, IAgentManager } from "./router";
 // Router
 export {
 	appRouter,
-	mcpRouter,
 	getSessionMcpServersLogic,
-	listMcpToolsLogic,
 	getStoreOrThrow,
+	listMcpToolsLogic,
+	mcpRouter,
 	setAgentManager,
 	setNativeDialog,
 	setStore,

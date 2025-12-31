@@ -9,11 +9,17 @@ type AgentStatePortMessage = {
 const ports = new Set<MessagePortMain>();
 const lastStates = new Map<string, AgentStatePayload>();
 
-function safePostMessage(port: MessagePortMain, message: AgentStatePortMessage) {
+function safePostMessage(
+	port: MessagePortMain,
+	message: AgentStatePortMessage,
+) {
 	try {
 		port.postMessage(message);
 	} catch (error) {
-		console.warn("[AgentStatePort] Failed to post message, removing port", error);
+		console.warn(
+			"[AgentStatePort] Failed to post message, removing port",
+			error,
+		);
 		ports.delete(port);
 	}
 }

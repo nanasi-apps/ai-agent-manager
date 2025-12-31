@@ -31,13 +31,25 @@ export async function prepareGeminiEnv(
 	try {
 		const { tmpdir } = await import("os");
 		if (existingHome) {
-			await ensureGeminiSettings(existingHome, mcpServerUrl, options.mode, false, !!apiKey);
+			await ensureGeminiSettings(
+				existingHome,
+				mcpServerUrl,
+				options.mode,
+				false,
+				!!apiKey,
+			);
 			return { ...env, HOME: existingHome };
 		}
 
 		const uniqueId = Math.random().toString(36).substring(7);
 		const tempHome = path.join(tmpdir(), `agent-manager-gemini-${uniqueId}`);
-		await ensureGeminiSettings(tempHome, mcpServerUrl, options.mode, true, !!apiKey);
+		await ensureGeminiSettings(
+			tempHome,
+			mcpServerUrl,
+			options.mode,
+			true,
+			!!apiKey,
+		);
 
 		return { ...env, HOME: tempHome };
 	} catch (error) {

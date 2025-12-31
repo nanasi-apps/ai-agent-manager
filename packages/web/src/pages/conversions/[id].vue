@@ -13,7 +13,7 @@ import {
 	ResizablePanel,
 	ResizablePanelGroup,
 } from "@/components/ui/resizable";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import type { ScrollArea } from "@/components/ui/scroll-area";
 import { useConversation } from "@/composables/useConversation";
 import { onAgentStateChangedPort } from "@/services/agent-state-port";
 

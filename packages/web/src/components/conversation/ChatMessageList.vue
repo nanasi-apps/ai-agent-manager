@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import type { Message, LogType } from "@/composables/useConversation";
 import {
 	AlertCircle,
 	Check,
@@ -11,6 +10,7 @@ import {
 	Terminal,
 } from "lucide-vue-next";
 import { Avatar } from "@/components/ui/avatar";
+import type { LogType, Message } from "@/composables/useConversation";
 import { useMarkdown } from "@/composables/useMarkdown";
 
 const props = defineProps<{

@@ -4,12 +4,9 @@ import { agentsRouter } from "./agents";
 import { apiSettingsRouter } from "./api-settings";
 import { conversationsRouter } from "./conversations";
 import { locksRouter } from "./locks";
-import {
-	getSessionMcpServersLogic,
-	listMcpToolsLogic,
-	mcpRouter,
-} from "./mcp";
+import { getSessionMcpServersLogic, listMcpToolsLogic, mcpRouter } from "./mcp";
 export { getSessionMcpServersLogic, listMcpToolsLogic, mcpRouter };
+
 import { modelsRouter } from "./models";
 import { projectsRouter } from "./projects";
 // Import all sub-routers

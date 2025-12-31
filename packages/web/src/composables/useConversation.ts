@@ -1,902 +1,904 @@
 import type {
-    AgentLogPayload,
-    AgentMode,
-    AgentStatePayload,
-    ReasoningLevel,
+	AgentLogPayload,
+	AgentMode,
+	AgentStatePayload,
+	ReasoningLevel,
 } from "@agent-manager/shared";
 import { computed, ref, watch } from "vue";
 import { orpc } from "@/services/orpc";
 
 export type LogType =
-    | "text"
-    | "tool_call"
-    | "tool_result"
-    | "thinking"
-    | "error"
-    | "system";
+	| "text"
+	| "tool_call"
+	| "tool_result"
+	| "thinking"
+	| "error"
+	| "system";
 
 export interface Message {
-    id: string;
-    role: "user" | "agent" | "system";
-    content: string;
-    timestamp: number;
-    logType?: LogType;
+	id: string;
+	role: "user" | "agent" | "system";
+	content: string;
+	timestamp: number;
+	logType?: LogType;
 }
 
 export interface ModelTemplate {
-    id: string;
-    name: string;
-    agentType: string;
-    agentName: string;
-    model?: string;
+	id: string;
+	name: string;
+	agentType: string;
+	agentName: string;
+	model?: string;
 }
 
 export interface McpServerEntry {
-    name: string;
-    source: "gemini" | "claude-desktop" | "claude-code" | "agent-manager";
-    enabled: boolean;
-    config: {
-        url?: string;
-        command?: string;
-        args?: string[];
-        type?: string;
-    };
+	name: string;
+	source: "gemini" | "claude-desktop" | "claude-code" | "agent-manager";
+	enabled: boolean;
+	config: {
+		url?: string;
+		command?: string;
+		args?: string[];
+		type?: string;
+	};
 }
 
 export interface McpTool {
-    name: string;
-    description?: string;
-    inputSchema?: unknown;
+	name: string;
+	description?: string;
+	inputSchema?: unknown;
 }
 
 export const reasoningOptions: { label: string; value: ReasoningLevel }[] = [
-    { label: "Low", value: "low" },
-    { label: "Middle", value: "middle" },
-    { label: "High", value: "high" },
-    { label: "Extra High", value: "extraHigh" },
+	{ label: "Low", value: "low" },
+	{ label: "Middle", value: "middle" },
+	{ label: "High", value: "high" },
+	{ label: "Extra High", value: "extraHigh" },
 ];
 
 export const modeOptions: { label: string; value: AgentMode }[] = [
-    { label: "Ask", value: "ask" },
-    { label: "Plan", value: "plan" },
-    { label: "Agent", value: "regular" },
+	{ label: "Ask", value: "ask" },
+	{ label: "Plan", value: "plan" },
+	{ label: "Agent", value: "regular" },
 ];
 
 export function useConversation(initialSessionId: string) {
-    // Core state
-    const sessionId = ref(initialSessionId);
-    const messages = ref<Message[]>([]);
-    const input = ref("");
-    const isLoading = ref(false);
-    const isGenerating = ref(false);
-    const isConnected = ref(false);
-
-    // Title state
-    const conversationTitle = ref("");
-    const titleDraft = ref("");
-    const isSavingTitle = ref(false);
-
-    // Model state
-    const modelTemplates = ref<ModelTemplate[]>([]);
-    const modelIdDraft = ref("");
-    const currentModelId = ref("");
-    const conversationAgentType = ref<string | null>(null);
-    const conversationAgentModel = ref<string | null>(null);
-    const isSwappingModel = ref(false);
-    const isUpdatingReasoning = ref(false);
-    const isUpdatingMode = ref(false);
-
-    // Reasoning/Mode state
-    const reasoningDraft = ref<ReasoningLevel>("middle");
-    const currentReasoning = ref<ReasoningLevel | null>(null);
-    const modeDraft = ref<AgentMode>("regular");
-    const currentMode = ref<AgentMode | null>(null);
-
-    // Branch state
-    const currentBranch = ref<string | null>(null);
-    const projectId = ref<string | null>(null);
-
-    // UI state
-    const copiedId = ref<string | null>(null);
-    const expandedMessageIds = ref(new Set<string>());
-
-    // MCP state
-    const isMcpSheetOpen = ref(false);
-    const isLoadingMcp = ref(false);
-    const sessionMcpServers = ref<McpServerEntry[]>([]);
-    const globalMcpServers = ref<McpServerEntry[]>([]);
-    const mcpAgentType = ref<string | undefined>();
-    const expandedMcpServer = ref<string | null>(null);
-    const mcpServerTools = ref<McpTool[]>([]);
-    const isLoadingMcpTools = ref(false);
-    const mcpToolsError = ref<string | null>(null);
-    const disabledMcpTools = ref(new Set<string>());
-
-    // Computed
-    const selectedModelTemplate = computed(() =>
-        modelTemplates.value.find((m) => m.id === modelIdDraft.value),
-    );
-
-    const supportsReasoning = computed(() => {
-        const template = selectedModelTemplate.value;
-        if (!template || template.agentType !== "codex") return false;
-        if (!template.model) return true;
-        return template.model.toLowerCase().startsWith("gpt");
-    });
-
-    const isUpdatingAgent = computed(
-        () =>
-            isSwappingModel.value || isUpdatingReasoning.value || isUpdatingMode.value,
-    );
-
-    // Helpers
-    const matchesStateValue = (
-        value: AgentStatePayload["value"],
-        target: string,
-    ): boolean => {
-        if (typeof value === "string") return value === target;
-        if (!value || typeof value !== "object") return false;
-        if (target in value) return true;
-        return Object.values(value).some((child) =>
-            matchesStateValue(child as AgentStatePayload["value"], target),
-        );
-    };
-
-    const formatModelLabel = (model: ModelTemplate) => {
-        if (!model.agentName || model.name.includes(model.agentName)) {
-            return model.name;
-        }
-        return `${model.name} (${model.agentName})`;
-    };
-
-    const formatReasoningLabel = (level: ReasoningLevel) => {
-        switch (level) {
-            case "extraHigh":
-                return "Extra High";
-            case "middle":
-                return "Middle";
-            case "high":
-                return "High";
-            case "low":
-                return "Low";
-            default:
-                return level;
-        }
-    };
-
-    const formatModeLabel = (mode: AgentMode) => {
-        switch (mode) {
-            case "plan":
-                return "Plan";
-            case "regular":
-                return "Agent";
-            case "ask":
-                return "Ask";
-            default:
-                return mode;
-        }
-    };
-
-    const formatTime = (timestamp: number) => {
-        return new Date(timestamp).toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-        });
-    };
-
-    // Message helpers
-    const getLogSummary = (msg: Message) => {
-        const content = msg.content || "";
-        const type = msg.logType;
-
-        if (type === "tool_call") {
-            const toolMatch = content.match(/\[Tool: ([^\]]+)\]/);
-            if (toolMatch) return toolMatch[1];
-            const execMatch = content.match(/\[Executing: ([^\]]+)\]/);
-            if (execMatch) return execMatch[1];
-            return "Tool Call";
-        }
-
-        if (type === "tool_result") {
-            const resultMatch = content.match(/\[Result: ([^\]]+)\]/);
-            if (resultMatch) return `Result (${resultMatch[1]})`;
-            if (content.includes("[Output]")) return "Output";
-            if (content.includes("[File ")) return "File Change";
-            return "Tool Result";
-        }
-
-        if (type === "error") return "Error";
-        if (type === "thinking") return "Thinking";
-
-        if (type === "system") {
-            const modelMatch = content.match(/\[Using model: ([^\]]+)\]/);
-            if (modelMatch) return `Model: ${modelMatch[1]}`;
-            return "System";
-        }
-
-        return type?.replace("_", " ") || "Log";
-    };
-
-    const getCleanContent = (content: string, logType?: LogType) => {
-        if (!logType || logType === "text") return content.trim();
-
-        let clean = content;
-        const prefixes = [
-            /^\s*\[Tool: [^\]]+\]\s*/,
-            /^\s*\[Executing: [^\]]+\]\s*/,
-            /^\s*\[Result(: [^\]]+)?\]\s*/,
-            /^\s*\[Thinking\]\s*/,
-            /^\s*\[Error\]\s*/,
-            /^\s*\[System\]\s*/,
-            /^\s*\[Using model: [^\]]+\]\s*/,
-            /^\s*\[Output\]\s*/,
-            /^\s*\[File [^:]+: [^\]]+\]\s*/,
-            /^\s*\[Exit code: [^\]]+\]\s*/,
-            /^\s*\[Session started\]\s*/,
-        ];
-
-        for (const p of prefixes) {
-            clean = clean.replace(p, "");
-        }
-
-        return clean.trim();
-    };
-
-    const sanitizeLogContent = (content: string, logType?: LogType) => {
-        const clean = getCleanContent(content, logType);
-
-        if (!clean) return "_No content_";
-
-        if (logType === "tool_call") {
-            return "```json\n" + clean + "\n```";
-        }
-
-        if (logType === "tool_result") {
-            if (clean.startsWith("```")) return clean;
-            return "```\n" + clean + "\n```";
-        }
-
-        return clean;
-    };
-
-    const hasContent = (msg: Message) => {
-        return getCleanContent(msg.content, msg.logType).length > 0;
-    };
-
-    const isAlwaysOpen = (msg: Message) => {
-        return msg.logType === "system" && hasContent(msg);
-    };
-
-    const toggleMessage = (id: string) => {
-        if (expandedMessageIds.value.has(id)) {
-            expandedMessageIds.value.delete(id);
-        } else {
-            expandedMessageIds.value.add(id);
-        }
-    };
-
-    const copyMessage = async (content: string, id: string) => {
-        try {
-            const plainText = content.replace(/<[^>]*>/g, "");
-            await navigator.clipboard.writeText(plainText);
-            copiedId.value = id;
-            setTimeout(() => (copiedId.value = null), 2000);
-        } catch (err) {
-            console.error("Failed to copy:", err);
-        }
-    };
-
-    // API calls
-    const loadModelTemplates = async () => {
-        try {
-            modelTemplates.value = await orpc.listModelTemplates({});
-        } catch (err) {
-            console.error("Failed to load model templates:", err);
-        }
-    };
-
-    const applyConversationModelSelection = () => {
-        if (modelTemplates.value.length === 0) return;
-
-        const match = modelTemplates.value.find(
-            (template) =>
-                template.agentType === conversationAgentType.value &&
-                (template.model || "") === (conversationAgentModel.value || ""),
-        );
-
-        const preferred = modelTemplates.value.find(
-            (model) => model.agentType !== "default",
-        );
-        const nextId = match?.id || preferred?.id || modelTemplates.value[0]!.id;
-        currentModelId.value = nextId;
-        modelIdDraft.value = nextId;
-    };
-
-    const setModelFromConversation = (
-        agentType?: string,
-        agentModel?: string,
-        agentReasoning?: ReasoningLevel,
-        agentMode?: AgentMode,
-    ) => {
-        conversationAgentType.value = agentType || null;
-        conversationAgentModel.value = agentModel || null;
-        applyConversationModelSelection();
-        const nextReasoning = agentReasoning ?? "middle";
-        currentReasoning.value = nextReasoning;
-        reasoningDraft.value = nextReasoning;
-
-        const nextMode = agentMode ?? "regular";
-        currentMode.value = nextMode;
-        modeDraft.value = nextMode;
-    };
-
-    const loadBranchInfo = async (sid: string, pid?: string) => {
-        try {
-            currentBranch.value = await orpc.getCurrentBranch({
-                sessionId: sid,
-                projectId: pid,
-            });
-        } catch (e) {
-            console.error("Failed to load branch info:", e);
-            currentBranch.value = null;
-        }
-    };
-
-    const loadConversationMeta = async (id: string) => {
-        try {
-            const conv = await orpc.getConversation({ sessionId: id });
-            if (conv) {
-                conversationTitle.value = conv.title;
-                titleDraft.value = conv.title;
-                projectId.value = conv.projectId;
-                setModelFromConversation(
-                    conv.agentType,
-                    conv.agentModel,
-                    conv.agentReasoning,
-                    conv.agentMode,
-                );
-                loadBranchInfo(id, conv.projectId);
-                if (conv.disabledMcpTools) {
-                    disabledMcpTools.value = new Set(conv.disabledMcpTools);
-                } else {
-                    disabledMcpTools.value = new Set();
-                }
-            } else {
-                conversationTitle.value = "Untitled Session";
-                titleDraft.value = conversationTitle.value;
-                projectId.value = null;
-                setModelFromConversation(undefined, undefined, undefined, undefined);
-            }
-        } catch (err) {
-            console.error("Failed to load conversation metadata:", err);
-        }
-    };
-
-    const loadConversation = async (id: string) => {
-        try {
-            await loadConversationMeta(id);
-            const running = await orpc.isAgentRunning({ sessionId: id });
-            isGenerating.value = running;
-
-            const savedMessages = await orpc.getMessages({ sessionId: id });
-            if (savedMessages && savedMessages.length > 0) {
-                messages.value = savedMessages.map((m) => ({
-                    id: m.id,
-                    role: m.role,
-                    content: m.content,
-                    timestamp: m.timestamp,
-                    logType: m.logType,
-                }));
-            }
-        } catch (err) {
-            console.error("Failed to load conversation:", err);
-        }
-    };
-
-    const normalizeTitle = (value: string) => {
-        const trimmed = value.trim();
-        return trimmed.length ? trimmed : "Untitled Session";
-    };
-
-    const saveTitle = async () => {
-        const nextTitle = normalizeTitle(titleDraft.value);
-        if (nextTitle === conversationTitle.value || isSavingTitle.value) {
-            titleDraft.value = conversationTitle.value;
-            return;
-        }
-
-        isSavingTitle.value = true;
-        try {
-            const result = await orpc.updateConversationTitle({
-                sessionId: sessionId.value,
-                title: nextTitle,
-            });
-            if (result.success) {
-                conversationTitle.value = nextTitle;
-                titleDraft.value = nextTitle;
-                window.dispatchEvent(new Event("agent-manager:data-change"));
-            }
-        } catch (err) {
-            console.error("Failed to update conversation title:", err);
-            titleDraft.value = conversationTitle.value;
-        } finally {
-            isSavingTitle.value = false;
-        }
-    };
-
-    const swapModel = async () => {
-        const nextId = modelIdDraft.value;
-        if (!nextId || nextId === currentModelId.value || isSwappingModel.value)
-            return;
-
-        const previousId = currentModelId.value;
-        isSwappingModel.value = true;
-        const nextTemplate = modelTemplates.value.find((m) => m.id === nextId);
-        const nextName = nextTemplate
-            ? formatModelLabel(nextTemplate)
-            : "next agent";
-
-        messages.value.push({
-            id: crypto.randomUUID(),
-            role: "system",
-            content: `Handing over conversation to **${nextName}**...`,
-            timestamp: Date.now(),
-            logType: "system",
-        });
-
-        try {
-            const result = await orpc.swapConversationAgent({
-                sessionId: sessionId.value,
-                modelId: nextId,
-                reasoning: supportsReasoning.value ? reasoningDraft.value : undefined,
-            });
-            if (!result.success) {
-                throw new Error(result.message || "Failed to swap model");
-            }
-
-            currentModelId.value = nextId;
-            currentReasoning.value = supportsReasoning.value
-                ? reasoningDraft.value
-                : null;
-            if (result.message) {
-                messages.value.push({
-                    id: crypto.randomUUID(),
-                    role: "system",
-                    content: result.message,
-                    timestamp: Date.now(),
-                    logType: "system",
-                });
-            }
-            window.dispatchEvent(new Event("agent-manager:data-change"));
-        } catch (err) {
-            console.error("Failed to swap model:", err);
-            modelIdDraft.value = previousId;
-            messages.value.push({
-                id: crypto.randomUUID(),
-                role: "system",
-                content: `Failed to swap model: ${err}`,
-                timestamp: Date.now(),
-                logType: "error",
-            });
-        } finally {
-            isSwappingModel.value = false;
-        }
-    };
-
-    const updateReasoning = async () => {
-        if (!supportsReasoning.value) return;
-
-        const nextReasoning = reasoningDraft.value;
-        if (nextReasoning === currentReasoning.value || isUpdatingReasoning.value)
-            return;
-
-        isUpdatingReasoning.value = true;
-        messages.value.push({
-            id: crypto.randomUUID(),
-            role: "system",
-            content: `Updating reasoning to **${formatReasoningLabel(nextReasoning)}**...`,
-            timestamp: Date.now(),
-            logType: "system",
-        });
-
-        try {
-            const result = await orpc.swapConversationAgent({
-                sessionId: sessionId.value,
-                modelId: currentModelId.value,
-                reasoning: nextReasoning,
-            });
-            if (!result.success) {
-                throw new Error(result.message || "Failed to update reasoning");
-            }
-
-            currentReasoning.value = nextReasoning;
-            if (result.message) {
-                messages.value.push({
-                    id: crypto.randomUUID(),
-                    role: "system",
-                    content: result.message,
-                    timestamp: Date.now(),
-                    logType: "system",
-                });
-            }
-            window.dispatchEvent(new Event("agent-manager:data-change"));
-        } catch (err) {
-            console.error("Failed to update reasoning:", err);
-            reasoningDraft.value = currentReasoning.value ?? "middle";
-            messages.value.push({
-                id: crypto.randomUUID(),
-                role: "system",
-                content: `Failed to update reasoning: ${err}`,
-                timestamp: Date.now(),
-                logType: "error",
-            });
-        } finally {
-            isUpdatingReasoning.value = false;
-        }
-    };
-
-    const updateMode = async () => {
-        const nextMode = modeDraft.value;
-        if (nextMode === currentMode.value || isUpdatingMode.value) return;
-
-        isUpdatingMode.value = true;
-        messages.value.push({
-            id: crypto.randomUUID(),
-            role: "system",
-            content: `Updating mode to **${formatModeLabel(nextMode)}**...`,
-            timestamp: Date.now(),
-            logType: "system",
-        });
-
-        try {
-            const result = await orpc.swapConversationAgent({
-                sessionId: sessionId.value,
-                mode: nextMode,
-            });
-            if (!result.success) {
-                throw new Error(result.message || "Failed to update mode");
-            }
-
-            currentMode.value = nextMode;
-            if (result.message) {
-                messages.value.push({
-                    id: crypto.randomUUID(),
-                    role: "system",
-                    content: result.message,
-                    timestamp: Date.now(),
-                    logType: "system",
-                });
-            }
-            window.dispatchEvent(new Event("agent-manager:data-change"));
-        } catch (err) {
-            console.error("Failed to update mode:", err);
-            modeDraft.value = currentMode.value ?? "regular";
-            messages.value.push({
-                id: crypto.randomUUID(),
-                role: "system",
-                content: `Failed to update mode: ${err}`,
-                timestamp: Date.now(),
-                logType: "error",
-            });
-        } finally {
-            isUpdatingMode.value = false;
-        }
-    };
-
-    const appendAgentLog = (payload: AgentLogPayload) => {
-        const content = payload.data;
-        if (!content.trim()) return;
-
-        // Detect worktree-related changes and refresh branch info
-        if (
-            content.includes("Scheduled resume in worktree") ||
-            content.includes("Worktree created") ||
-            content.includes("[Agent Manager] Scheduled resume") ||
-            content.includes("Switching to worktree")
-        ) {
-            setTimeout(() => {
-                loadBranchInfo(sessionId.value, projectId.value ?? undefined);
-            }, 500);
-        }
-
-        const incomingType = payload.type || "text";
-        const incomingRole = incomingType === "system" ? "system" : "agent";
-
-        const lastMsg = messages.value[messages.value.length - 1];
-
-        let merged = false;
-        if (lastMsg) {
-            const lastType = lastMsg.logType || "text";
-
-            if (lastMsg.role === incomingRole) {
-                if (incomingType === "text" && lastType === "text") {
-                    lastMsg.content += content;
-                    merged = true;
-                } else if (incomingType !== "text" && incomingType === lastType) {
-                    lastMsg.content += content;
-                    merged = true;
-                }
-            }
-        }
-
-        if (!merged) {
-            messages.value.push({
-                id: crypto.randomUUID(),
-                role: incomingRole,
-                content,
-                timestamp: Date.now(),
-                logType: incomingType as LogType,
-            });
-        }
-    };
-
-    const sendMessage = async (scrollToBottom: () => void) => {
-        if (!input.value.trim()) return;
-
-        isLoading.value = true;
-
-        if (modelIdDraft.value && modelIdDraft.value !== currentModelId.value) {
-            if (isSwappingModel.value) {
-                while (isSwappingModel.value) {
-                    await new Promise((resolve) => setTimeout(resolve, 100));
-                }
-            } else {
-                await swapModel();
-            }
-
-            if (currentModelId.value !== modelIdDraft.value) {
-                isLoading.value = false;
-                return;
-            }
-        }
-
-        const messageText = input.value;
-        input.value = "";
-
-        messages.value.push({
-            id: crypto.randomUUID(),
-            role: "user",
-            content: messageText,
-            timestamp: Date.now(),
-        });
-
-        scrollToBottom();
-
-        isGenerating.value = true;
-
-        try {
-            await orpc.sendMessage({
-                sessionId: sessionId.value,
-                message: messageText,
-            });
-        } catch (err) {
-            console.error("Failed to send message", err);
-            isGenerating.value = false;
-            messages.value.push({
-                id: crypto.randomUUID(),
-                role: "system",
-                content: `Failed to send message: ${err}`,
-                timestamp: Date.now(),
-                logType: "error",
-            });
-        } finally {
-            isLoading.value = false;
-        }
-    };
-
-    const stopGeneration = async () => {
-        try {
-            await orpc.stopSession({ sessionId: sessionId.value });
-        } catch (err) {
-            console.error("Failed to stop session:", err);
-        }
-        isGenerating.value = false;
-        isLoading.value = false;
-    };
-
-    // MCP functions
-    const loadMcpServers = async () => {
-        isLoadingMcp.value = true;
-        try {
-            const result = await orpc.getSessionMcpServers({
-                sessionId: sessionId.value,
-            });
-            sessionMcpServers.value = result.sessionServers;
-            globalMcpServers.value = result.globalServers;
-            mcpAgentType.value = result.agentType;
-        } catch (err) {
-            console.error("Failed to load MCP servers:", err);
-        } finally {
-            isLoadingMcp.value = false;
-        }
-    };
-
-    const toggleMcpSheet = () => {
-        isMcpSheetOpen.value = !isMcpSheetOpen.value;
-        if (isMcpSheetOpen.value) {
-            loadMcpServers();
-        }
-    };
-
-    const getMcpConnectionInfo = (server: McpServerEntry) => {
-        if (server.config.url) {
-            return server.config.url;
-        }
-        if (server.config.command) {
-            const args = server.config.args?.join(" ") || "";
-            return `${server.config.command} ${args}`.trim();
-        }
-        return "—";
-    };
-
-    const loadMcpServerTools = async (server: McpServerEntry) => {
-        isLoadingMcpTools.value = true;
-        mcpToolsError.value = null;
-        mcpServerTools.value = [];
-        try {
-            const serverForUi = { ...server };
-            if (serverForUi.config?.url) {
-                const url = new URL(serverForUi.config.url);
-                url.searchParams.set("superuser", "true");
-                serverForUi.config.url = url.toString();
-            }
-            const result = await orpc.listMcpTools(serverForUi);
-            mcpServerTools.value = result;
-        } catch (err: any) {
-            console.error("Failed to load MCP tools:", err);
-            mcpToolsError.value = err.message || "Failed to load tools";
-        } finally {
-            isLoadingMcpTools.value = false;
-        }
-    };
-
-    const isToolDisabled = (server: McpServerEntry, tool: McpTool) => {
-        return disabledMcpTools.value.has(`${server.name}-${tool.name}`);
-    };
-
-    const handleToolClick = async (server: McpServerEntry, tool: McpTool) => {
-        const key = `${server.name}-${tool.name}`;
-        const isCurrentlyDisabled = disabledMcpTools.value.has(key);
-        const nextEnabled = isCurrentlyDisabled;
-
-        if (nextEnabled) {
-            disabledMcpTools.value.delete(key);
-        } else {
-            disabledMcpTools.value.add(key);
-        }
-
-        try {
-            await orpc.toggleConversationMcpTool({
-                sessionId: sessionId.value,
-                serverName: server.name,
-                toolName: tool.name,
-                enabled: nextEnabled,
-            });
-        } catch (err) {
-            console.error("Failed to toggle tool:", err);
-            if (nextEnabled) {
-                disabledMcpTools.value.add(key);
-            } else {
-                disabledMcpTools.value.delete(key);
-            }
-        }
-    };
-
-    const toggleMcpServer = (server: McpServerEntry) => {
-        const serverKey = `${server.source}-${server.name}`;
-        if (expandedMcpServer.value === serverKey) {
-            expandedMcpServer.value = null;
-            mcpServerTools.value = [];
-            mcpToolsError.value = null;
-        } else {
-            expandedMcpServer.value = serverKey;
-            loadMcpServerTools(server);
-        }
-    };
-
-    // Setup watchers
-    const setupWatchers = () => {
-        watch(modelIdDraft, async (newVal) => {
-            if (newVal && newVal !== currentModelId.value) {
-                await swapModel();
-            }
-        });
-
-        watch(reasoningDraft, async (newVal) => {
-            if (!supportsReasoning.value) return;
-            if (newVal === currentReasoning.value) return;
-            if (isSwappingModel.value || isUpdatingReasoning.value) return;
-            await updateReasoning();
-        });
-
-        watch(modeDraft, async (newVal) => {
-            if (newVal === currentMode.value) return;
-            if (
-                isSwappingModel.value ||
-                isUpdatingReasoning.value ||
-                isUpdatingMode.value
-            )
-                return;
-            await updateMode();
-        });
-
-        watch(modelTemplates, () => {
-            applyConversationModelSelection();
-        });
-    };
-
-    return {
-        // State
-        sessionId,
-        messages,
-        input,
-        isLoading,
-        isGenerating,
-        isConnected,
-        conversationTitle,
-        titleDraft,
-        isSavingTitle,
-        modelTemplates,
-        modelIdDraft,
-        currentModelId,
-        isSwappingModel,
-        isUpdatingReasoning,
-        isUpdatingMode,
-        isUpdatingAgent,
-        reasoningDraft,
-        currentReasoning,
-        modeDraft,
-        currentMode,
-        currentBranch,
-        projectId,
-        copiedId,
-        expandedMessageIds,
-        selectedModelTemplate,
-        supportsReasoning,
-
-        // MCP state
-        isMcpSheetOpen,
-        isLoadingMcp,
-        sessionMcpServers,
-        globalMcpServers,
-        mcpAgentType,
-        expandedMcpServer,
-        mcpServerTools,
-        isLoadingMcpTools,
-        mcpToolsError,
-        disabledMcpTools,
-
-        // Helpers
-        matchesStateValue,
-        formatModelLabel,
-        formatReasoningLabel,
-        formatModeLabel,
-        formatTime,
-        getLogSummary,
-        getCleanContent,
-        sanitizeLogContent,
-        hasContent,
-        isAlwaysOpen,
-        toggleMessage,
-        copyMessage,
-
-        // API calls
-        loadModelTemplates,
-        loadConversation,
-        loadBranchInfo,
-        saveTitle,
-        sendMessage,
-        stopGeneration,
-        appendAgentLog,
-
-        // MCP functions
-        toggleMcpSheet,
-        getMcpConnectionInfo,
-        isToolDisabled,
-        handleToolClick,
-        toggleMcpServer,
-
-        // Setup
-        setupWatchers,
-    };
+	// Core state
+	const sessionId = ref(initialSessionId);
+	const messages = ref<Message[]>([]);
+	const input = ref("");
+	const isLoading = ref(false);
+	const isGenerating = ref(false);
+	const isConnected = ref(false);
+
+	// Title state
+	const conversationTitle = ref("");
+	const titleDraft = ref("");
+	const isSavingTitle = ref(false);
+
+	// Model state
+	const modelTemplates = ref<ModelTemplate[]>([]);
+	const modelIdDraft = ref("");
+	const currentModelId = ref("");
+	const conversationAgentType = ref<string | null>(null);
+	const conversationAgentModel = ref<string | null>(null);
+	const isSwappingModel = ref(false);
+	const isUpdatingReasoning = ref(false);
+	const isUpdatingMode = ref(false);
+
+	// Reasoning/Mode state
+	const reasoningDraft = ref<ReasoningLevel>("middle");
+	const currentReasoning = ref<ReasoningLevel | null>(null);
+	const modeDraft = ref<AgentMode>("regular");
+	const currentMode = ref<AgentMode | null>(null);
+
+	// Branch state
+	const currentBranch = ref<string | null>(null);
+	const projectId = ref<string | null>(null);
+
+	// UI state
+	const copiedId = ref<string | null>(null);
+	const expandedMessageIds = ref(new Set<string>());
+
+	// MCP state
+	const isMcpSheetOpen = ref(false);
+	const isLoadingMcp = ref(false);
+	const sessionMcpServers = ref<McpServerEntry[]>([]);
+	const globalMcpServers = ref<McpServerEntry[]>([]);
+	const mcpAgentType = ref<string | undefined>();
+	const expandedMcpServer = ref<string | null>(null);
+	const mcpServerTools = ref<McpTool[]>([]);
+	const isLoadingMcpTools = ref(false);
+	const mcpToolsError = ref<string | null>(null);
+	const disabledMcpTools = ref(new Set<string>());
+
+	// Computed
+	const selectedModelTemplate = computed(() =>
+		modelTemplates.value.find((m) => m.id === modelIdDraft.value),
+	);
+
+	const supportsReasoning = computed(() => {
+		const template = selectedModelTemplate.value;
+		if (!template || template.agentType !== "codex") return false;
+		if (!template.model) return true;
+		return template.model.toLowerCase().startsWith("gpt");
+	});
+
+	const isUpdatingAgent = computed(
+		() =>
+			isSwappingModel.value ||
+			isUpdatingReasoning.value ||
+			isUpdatingMode.value,
+	);
+
+	// Helpers
+	const matchesStateValue = (
+		value: AgentStatePayload["value"],
+		target: string,
+	): boolean => {
+		if (typeof value === "string") return value === target;
+		if (!value || typeof value !== "object") return false;
+		if (target in value) return true;
+		return Object.values(value).some((child) =>
+			matchesStateValue(child as AgentStatePayload["value"], target),
+		);
+	};
+
+	const formatModelLabel = (model: ModelTemplate) => {
+		if (!model.agentName || model.name.includes(model.agentName)) {
+			return model.name;
+		}
+		return `${model.name} (${model.agentName})`;
+	};
+
+	const formatReasoningLabel = (level: ReasoningLevel) => {
+		switch (level) {
+			case "extraHigh":
+				return "Extra High";
+			case "middle":
+				return "Middle";
+			case "high":
+				return "High";
+			case "low":
+				return "Low";
+			default:
+				return level;
+		}
+	};
+
+	const formatModeLabel = (mode: AgentMode) => {
+		switch (mode) {
+			case "plan":
+				return "Plan";
+			case "regular":
+				return "Agent";
+			case "ask":
+				return "Ask";
+			default:
+				return mode;
+		}
+	};
+
+	const formatTime = (timestamp: number) => {
+		return new Date(timestamp).toLocaleTimeString([], {
+			hour: "2-digit",
+			minute: "2-digit",
+		});
+	};
+
+	// Message helpers
+	const getLogSummary = (msg: Message) => {
+		const content = msg.content || "";
+		const type = msg.logType;
+
+		if (type === "tool_call") {
+			const toolMatch = content.match(/\[Tool: ([^\]]+)\]/);
+			if (toolMatch) return toolMatch[1];
+			const execMatch = content.match(/\[Executing: ([^\]]+)\]/);
+			if (execMatch) return execMatch[1];
+			return "Tool Call";
+		}
+
+		if (type === "tool_result") {
+			const resultMatch = content.match(/\[Result: ([^\]]+)\]/);
+			if (resultMatch) return `Result (${resultMatch[1]})`;
+			if (content.includes("[Output]")) return "Output";
+			if (content.includes("[File ")) return "File Change";
+			return "Tool Result";
+		}
+
+		if (type === "error") return "Error";
+		if (type === "thinking") return "Thinking";
+
+		if (type === "system") {
+			const modelMatch = content.match(/\[Using model: ([^\]]+)\]/);
+			if (modelMatch) return `Model: ${modelMatch[1]}`;
+			return "System";
+		}
+
+		return type?.replace("_", " ") || "Log";
+	};
+
+	const getCleanContent = (content: string, logType?: LogType) => {
+		if (!logType || logType === "text") return content.trim();
+
+		let clean = content;
+		const prefixes = [
+			/^\s*\[Tool: [^\]]+\]\s*/,
+			/^\s*\[Executing: [^\]]+\]\s*/,
+			/^\s*\[Result(: [^\]]+)?\]\s*/,
+			/^\s*\[Thinking\]\s*/,
+			/^\s*\[Error\]\s*/,
+			/^\s*\[System\]\s*/,
+			/^\s*\[Using model: [^\]]+\]\s*/,
+			/^\s*\[Output\]\s*/,
+			/^\s*\[File [^:]+: [^\]]+\]\s*/,
+			/^\s*\[Exit code: [^\]]+\]\s*/,
+			/^\s*\[Session started\]\s*/,
+		];
+
+		for (const p of prefixes) {
+			clean = clean.replace(p, "");
+		}
+
+		return clean.trim();
+	};
+
+	const sanitizeLogContent = (content: string, logType?: LogType) => {
+		const clean = getCleanContent(content, logType);
+
+		if (!clean) return "_No content_";
+
+		if (logType === "tool_call") {
+			return "```json\n" + clean + "\n```";
+		}
+
+		if (logType === "tool_result") {
+			if (clean.startsWith("```")) return clean;
+			return "```\n" + clean + "\n```";
+		}
+
+		return clean;
+	};
+
+	const hasContent = (msg: Message) => {
+		return getCleanContent(msg.content, msg.logType).length > 0;
+	};
+
+	const isAlwaysOpen = (msg: Message) => {
+		return msg.logType === "system" && hasContent(msg);
+	};
+
+	const toggleMessage = (id: string) => {
+		if (expandedMessageIds.value.has(id)) {
+			expandedMessageIds.value.delete(id);
+		} else {
+			expandedMessageIds.value.add(id);
+		}
+	};
+
+	const copyMessage = async (content: string, id: string) => {
+		try {
+			const plainText = content.replace(/<[^>]*>/g, "");
+			await navigator.clipboard.writeText(plainText);
+			copiedId.value = id;
+			setTimeout(() => (copiedId.value = null), 2000);
+		} catch (err) {
+			console.error("Failed to copy:", err);
+		}
+	};
+
+	// API calls
+	const loadModelTemplates = async () => {
+		try {
+			modelTemplates.value = await orpc.listModelTemplates({});
+		} catch (err) {
+			console.error("Failed to load model templates:", err);
+		}
+	};
+
+	const applyConversationModelSelection = () => {
+		if (modelTemplates.value.length === 0) return;
+
+		const match = modelTemplates.value.find(
+			(template) =>
+				template.agentType === conversationAgentType.value &&
+				(template.model || "") === (conversationAgentModel.value || ""),
+		);
+
+		const preferred = modelTemplates.value.find(
+			(model) => model.agentType !== "default",
+		);
+		const nextId = match?.id || preferred?.id || modelTemplates.value[0]!.id;
+		currentModelId.value = nextId;
+		modelIdDraft.value = nextId;
+	};
+
+	const setModelFromConversation = (
+		agentType?: string,
+		agentModel?: string,
+		agentReasoning?: ReasoningLevel,
+		agentMode?: AgentMode,
+	) => {
+		conversationAgentType.value = agentType || null;
+		conversationAgentModel.value = agentModel || null;
+		applyConversationModelSelection();
+		const nextReasoning = agentReasoning ?? "middle";
+		currentReasoning.value = nextReasoning;
+		reasoningDraft.value = nextReasoning;
+
+		const nextMode = agentMode ?? "regular";
+		currentMode.value = nextMode;
+		modeDraft.value = nextMode;
+	};
+
+	const loadBranchInfo = async (sid: string, pid?: string) => {
+		try {
+			currentBranch.value = await orpc.getCurrentBranch({
+				sessionId: sid,
+				projectId: pid,
+			});
+		} catch (e) {
+			console.error("Failed to load branch info:", e);
+			currentBranch.value = null;
+		}
+	};
+
+	const loadConversationMeta = async (id: string) => {
+		try {
+			const conv = await orpc.getConversation({ sessionId: id });
+			if (conv) {
+				conversationTitle.value = conv.title;
+				titleDraft.value = conv.title;
+				projectId.value = conv.projectId;
+				setModelFromConversation(
+					conv.agentType,
+					conv.agentModel,
+					conv.agentReasoning,
+					conv.agentMode,
+				);
+				loadBranchInfo(id, conv.projectId);
+				if (conv.disabledMcpTools) {
+					disabledMcpTools.value = new Set(conv.disabledMcpTools);
+				} else {
+					disabledMcpTools.value = new Set();
+				}
+			} else {
+				conversationTitle.value = "Untitled Session";
+				titleDraft.value = conversationTitle.value;
+				projectId.value = null;
+				setModelFromConversation(undefined, undefined, undefined, undefined);
+			}
+		} catch (err) {
+			console.error("Failed to load conversation metadata:", err);
+		}
+	};
+
+	const loadConversation = async (id: string) => {
+		try {
+			await loadConversationMeta(id);
+			const running = await orpc.isAgentRunning({ sessionId: id });
+			isGenerating.value = running;
+
+			const savedMessages = await orpc.getMessages({ sessionId: id });
+			if (savedMessages && savedMessages.length > 0) {
+				messages.value = savedMessages.map((m) => ({
+					id: m.id,
+					role: m.role,
+					content: m.content,
+					timestamp: m.timestamp,
+					logType: m.logType,
+				}));
+			}
+		} catch (err) {
+			console.error("Failed to load conversation:", err);
+		}
+	};
+
+	const normalizeTitle = (value: string) => {
+		const trimmed = value.trim();
+		return trimmed.length ? trimmed : "Untitled Session";
+	};
+
+	const saveTitle = async () => {
+		const nextTitle = normalizeTitle(titleDraft.value);
+		if (nextTitle === conversationTitle.value || isSavingTitle.value) {
+			titleDraft.value = conversationTitle.value;
+			return;
+		}
+
+		isSavingTitle.value = true;
+		try {
+			const result = await orpc.updateConversationTitle({
+				sessionId: sessionId.value,
+				title: nextTitle,
+			});
+			if (result.success) {
+				conversationTitle.value = nextTitle;
+				titleDraft.value = nextTitle;
+				window.dispatchEvent(new Event("agent-manager:data-change"));
+			}
+		} catch (err) {
+			console.error("Failed to update conversation title:", err);
+			titleDraft.value = conversationTitle.value;
+		} finally {
+			isSavingTitle.value = false;
+		}
+	};
+
+	const swapModel = async () => {
+		const nextId = modelIdDraft.value;
+		if (!nextId || nextId === currentModelId.value || isSwappingModel.value)
+			return;
+
+		const previousId = currentModelId.value;
+		isSwappingModel.value = true;
+		const nextTemplate = modelTemplates.value.find((m) => m.id === nextId);
+		const nextName = nextTemplate
+			? formatModelLabel(nextTemplate)
+			: "next agent";
+
+		messages.value.push({
+			id: crypto.randomUUID(),
+			role: "system",
+			content: `Handing over conversation to **${nextName}**...`,
+			timestamp: Date.now(),
+			logType: "system",
+		});
+
+		try {
+			const result = await orpc.swapConversationAgent({
+				sessionId: sessionId.value,
+				modelId: nextId,
+				reasoning: supportsReasoning.value ? reasoningDraft.value : undefined,
+			});
+			if (!result.success) {
+				throw new Error(result.message || "Failed to swap model");
+			}
+
+			currentModelId.value = nextId;
+			currentReasoning.value = supportsReasoning.value
+				? reasoningDraft.value
+				: null;
+			if (result.message) {
+				messages.value.push({
+					id: crypto.randomUUID(),
+					role: "system",
+					content: result.message,
+					timestamp: Date.now(),
+					logType: "system",
+				});
+			}
+			window.dispatchEvent(new Event("agent-manager:data-change"));
+		} catch (err) {
+			console.error("Failed to swap model:", err);
+			modelIdDraft.value = previousId;
+			messages.value.push({
+				id: crypto.randomUUID(),
+				role: "system",
+				content: `Failed to swap model: ${err}`,
+				timestamp: Date.now(),
+				logType: "error",
+			});
+		} finally {
+			isSwappingModel.value = false;
+		}
+	};
+
+	const updateReasoning = async () => {
+		if (!supportsReasoning.value) return;
+
+		const nextReasoning = reasoningDraft.value;
+		if (nextReasoning === currentReasoning.value || isUpdatingReasoning.value)
+			return;
+
+		isUpdatingReasoning.value = true;
+		messages.value.push({
+			id: crypto.randomUUID(),
+			role: "system",
+			content: `Updating reasoning to **${formatReasoningLabel(nextReasoning)}**...`,
+			timestamp: Date.now(),
+			logType: "system",
+		});
+
+		try {
+			const result = await orpc.swapConversationAgent({
+				sessionId: sessionId.value,
+				modelId: currentModelId.value,
+				reasoning: nextReasoning,
+			});
+			if (!result.success) {
+				throw new Error(result.message || "Failed to update reasoning");
+			}
+
+			currentReasoning.value = nextReasoning;
+			if (result.message) {
+				messages.value.push({
+					id: crypto.randomUUID(),
+					role: "system",
+					content: result.message,
+					timestamp: Date.now(),
+					logType: "system",
+				});
+			}
+			window.dispatchEvent(new Event("agent-manager:data-change"));
+		} catch (err) {
+			console.error("Failed to update reasoning:", err);
+			reasoningDraft.value = currentReasoning.value ?? "middle";
+			messages.value.push({
+				id: crypto.randomUUID(),
+				role: "system",
+				content: `Failed to update reasoning: ${err}`,
+				timestamp: Date.now(),
+				logType: "error",
+			});
+		} finally {
+			isUpdatingReasoning.value = false;
+		}
+	};
+
+	const updateMode = async () => {
+		const nextMode = modeDraft.value;
+		if (nextMode === currentMode.value || isUpdatingMode.value) return;
+
+		isUpdatingMode.value = true;
+		messages.value.push({
+			id: crypto.randomUUID(),
+			role: "system",
+			content: `Updating mode to **${formatModeLabel(nextMode)}**...`,
+			timestamp: Date.now(),
+			logType: "system",
+		});
+
+		try {
+			const result = await orpc.swapConversationAgent({
+				sessionId: sessionId.value,
+				mode: nextMode,
+			});
+			if (!result.success) {
+				throw new Error(result.message || "Failed to update mode");
+			}
+
+			currentMode.value = nextMode;
+			if (result.message) {
+				messages.value.push({
+					id: crypto.randomUUID(),
+					role: "system",
+					content: result.message,
+					timestamp: Date.now(),
+					logType: "system",
+				});
+			}
+			window.dispatchEvent(new Event("agent-manager:data-change"));
+		} catch (err) {
+			console.error("Failed to update mode:", err);
+			modeDraft.value = currentMode.value ?? "regular";
+			messages.value.push({
+				id: crypto.randomUUID(),
+				role: "system",
+				content: `Failed to update mode: ${err}`,
+				timestamp: Date.now(),
+				logType: "error",
+			});
+		} finally {
+			isUpdatingMode.value = false;
+		}
+	};
+
+	const appendAgentLog = (payload: AgentLogPayload) => {
+		const content = payload.data;
+		if (!content.trim()) return;
+
+		// Detect worktree-related changes and refresh branch info
+		if (
+			content.includes("Scheduled resume in worktree") ||
+			content.includes("Worktree created") ||
+			content.includes("[Agent Manager] Scheduled resume") ||
+			content.includes("Switching to worktree")
+		) {
+			setTimeout(() => {
+				loadBranchInfo(sessionId.value, projectId.value ?? undefined);
+			}, 500);
+		}
+
+		const incomingType = payload.type || "text";
+		const incomingRole = incomingType === "system" ? "system" : "agent";
+
+		const lastMsg = messages.value[messages.value.length - 1];
+
+		let merged = false;
+		if (lastMsg) {
+			const lastType = lastMsg.logType || "text";
+
+			if (lastMsg.role === incomingRole) {
+				if (incomingType === "text" && lastType === "text") {
+					lastMsg.content += content;
+					merged = true;
+				} else if (incomingType !== "text" && incomingType === lastType) {
+					lastMsg.content += content;
+					merged = true;
+				}
+			}
+		}
+
+		if (!merged) {
+			messages.value.push({
+				id: crypto.randomUUID(),
+				role: incomingRole,
+				content,
+				timestamp: Date.now(),
+				logType: incomingType as LogType,
+			});
+		}
+	};
+
+	const sendMessage = async (scrollToBottom: () => void) => {
+		if (!input.value.trim()) return;
+
+		isLoading.value = true;
+
+		if (modelIdDraft.value && modelIdDraft.value !== currentModelId.value) {
+			if (isSwappingModel.value) {
+				while (isSwappingModel.value) {
+					await new Promise((resolve) => setTimeout(resolve, 100));
+				}
+			} else {
+				await swapModel();
+			}
+
+			if (currentModelId.value !== modelIdDraft.value) {
+				isLoading.value = false;
+				return;
+			}
+		}
+
+		const messageText = input.value;
+		input.value = "";
+
+		messages.value.push({
+			id: crypto.randomUUID(),
+			role: "user",
+			content: messageText,
+			timestamp: Date.now(),
+		});
+
+		scrollToBottom();
+
+		isGenerating.value = true;
+
+		try {
+			await orpc.sendMessage({
+				sessionId: sessionId.value,
+				message: messageText,
+			});
+		} catch (err) {
+			console.error("Failed to send message", err);
+			isGenerating.value = false;
+			messages.value.push({
+				id: crypto.randomUUID(),
+				role: "system",
+				content: `Failed to send message: ${err}`,
+				timestamp: Date.now(),
+				logType: "error",
+			});
+		} finally {
+			isLoading.value = false;
+		}
+	};
+
+	const stopGeneration = async () => {
+		try {
+			await orpc.stopSession({ sessionId: sessionId.value });
+		} catch (err) {
+			console.error("Failed to stop session:", err);
+		}
+		isGenerating.value = false;
+		isLoading.value = false;
+	};
+
+	// MCP functions
+	const loadMcpServers = async () => {
+		isLoadingMcp.value = true;
+		try {
+			const result = await orpc.getSessionMcpServers({
+				sessionId: sessionId.value,
+			});
+			sessionMcpServers.value = result.sessionServers;
+			globalMcpServers.value = result.globalServers;
+			mcpAgentType.value = result.agentType;
+		} catch (err) {
+			console.error("Failed to load MCP servers:", err);
+		} finally {
+			isLoadingMcp.value = false;
+		}
+	};
+
+	const toggleMcpSheet = () => {
+		isMcpSheetOpen.value = !isMcpSheetOpen.value;
+		if (isMcpSheetOpen.value) {
+			loadMcpServers();
+		}
+	};
+
+	const getMcpConnectionInfo = (server: McpServerEntry) => {
+		if (server.config.url) {
+			return server.config.url;
+		}
+		if (server.config.command) {
+			const args = server.config.args?.join(" ") || "";
+			return `${server.config.command} ${args}`.trim();
+		}
+		return "—";
+	};
+
+	const loadMcpServerTools = async (server: McpServerEntry) => {
+		isLoadingMcpTools.value = true;
+		mcpToolsError.value = null;
+		mcpServerTools.value = [];
+		try {
+			const serverForUi = { ...server };
+			if (serverForUi.config?.url) {
+				const url = new URL(serverForUi.config.url);
+				url.searchParams.set("superuser", "true");
+				serverForUi.config.url = url.toString();
+			}
+			const result = await orpc.listMcpTools(serverForUi);
+			mcpServerTools.value = result;
+		} catch (err: any) {
+			console.error("Failed to load MCP tools:", err);
+			mcpToolsError.value = err.message || "Failed to load tools";
+		} finally {
+			isLoadingMcpTools.value = false;
+		}
+	};
+
+	const isToolDisabled = (server: McpServerEntry, tool: McpTool) => {
+		return disabledMcpTools.value.has(`${server.name}-${tool.name}`);
+	};
+
+	const handleToolClick = async (server: McpServerEntry, tool: McpTool) => {
+		const key = `${server.name}-${tool.name}`;
+		const isCurrentlyDisabled = disabledMcpTools.value.has(key);
+		const nextEnabled = isCurrentlyDisabled;
+
+		if (nextEnabled) {
+			disabledMcpTools.value.delete(key);
+		} else {
+			disabledMcpTools.value.add(key);
+		}
+
+		try {
+			await orpc.toggleConversationMcpTool({
+				sessionId: sessionId.value,
+				serverName: server.name,
+				toolName: tool.name,
+				enabled: nextEnabled,
+			});
+		} catch (err) {
+			console.error("Failed to toggle tool:", err);
+			if (nextEnabled) {
+				disabledMcpTools.value.add(key);
+			} else {
+				disabledMcpTools.value.delete(key);
+			}
+		}
+	};
+
+	const toggleMcpServer = (server: McpServerEntry) => {
+		const serverKey = `${server.source}-${server.name}`;
+		if (expandedMcpServer.value === serverKey) {
+			expandedMcpServer.value = null;
+			mcpServerTools.value = [];
+			mcpToolsError.value = null;
+		} else {
+			expandedMcpServer.value = serverKey;
+			loadMcpServerTools(server);
+		}
+	};
+
+	// Setup watchers
+	const setupWatchers = () => {
+		watch(modelIdDraft, async (newVal) => {
+			if (newVal && newVal !== currentModelId.value) {
+				await swapModel();
+			}
+		});
+
+		watch(reasoningDraft, async (newVal) => {
+			if (!supportsReasoning.value) return;
+			if (newVal === currentReasoning.value) return;
+			if (isSwappingModel.value || isUpdatingReasoning.value) return;
+			await updateReasoning();
+		});
+
+		watch(modeDraft, async (newVal) => {
+			if (newVal === currentMode.value) return;
+			if (
+				isSwappingModel.value ||
+				isUpdatingReasoning.value ||
+				isUpdatingMode.value
+			)
+				return;
+			await updateMode();
+		});
+
+		watch(modelTemplates, () => {
+			applyConversationModelSelection();
+		});
+	};
+
+	return {
+		// State
+		sessionId,
+		messages,
+		input,
+		isLoading,
+		isGenerating,
+		isConnected,
+		conversationTitle,
+		titleDraft,
+		isSavingTitle,
+		modelTemplates,
+		modelIdDraft,
+		currentModelId,
+		isSwappingModel,
+		isUpdatingReasoning,
+		isUpdatingMode,
+		isUpdatingAgent,
+		reasoningDraft,
+		currentReasoning,
+		modeDraft,
+		currentMode,
+		currentBranch,
+		projectId,
+		copiedId,
+		expandedMessageIds,
+		selectedModelTemplate,
+		supportsReasoning,
+
+		// MCP state
+		isMcpSheetOpen,
+		isLoadingMcp,
+		sessionMcpServers,
+		globalMcpServers,
+		mcpAgentType,
+		expandedMcpServer,
+		mcpServerTools,
+		isLoadingMcpTools,
+		mcpToolsError,
+		disabledMcpTools,
+
+		// Helpers
+		matchesStateValue,
+		formatModelLabel,
+		formatReasoningLabel,
+		formatModeLabel,
+		formatTime,
+		getLogSummary,
+		getCleanContent,
+		sanitizeLogContent,
+		hasContent,
+		isAlwaysOpen,
+		toggleMessage,
+		copyMessage,
+
+		// API calls
+		loadModelTemplates,
+		loadConversation,
+		loadBranchInfo,
+		saveTitle,
+		sendMessage,
+		stopGeneration,
+		appendAgentLog,
+
+		// MCP functions
+		toggleMcpSheet,
+		getMcpConnectionInfo,
+		isToolDisabled,
+		handleToolClick,
+		toggleMcpServer,
+
+		// Setup
+		setupWatchers,
+	};
 }

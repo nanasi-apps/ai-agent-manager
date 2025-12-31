@@ -22,12 +22,12 @@ Output your plans in clear Markdown format.
 `;
 
 export const getModePrompt = (mode: string): string => {
-    switch (mode) {
-        case "ask":
-            return ASK_MODE_PROMPT;
-        case "plan":
-            return PLAN_MODE_PROMPT;
-        default:
-            return "";
-    }
+	switch (mode) {
+		case "ask":
+			return ASK_MODE_PROMPT;
+		case "plan":
+			return PLAN_MODE_PROMPT;
+		default:
+			return "";
+	}
 };

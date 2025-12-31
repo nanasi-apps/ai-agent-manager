@@ -122,7 +122,9 @@ export async function startMcpServer(port: number = 3001) {
 						if (conv?.disabledMcpTools) {
 							result.tools = result.tools.filter(
 								(t: any) =>
-									!conv.disabledMcpTools!.includes(`agents-manager-mcp-${t.name}`),
+									!conv.disabledMcpTools!.includes(
+										`agents-manager-mcp-${t.name}`,
+									),
 							);
 						}
 

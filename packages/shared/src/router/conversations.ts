@@ -24,10 +24,7 @@ const agentModeSchema = z.enum(["regular", "plan", "ask"]);
 const DEFAULT_REASONING_LEVEL: ReasoningLevel = "middle";
 const DEFAULT_AGENT_MODE: AgentMode = "regular";
 
-function shouldUseReasoning(
-	agentCliType: string,
-	model?: string,
-): boolean {
+function shouldUseReasoning(agentCliType: string, model?: string): boolean {
 	if (agentCliType !== "codex") return false;
 	if (!model) return true;
 	return model.toLowerCase().startsWith("gpt");
@@ -157,10 +154,7 @@ export const conversationsRouter = {
 						agentEnv.OPENAI_API_KEY = apiSettings.openaiApiKey;
 					}
 					if (
-						shouldUseOpenAIBaseUrl(
-							resolvedModel,
-							apiSettings.openaiBaseUrl,
-						)
+						shouldUseOpenAIBaseUrl(resolvedModel, apiSettings.openaiBaseUrl)
 					) {
 						agentEnv.OPENAI_BASE_URL = apiSettings.openaiBaseUrl!;
 					}
@@ -302,10 +296,7 @@ export const conversationsRouter = {
 						agentEnv.OPENAI_API_KEY = apiSettings.openaiApiKey;
 					}
 					if (
-						shouldUseOpenAIBaseUrl(
-							conv.agentModel,
-							apiSettings.openaiBaseUrl,
-						)
+						shouldUseOpenAIBaseUrl(conv.agentModel, apiSettings.openaiBaseUrl)
 					) {
 						agentEnv.OPENAI_BASE_URL = apiSettings.openaiBaseUrl!;
 					}

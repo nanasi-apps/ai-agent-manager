@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import type { AgentMode, ReasoningLevel } from "@agent-manager/shared";
-import type { ModelTemplate } from "@/composables/useConversation";
 import { ChevronDown, Loader2, Send, Square } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import type { ModelTemplate } from "@/composables/useConversation";
 
 const props = defineProps<{
 	input: string;

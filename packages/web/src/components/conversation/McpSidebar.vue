@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import type { McpServerEntry, McpTool } from "@/composables/useConversation";
 import {
 	ChevronDown,
 	ChevronRight,
@@ -12,6 +11,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import type { McpServerEntry, McpTool } from "@/composables/useConversation";
 
 const props = defineProps<{
 	isOpen: boolean;
@@ -47,7 +47,8 @@ const isToolDisabled = (server: McpServerEntry, tool: McpTool) => {
 	return props.disabledTools.has(`${server.name}-${tool.name}`);
 };
 
-const getServerKey = (server: McpServerEntry) => `${server.source}-${server.name}`;
+const getServerKey = (server: McpServerEntry) =>
+	`${server.source}-${server.name}`;
 
 const isServerExpanded = (server: McpServerEntry) => {
 	return props.expandedServer === getServerKey(server);
