@@ -5,11 +5,12 @@ import {
 	getAgentManagerOrThrow,
 	getStoreOrThrow,
 } from "../services/dependency-container";
-import {
-	parseModelId,
-	shouldUseOpenAIBaseUrl,
-} from "../services/model-fetcher";
+import { parseModelId } from "../services/model-fetcher";
 import { resolveProjectRules } from "../services/rules-resolver";
+import {
+	buildSessionConfig,
+	startAgentSession,
+} from "../services/session-builder";
 import {
 	buildHandoverContext,
 	HANDOVER_SUMMARY_PROMPT,
@@ -92,21 +93,22 @@ export const conversationsRouter = {
 				throw new Error("Model or agent type is required.");
 			}
 
-			// Get Agent Template
-			const agentTemplate = getAgentTemplate(resolvedAgentType);
-			if (!agentTemplate) {
-				throw new Error(`Agent type not found: ${resolvedAgentType}`);
-			}
 			const resolvedModel = parsedModel?.model || input.agentModel;
 			const resolvedReasoning = resolveReasoning(
-				agentTemplate.agent.type,
+				resolvedAgentType,
 				resolvedModel,
 				input.reasoning,
 			);
 			const resolvedMode = input.mode ?? DEFAULT_AGENT_MODE;
 
-			// Determine the cwd for the agent
-			const agentCwd = project.rootPath || agentTemplate.agent.cwd;
+			// Build session config using the shared utility
+			const sessionConfig = await buildSessionConfig({
+				projectId: input.projectId,
+				agentType: resolvedAgentType,
+				model: resolvedModel,
+				mode: resolvedMode,
+				reasoning: resolvedReasoning,
+			});
 
 			// Save to store with initialMessage and messages array
 			storeInstance.addConversation({
@@ -120,7 +122,7 @@ export const conversationsRouter = {
 				agentModel: resolvedModel,
 				agentReasoning: resolvedReasoning,
 				agentMode: resolvedMode,
-				cwd: agentCwd,
+				cwd: sessionConfig.cwd,
 				messages: [
 					{
 						id: generateUUID(),
@@ -135,54 +137,9 @@ export const conversationsRouter = {
 				console.log(
 					`Starting agent for project ${input.projectId} (Session: ${sessionId})`,
 				);
-				console.log(`Command: ${agentTemplate.agent.command}`);
+				console.log(`Command: ${sessionConfig.agentTemplate.agent.command}`);
 
-				// Resolve prompt for the specific mode (Ask, Plan, or default)
-				const modePrompt = getModePrompt(resolvedMode);
-				const projectRules = await resolveProjectRules(input.projectId);
-				const rulesContent = modePrompt
-					? `${modePrompt}\n\n${projectRules}`
-					: projectRules;
-
-				// Build environment variables with API credentials
-				const apiSettings = storeInstance.getApiSettings();
-				const agentEnv: Record<string, string> = {};
-
-				// For Codex/OpenAI CLI
-				if (agentTemplate.agent.type === "codex") {
-					if (apiSettings.openaiApiKey) {
-						agentEnv.OPENAI_API_KEY = apiSettings.openaiApiKey;
-					}
-					if (
-						shouldUseOpenAIBaseUrl(resolvedModel, apiSettings.openaiBaseUrl)
-					) {
-						agentEnv.OPENAI_BASE_URL = apiSettings.openaiBaseUrl!;
-					}
-				}
-
-				// For Gemini CLI
-				if (agentTemplate.agent.type === "gemini") {
-					if (apiSettings.geminiApiKey) {
-						agentEnv.GEMINI_API_KEY = apiSettings.geminiApiKey;
-					}
-					if (apiSettings.geminiBaseUrl) {
-						agentEnv.GOOGLE_GEMINI_BASE_URL = apiSettings.geminiBaseUrl;
-					}
-				}
-
-				agentManagerInstance.startSession(
-					sessionId,
-					agentTemplate.agent.command,
-					{
-						...agentTemplate.agent,
-						model: resolvedModel,
-						reasoning: resolvedReasoning,
-						mode: resolvedMode,
-						cwd: agentCwd,
-						rulesContent,
-						env: { ...agentTemplate.agent.env, ...agentEnv },
-					},
-				);
+				startAgentSession(agentManagerInstance, sessionId, sessionConfig);
 			}
 
 			agentManagerInstance.sendToSession(sessionId, input.initialMessage);
@@ -256,16 +213,8 @@ export const conversationsRouter = {
 					return { success: false };
 				}
 
-				const agentTemplate = getAgentTemplate(conv.agentType || "gemini");
-				if (!agentTemplate) {
-					console.error("Agent template not found for legacy/missing type");
-					return { success: false };
-				}
-
-				const project = storeInstance.getProject(conv.projectId);
-				const cwd = project?.rootPath || agentTemplate.agent.cwd;
 				const resolvedReasoning = resolveReasoning(
-					agentTemplate.agent.type,
+					conv.agentType || "gemini",
 					conv.agentModel,
 					conv.agentReasoning,
 				);
@@ -275,56 +224,21 @@ export const conversationsRouter = {
 					});
 				}
 
+				// Build session config using the shared utility
+				const sessionConfig = await buildSessionConfig({
+					projectId: conv.projectId,
+					agentType: conv.agentType || "gemini",
+					model: conv.agentModel,
+					mode: conv.agentMode,
+					reasoning: resolvedReasoning,
+					cwd: conv.cwd,
+				});
+
 				console.warn(
-					`Session ${input.sessionId} not found, restarting with command: ${agentTemplate.agent.command}`,
+					`Session ${input.sessionId} not found, restarting with command: ${sessionConfig.agentTemplate.agent.command}`,
 				);
 
-				// Resolve prompt for the specific mode (Ask, Plan, or default)
-				const modePrompt = getModePrompt(conv.agentMode || "regular");
-				const projectRules = await resolveProjectRules(conv.projectId);
-				const rulesContent = modePrompt
-					? `${modePrompt}\n\n${projectRules}`
-					: projectRules;
-
-				// Build environment variables with API credentials
-				const apiSettings = storeInstance.getApiSettings();
-				const agentEnv: Record<string, string> = {};
-
-				// For Codex/OpenAI CLI
-				if (agentTemplate.agent.type === "codex") {
-					if (apiSettings.openaiApiKey) {
-						agentEnv.OPENAI_API_KEY = apiSettings.openaiApiKey;
-					}
-					if (
-						shouldUseOpenAIBaseUrl(conv.agentModel, apiSettings.openaiBaseUrl)
-					) {
-						agentEnv.OPENAI_BASE_URL = apiSettings.openaiBaseUrl!;
-					}
-				}
-
-				// For Gemini CLI
-				if (agentTemplate.agent.type === "gemini") {
-					if (apiSettings.geminiApiKey) {
-						agentEnv.GEMINI_API_KEY = apiSettings.geminiApiKey;
-					}
-					if (apiSettings.geminiBaseUrl) {
-						agentEnv.GOOGLE_GEMINI_BASE_URL = apiSettings.geminiBaseUrl;
-					}
-				}
-
-				agentManagerInstance.startSession(
-					input.sessionId,
-					agentTemplate.agent.command,
-					{
-						...agentTemplate.agent,
-						model: conv.agentModel,
-						reasoning: resolvedReasoning,
-						mode: conv.agentMode,
-						cwd,
-						rulesContent,
-						env: { ...agentTemplate.agent.env, ...agentEnv },
-					},
-				);
+				startAgentSession(agentManagerInstance, input.sessionId, sessionConfig);
 			}
 
 			// Save the user message to store

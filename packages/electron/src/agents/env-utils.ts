@@ -1,6 +1,6 @@
-import * as fs from "fs/promises";
-import { homedir } from "os";
-import * as path from "path";
+import * as fs from "node:fs/promises";
+import { homedir } from "node:os";
+import * as path from "node:path";
 
 export interface GeminiEnvOptions {
 	mcpServerUrl: string;
