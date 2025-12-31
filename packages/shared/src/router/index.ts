@@ -2,6 +2,7 @@ import { os } from "@orpc/server";
 import { z } from "zod";
 import { agentsRouter } from "./agents";
 import { apiSettingsRouter } from "./api-settings";
+import { approvalsRouter } from "./approvals";
 import { conversationsRouter } from "./conversations";
 import { locksRouter } from "./locks";
 import { getSessionMcpServersLogic, listMcpToolsLogic, mcpRouter } from "./mcp";
@@ -75,6 +76,9 @@ export const appRouter = os.router({
 
 	// MCP
 	...mcpRouter,
+
+	// Approvals
+	...approvalsRouter,
 });
 
 export type AppRouter = typeof appRouter;

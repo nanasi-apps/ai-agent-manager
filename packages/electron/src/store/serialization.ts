@@ -1,5 +1,6 @@
 import type {
 	ApiSettings,
+	ApprovalRequest,
 	Conversation,
 	Message,
 	Project,
@@ -10,6 +11,7 @@ export interface StoreData {
 	conversations: Conversation[];
 	projects: Project[];
 	locks?: ResourceLock[];
+	approvals?: ApprovalRequest[];
 	apiSettings?: ApiSettings;
 }
 

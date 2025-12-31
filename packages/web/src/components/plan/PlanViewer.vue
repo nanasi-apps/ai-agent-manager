@@ -1,20 +1,79 @@
 <script setup lang="ts">
-import { FileText } from "lucide-vue-next";
+import { CheckCircle2, FileText, Loader2, X } from "lucide-vue-next";
+import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
+import { Button } from "@/components/ui/button";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useMarkdown } from "@/composables/useMarkdown";
+
+export interface ModelTemplate {
+	id: string;
+	name: string;
+	agentType: string;
+	agentName: string;
+	model?: string;
+}
 
 const props = defineProps<{
 	content: string;
 	isOpen: boolean;
+	modelTemplates: ModelTemplate[];
+	isApproving?: boolean;
 }>();
 
-defineEmits<{
+const emit = defineEmits<{
 	(e: "close"): void;
+	(e: "approve", modelId: string): void;
 }>();
 
 const { t } = useI18n();
 const { renderMarkdown } = useMarkdown();
+
+// Approve dialog state
+const isApproveDialogOpen = ref(false);
+const selectedModelId = ref("");
+
+const hasContent = computed(() => !!props.content?.trim());
+
+// Filter to only agent mode compatible models
+const availableModels = computed(() => {
+	return props.modelTemplates.filter(
+		(m) => m.agentType !== "default",
+	);
+});
+
+const formatModelLabel = (model: ModelTemplate) => {
+	if (!model.agentName || model.name.includes(model.agentName)) {
+		return model.name;
+	}
+	return `${model.name} (${model.agentName})`;
+};
+
+const openApproveDialog = () => {
+	// Default to first available model
+	if (availableModels.value.length > 0 && !selectedModelId.value) {
+		selectedModelId.value = availableModels.value[0]!.id;
+	}
+	isApproveDialogOpen.value = true;
+};
+
+const handleApprove = () => {
+	if (!selectedModelId.value) return;
+	emit("approve", selectedModelId.value);
+	isApproveDialogOpen.value = false;
+};
+
+const closeApproveDialog = () => {
+	isApproveDialogOpen.value = false;
+};
 </script>
 
 <template>
@@ -25,30 +84,32 @@ const { renderMarkdown } = useMarkdown();
         <FileText class="size-5" />
         <h2 class="font-semibold">{{ t('plan.title', 'Implementation Plan') }}</h2>
       </div>
-      <button
-        class="text-muted-foreground hover:text-foreground p-1 rounded-md hover:bg-muted"
-        @click="$emit('close')"
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          class="lucide lucide-x"
+      <div class="flex items-center gap-2">
+        <!-- Approve Button -->
+        <Button
+          v-if="hasContent"
+          size="sm"
+          variant="default"
+          class="gap-1.5"
+          :disabled="isApproving"
+          @click="openApproveDialog"
         >
-          <path d="M18 6 6 18" />
-          <path d="m6 6 12 12" />
-        </svg>
-      </button>
+          <Loader2 v-if="isApproving" class="size-4 animate-spin" />
+          <CheckCircle2 v-else class="size-4" />
+          {{ t('plan.approve', 'Approve') }}
+        </Button>
+        <!-- Close Button -->
+        <button
+          class="text-muted-foreground hover:text-foreground p-1 rounded-md hover:bg-muted"
+          @click="$emit('close')"
+        >
+          <X class="size-4" />
+        </button>
+      </div>
     </div>
 
-    <!-- Content -->
-    <ScrollArea class="flex-1">
+    <!-- Content with ScrollArea -->
+    <ScrollArea class="flex-1 min-h-0">
       <div class="p-6">
         <div v-if="!content" class="text-center text-muted-foreground py-10">
           <FileText class="size-12 mx-auto mb-4 opacity-20" />
@@ -61,6 +122,49 @@ const { renderMarkdown } = useMarkdown();
         />
       </div>
     </ScrollArea>
+
+    <!-- Model Selection Dialog -->
+    <Dialog v-model:open="isApproveDialogOpen">
+      <DialogContent class="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{{ t('plan.approveDialog.title', 'Approve & Execute Plan') }}</DialogTitle>
+          <DialogDescription>
+            {{ t('plan.approveDialog.description', 'Select a model to execute this plan in Agent mode.') }}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div class="py-4">
+          <label class="text-sm font-medium mb-2 block">
+            {{ t('plan.approveDialog.modelLabel', 'Execution Model') }}
+          </label>
+          <select
+            v-model="selectedModelId"
+            class="w-full h-10 px-3 py-2 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+          >
+            <option
+              v-for="model in availableModels"
+              :key="model.id"
+              :value="model.id"
+            >
+              {{ formatModelLabel(model) }}
+            </option>
+          </select>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" @click="closeApproveDialog">
+            {{ t('common.cancel', 'Cancel') }}
+          </Button>
+          <Button
+            :disabled="!selectedModelId || isApproving"
+            @click="handleApprove"
+          >
+            <Loader2 v-if="isApproving" class="size-4 mr-2 animate-spin" />
+            {{ t('plan.approveDialog.confirm', 'Execute Plan') }}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </div>
 </template>
 

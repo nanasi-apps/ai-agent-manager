@@ -36,7 +36,41 @@
   },
   "inbox": {
     "title": "インボックス",
-    "message": "ここにメッセージが表示されます。"
+    "pending": "承認待ち",
+    "history": "履歴",
+    "planRequest": "プラン承認リクエスト",
+    "view": "表示",
+    "empty": {
+      "title": "承認リクエストはありません",
+      "description": "プランモードからの承認リクエストがここに表示されます。"
+    },
+    "status": {
+      "pending": "保留中",
+      "approved": "承認済み",
+      "rejected": "却下",
+      "expired": "期限切れ"
+    },
+    "dialog": {
+      "title": "プランを確認",
+      "description": "プランを確認し、実行するモデルを選択してください。",
+      "modelLabel": "実行モデル",
+      "approve": "承認して実行",
+      "reject": "却下"
+    }
+  },
+  "plan": {
+    "title": "実装計画",
+    "empty": "まだプランが生成されていません。",
+    "approve": "承認",
+    "approveDialog": {
+      "title": "プランを承認して実行",
+      "description": "このプランをエージェントモードで実行するモデルを選択してください。",
+      "modelLabel": "実行モデル",
+      "confirm": "プランを実行"
+    }
+  },
+  "common": {
+    "cancel": "キャンセル"
   },
   "agents": {
     "title": "エージェント管理",
@@ -55,52 +89,52 @@
     "configureHint": "Gemini CLIまたはClaudeでサーバーを設定すると、ここに表示されます。",
     "comingSoon": "近日公開: MCPサーバーのセッションごとの有効化/無効化、カスタムサーバーの追加、各サーバーから利用可能なツールの表示。",
     "table": {
-        "name": "名前",
-        "source": "ソース",
-        "type": "タイプ",
-        "connection": "接続",
-        "status": "ステータス"
+      "name": "名前",
+      "source": "ソース",
+      "type": "タイプ",
+      "connection": "接続",
+      "status": "ステータス"
     }
   },
   "rules": {
-      "title": "グローバルルール",
-      "noRules": "ルールが見つかりません。",
-      "selectRule": "編集するルールを選択してください",
-      "saveRule": "ルールを保存",
-      "createTitle": "グローバルルールの作成",
-      "createDesc": "新しいルールの名前を入力してください（例：「コーディング規約」、「Gitワークフロー」）。",
-      "placeholder": "ルール名",
-      "confirmDelete": "このルールを削除してもよろしいですか？"
+    "title": "グローバルルール",
+    "noRules": "ルールが見つかりません。",
+    "selectRule": "編集するルールを選択してください",
+    "saveRule": "ルールを保存",
+    "createTitle": "グローバルルールの作成",
+    "createDesc": "新しいルールの名前を入力してください（例：「コーディング規約」、「Gitワークフロー」）。",
+    "placeholder": "ルール名",
+    "confirmDelete": "このルールを削除してもよろしいですか？"
   },
   "settings": {
-      "title": "設定",
-      "description": "アプリケーションの設定を行います。",
-      "apiSettings": "API設定",
-      "apiSettingsDesc": "直接APIベースのエージェント（OpenAI API、Gemini API）のAPIキーを設定します。",
-      "loading": "API設定を読み込み中...",
-      "openai": {
-          "title": "OpenAI API",
-          "desc": "OpenAI APIエージェントおよび互換サービスに使用されます。",
-          "configured": "設定済み",
-          "notSet": "未設定",
-          "apiKey": "APIキー",
-          "baseUrl": "ベースURL（オプション）",
-          "baseUrlDesc": "Azure OpenAIまたは互換API用のカスタムエンドポイント。"
-      },
-      "gemini": {
-          "title": "Gemini API",
-          "desc": "Gemini APIエージェントに使用されます。",
-          "configured": "設定済み",
-          "notSet": "未設定",
-          "apiKey": "APIキー",
-          "baseUrl": "ベースURL（オプション）",
-          "baseUrlDesc": "Gemini APIプロキシ用のカスタムエンドポイント。"
-      },
-      "saveButton": "API設定を保存"
+    "title": "設定",
+    "description": "アプリケーションの設定を行います。",
+    "apiSettings": "API設定",
+    "apiSettingsDesc": "直接APIベースのエージェント（OpenAI API、Gemini API）のAPIキーを設定します。",
+    "loading": "API設定を読み込み中...",
+    "openai": {
+      "title": "OpenAI API",
+      "desc": "OpenAI APIエージェントおよび互換サービスに使用されます。",
+      "configured": "設定済み",
+      "notSet": "未設定",
+      "apiKey": "APIキー",
+      "baseUrl": "ベースURL（オプション）",
+      "baseUrlDesc": "Azure OpenAIまたは互換API用のカスタムエンドポイント。"
+    },
+    "gemini": {
+      "title": "Gemini API",
+      "desc": "Gemini APIエージェントに使用されます。",
+      "configured": "設定済み",
+      "notSet": "未設定",
+      "apiKey": "APIキー",
+      "baseUrl": "ベースURL（オプション）",
+      "baseUrlDesc": "Gemini APIプロキシ用のカスタムエンドポイント。"
+    },
+    "saveButton": "API設定を保存"
   },
   "time": {
-      "justNow": "たった今",
-      "ago": "{time}前"
+    "justNow": "たった今",
+    "ago": "{time}前"
   },
   "chat": {
     "placeholder": "メッセージを送信...",

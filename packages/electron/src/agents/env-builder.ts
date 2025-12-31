@@ -1,6 +1,7 @@
 import { getSessionMcpServersLogic, HARDCODED_MODELS } from "@agent-manager/shared";
 import { store } from "../store";
 import { getEnhancedEnv } from "../utils/path-enhancer";
+import { prepareClaudeEnv, prepareGeminiEnv } from "./env-utils";
 import type { SessionState } from "./types";
 
 /**
@@ -17,8 +18,13 @@ export class EnvBuilder {
 			isGemini: boolean;
 			isCodex: boolean;
 			isClaude: boolean;
+			mode?: "regular" | "plan" | "ask";
 		},
-	): Promise<NodeJS.ProcessEnv> {
+	): Promise<{
+		env: NodeJS.ProcessEnv;
+		geminiHome?: string;
+		claudeHome?: string;
+	}> {
 		const env = { ...getEnhancedEnv() };
 
 		// Base env vars
@@ -38,25 +44,38 @@ export class EnvBuilder {
 		const configType = state.config.type; // gemini, codex, etc.
 
 		// Check if the model is "standard" (hardcoded)
-		// If configType is unknown or model is missing, we assume it might be custom or rely on defaults
-		// But here the user specifically wants to inject "only when custom model is selected".
-		// We define "Custom Model" as: NOT in HARDCODED_MODELS for that type.
 		let isStandardModel = false;
 		if (configType && currentModel && HARDCODED_MODELS[configType]) {
 			isStandardModel = HARDCODED_MODELS[configType].includes(currentModel);
 		}
 
 		// Gemini
-		// Inject if NOT standard model (i.e. Custom)
-		if (options.isGemini && !isStandardModel) {
-			if (apiSettings.geminiApiKey) {
-				env.GEMINI_API_KEY = apiSettings.geminiApiKey;
+		let geminiHome: string | undefined;
+		if (options.isGemini) {
+			// Use prepareGeminiEnv to set up the environment directory and settings
+			const geminiEnv = await prepareGeminiEnv({
+				mcpServerUrl,
+				existingHome: state.geminiHome,
+				apiKey: !isStandardModel ? apiSettings.geminiApiKey : undefined,
+				baseUrl: !isStandardModel ? apiSettings.geminiBaseUrl : undefined,
+				mode: options.mode,
+			});
+			Object.assign(env, geminiEnv);
+			if (geminiEnv.HOME) {
+				geminiHome = geminiEnv.HOME;
 			}
-			if (apiSettings.geminiBaseUrl) {
-				env.GEMINI_BASE_URL = apiSettings.geminiBaseUrl;
-				env.GOOGLE_GENAI_BASE_URL = apiSettings.geminiBaseUrl;
-				env.API_BASE = apiSettings.geminiBaseUrl;
-				env.GEMINI_API_BASE = apiSettings.geminiBaseUrl;
+		}
+
+		// Claude
+		let claudeHome: string | undefined;
+		if (options.isClaude) {
+			const claudeEnv = await prepareClaudeEnv(
+				mcpServerUrl,
+				state.claudeHome, // existingConfigDir
+			);
+			Object.assign(env, claudeEnv);
+			if (claudeEnv.CLAUDE_CONFIG_DIR) {
+				claudeHome = claudeEnv.CLAUDE_CONFIG_DIR;
 			}
 		}
 
@@ -75,8 +94,7 @@ export class EnvBuilder {
 			env.ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 		}
 
-		// Configure MCP servers based on user settings
-		// We use the shared logic to get the configured servers for this projectId
+		// Logging MCP configuration (Logic moved to prepare*Env mostly, but keeping log for clarity)
 		if (state.config.cwd) {
 			const mcpConfig = await getSessionMcpServersLogic(state.sessionId);
 			if (mcpConfig) {
@@ -87,21 +105,12 @@ export class EnvBuilder {
 
 				if (serverNames.length > 0) {
 					console.log(
-						`[EnvBuilder] Configuring MCP servers: ${serverNames.join(", ")}`,
+						`[EnvBuilder] Active MCP servers: ${serverNames.join(", ")}`,
 					);
-
-					// For Gemini CLI
-					if (options.isGemini) {
-						// Pass the config file path directly to the CLI if possible,
-						// or set env vars that the CLI expects.
-						// The Gemini CLI usually expects a config file.
-						// Assuming standard mcp.json location for now or relying on CLI's auto-discovery
-						// If specific env vars are needed for dynamic MCP registration, add them here.
-					}
 				}
 			}
 		}
 
-		return env;
+		return { env, geminiHome, claudeHome };
 	}
 }

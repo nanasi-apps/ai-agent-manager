@@ -23,3 +23,5 @@ export { availableAgents, getAgentTemplate } from "./project";
 // Store types
 export * from "./store";
 export * from "./worktree";
+// Approval types
+export * from "./approval";

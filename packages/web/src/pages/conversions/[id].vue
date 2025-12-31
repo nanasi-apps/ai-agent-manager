@@ -153,6 +153,11 @@ const handleToggleMcpTool = async (server: any, tool: any) => {
 	await conversation.handleToolClick(server, tool);
 };
 
+const handleApprovePlan = async (modelId: string) => {
+	await conversation.approvePlan(modelId);
+	scrollToBottom();
+};
+
 // Mounted setup
 onMounted(async () => {
 	await conversation.loadModelTemplates();
@@ -314,7 +319,10 @@ onBeforeRouteLeave(() => {
 					<PlanViewer
 						:content="conversation.latestPlanContent.value"
 						:is-open="conversation.isPlanViewerOpen.value"
+						:model-templates="conversation.modelTemplates.value"
+						:is-approving="conversation.isApproving.value"
 						@close="conversation.togglePlanViewer"
+						@approve="handleApprovePlan"
 					/>
 				</ResizablePanel>
 			</Transition>

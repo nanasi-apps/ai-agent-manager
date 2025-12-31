@@ -2,6 +2,8 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import type {
 	ApiSettings,
+	ApprovalRequest,
+	ApprovalStatus,
 	Conversation,
 	IStore,
 	Message,
@@ -22,6 +24,7 @@ export class FileStore implements IStore {
 	private conversations: Map<string, Conversation> = new Map();
 	private projects: Map<string, Project> = new Map();
 	private locks: Map<string, ResourceLock> = new Map();
+	private approvals: Map<string, ApprovalRequest> = new Map();
 	private apiSettings: ApiSettings = {};
 	private dataPath: string | null = null;
 	private saveTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -74,8 +77,15 @@ export class FileStore implements IStore {
 					this.apiSettings = data.apiSettings;
 				}
 
+				if (data.approvals) {
+					this.approvals.clear();
+					for (const approval of data.approvals) {
+						this.approvals.set(approval.id, approval);
+					}
+				}
+
 				console.log(
-					`[FileStore] Loaded ${this.conversations.size} conversations, ${this.projects.size} projects, and ${this.locks.size} locks from ${this.dataPath}`,
+					`[FileStore] Loaded ${this.conversations.size} conversations, ${this.projects.size} projects, ${this.locks.size} locks, and ${this.approvals.size} approvals from ${this.dataPath}`,
 				);
 				this.scheduleSave();
 			}
@@ -108,6 +118,7 @@ export class FileStore implements IStore {
 				conversations: Array.from(this.conversations.values()),
 				projects: Array.from(this.projects.values()),
 				locks: Array.from(this.locks.values()),
+				approvals: Array.from(this.approvals.values()),
 				apiSettings: this.apiSettings,
 			};
 			fs.writeFileSync(this.dataPath, JSON.stringify(data, null, 2), "utf-8");
@@ -288,6 +299,43 @@ export class FileStore implements IStore {
 
 	updateApiSettings(settings: Partial<ApiSettings>): void {
 		this.apiSettings = { ...this.apiSettings, ...settings };
+		this.scheduleSave();
+	}
+
+	// Approval methods
+	addApproval(approval: ApprovalRequest): void {
+		this.approvals.set(approval.id, approval);
+		this.scheduleSave();
+	}
+
+	getApproval(id: string): ApprovalRequest | undefined {
+		return this.approvals.get(id);
+	}
+
+	listApprovals(status?: ApprovalStatus): ApprovalRequest[] {
+		const all = Array.from(this.approvals.values()).sort(
+			(a, b) => b.createdAt - a.createdAt,
+		);
+		if (status) {
+			return all.filter((a) => a.status === status);
+		}
+		return all;
+	}
+
+	updateApproval(id: string, updates: Partial<ApprovalRequest>): void {
+		const existing = this.approvals.get(id);
+		if (existing) {
+			this.approvals.set(id, {
+				...existing,
+				...updates,
+				updatedAt: Date.now(),
+			});
+			this.scheduleSave();
+		}
+	}
+
+	deleteApproval(id: string): void {
+		this.approvals.delete(id);
 		this.scheduleSave();
 	}
 }

@@ -322,11 +322,34 @@ export class OneShotSession extends EventEmitter {
 				`[OneShotSession] Running: ${cmd.command} ${cmd.args.join(" ")}`,
 			);
 
-			const spawnEnv = await EnvBuilder.build(currentState, mcpServerUrl, {
+			const envResult = await EnvBuilder.build(currentState, mcpServerUrl, {
 				isGemini,
 				isCodex,
 				isClaude,
+				mode: (currentState.config as any).mode,
 			});
+
+			const spawnEnv = envResult.env;
+
+			if (
+				envResult.geminiHome &&
+				envResult.geminiHome !== currentState.geminiHome
+			) {
+				this.actor.send({
+					type: "SET_AGENT_DATA",
+					data: { geminiHome: envResult.geminiHome },
+				});
+			}
+
+			if (
+				envResult.claudeHome &&
+				envResult.claudeHome !== currentState.claudeHome
+			) {
+				this.actor.send({
+					type: "SET_AGENT_DATA",
+					data: { claudeHome: envResult.claudeHome },
+				});
+			}
 
 			if (isGemini) {
 				console.log(

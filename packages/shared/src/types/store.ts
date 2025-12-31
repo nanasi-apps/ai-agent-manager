@@ -1,4 +1,5 @@
 import type { AgentMode, ReasoningLevel } from "./agent";
+import type { ApprovalRequest, ApprovalStatus } from "./approval";
 
 /**
  * Chat message
@@ -9,12 +10,12 @@ export interface Message {
 	content: string;
 	timestamp: number;
 	logType?:
-		| "text"
-		| "tool_call"
-		| "tool_result"
-		| "thinking"
-		| "error"
-		| "system";
+	| "text"
+	| "tool_call"
+	| "tool_result"
+	| "thinking"
+	| "error"
+	| "system";
 }
 
 /**
@@ -119,4 +120,11 @@ export interface IStore {
 	// API settings methods
 	getApiSettings(): ApiSettings;
 	updateApiSettings(settings: Partial<ApiSettings>): void;
+
+	// Approval methods
+	addApproval(approval: ApprovalRequest): void;
+	getApproval(id: string): ApprovalRequest | undefined;
+	listApprovals(status?: ApprovalStatus): ApprovalRequest[];
+	updateApproval(id: string, updates: Partial<ApprovalRequest>): void;
+	deleteApproval(id: string): void;
 }

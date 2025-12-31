@@ -114,6 +114,7 @@ export function useConversation(initialSessionId: string) {
 
 	// Plan Viewer state
 	const isPlanViewerOpen = ref(false);
+	const isApproving = ref(false);
 
 	// Computed
 	const selectedModelTemplate = computed(() =>
@@ -821,6 +822,77 @@ export function useConversation(initialSessionId: string) {
 		}
 	};
 
+	/**
+	 * Approve and execute the current plan with selected model
+	 */
+	const approvePlan = async (modelId: string, sendToInbox = false) => {
+		const planContent = latestPlanContent.value;
+		if (!planContent.trim()) {
+			console.warn("No plan content to approve");
+			return { success: false, message: "No plan content" };
+		}
+
+		isApproving.value = true;
+
+		try {
+			if (sendToInbox) {
+				// Create approval request and send to inbox
+				const result = await orpc.createApproval({
+					sessionId: sessionId.value,
+					projectId: projectId.value || "",
+					planContent,
+				});
+
+				if (result.success) {
+					messages.value.push({
+						id: crypto.randomUUID(),
+						role: "system",
+						content: "Plan sent to Inbox for approval.",
+						timestamp: Date.now(),
+						logType: "system",
+					});
+				}
+
+				return result;
+			}
+			// Direct execution - approve and execute immediately
+			const result = await orpc.createApproval({
+				sessionId: sessionId.value,
+				projectId: projectId.value || "",
+				planContent,
+			});
+
+			if (!result.success) {
+				return { success: false, message: "Failed to create approval" };
+			}
+
+			// Execute immediately
+			const execResult = await orpc.approveAndExecute({
+				id: result.id,
+				modelId,
+			});
+
+			if (execResult.success) {
+				isPlanViewerOpen.value = false;
+				isGenerating.value = true;
+			}
+
+			return execResult;
+		} catch (err) {
+			console.error("Failed to approve plan:", err);
+			messages.value.push({
+				id: crypto.randomUUID(),
+				role: "system",
+				content: `Failed to approve plan: ${err}`,
+				timestamp: Date.now(),
+				logType: "error",
+			});
+			return { success: false, message: String(err) };
+		} finally {
+			isApproving.value = false;
+		}
+	};
+
 	// Setup watchers
 	const setupWatchers = () => {
 		// Auto-open plan viewer when switching to plan mode?
@@ -901,6 +973,7 @@ export function useConversation(initialSessionId: string) {
 		// Plan Viewer
 		isPlanViewerOpen,
 		latestPlanContent,
+		isApproving,
 
 		// Computed
 		selectedModelTemplate,
@@ -935,6 +1008,7 @@ export function useConversation(initialSessionId: string) {
 
 		// Plan Viewer Methods
 		togglePlanViewer,
+		approvePlan,
 
 		// Setup
 		setupWatchers,
