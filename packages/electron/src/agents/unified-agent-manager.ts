@@ -81,6 +81,10 @@ export class UnifiedAgentManager extends EventEmitter implements IAgentManager {
 		return oneShotAgentManager.consumePendingHandover?.(sessionId);
 	}
 
+	getSessionCwd(sessionId: string): string | undefined {
+		return oneShotAgentManager.getSessionCwd?.(sessionId);
+	}
+
 	requestWorktreeResume(
 		sessionId: string,
 		request: WorktreeResumeRequest,
