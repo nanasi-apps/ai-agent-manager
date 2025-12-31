@@ -5,7 +5,7 @@ Use a Git worktree for any task that modifies files or runs write operations.
 
 If no active worktree exists, create one at the start of the task using the MCP tool:
 - `worktree_create` with:
-  - `branch`: `{{branchSuggestion}}` (or another short, task-scoped branch name)
+  - `branch`: `{{branchSuggestion}}` (or another short, task-scoped branch name that clearly describes the work you are doing)
   - `sessionId`: `{{sessionId}}`
   - `resume`: `true`
   {{#if projectRoot}}
