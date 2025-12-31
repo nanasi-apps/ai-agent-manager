@@ -4,34 +4,25 @@ import type { AgentConfig, AgentLogPayload } from "@agent-manager/shared";
 import { createActor, type SnapshotFrom } from "xstate";
 import type { WorktreeResumeRequest } from "./agent-manager";
 import { isAgentType } from "./agent-type-utils";
-import {
-	type AgentDriver,
-	type AgentDriverContext,
-	ClaudeDriver,
-	CodexDriver,
-	GeminiDriver,
-} from "./drivers";
-import {
-	prepareClaudeEnv,
-	prepareCodexEnv,
-	prepareGeminiEnv,
-} from "./env-utils";
+import { DriverResolver } from "./driver-resolver";
+import type { AgentDriver, AgentDriverContext } from "./drivers";
+import { EnvBuilder } from "./env-builder";
 import { type AgentContext, agentMachine } from "./machines/agent-machine";
 import { AgentOutputParser } from "./output-parser";
 import {
-	killChildProcess,
-	killProcessGroup,
-	isSessionInvalidError,
 	isGeminiApiError,
 	isQuotaError,
+	isSessionInvalidError,
+	killChildProcess,
+	killProcessGroup,
 	parseQuotaResetTime,
 } from "./process-utils";
 import type { AgentStateChangePayload, SessionState } from "./types";
 import {
+	buildInstructions,
+	buildResumeMessage,
 	pathExists,
 	validateWorktreePath,
-	buildResumeMessage,
-	buildInstructions,
 } from "./worktree-utils";
 
 type AgentMachineSnapshot = SnapshotFrom<typeof agentMachine>;
@@ -221,7 +212,11 @@ export class OneShotSession extends EventEmitter {
 
 		const resumeMessage =
 			request.resumeMessage ??
-			buildResumeMessage(request, this.state.projectRoot, this.state.lastUserMessage);
+			buildResumeMessage(
+				request,
+				this.state.projectRoot,
+				this.state.lastUserMessage,
+			);
 
 		this.actor.send({
 			type: "SET_PENDING_WORKTREE_RESUME",
@@ -302,7 +297,7 @@ export class OneShotSession extends EventEmitter {
 		const mcpServerUrl = `http://localhost:3001/mcp/${this.sessionId}/sse`;
 
 		try {
-			const driver = this.getDriver(currentState.config);
+			const driver = DriverResolver.getDriver(currentState.config);
 			const isGemini = isAgentType(currentState.config, "gemini");
 			const isCodex = isAgentType(currentState.config, "codex");
 			const isClaude = isAgentType(currentState.config, "claude");
@@ -327,13 +322,11 @@ export class OneShotSession extends EventEmitter {
 				`[OneShotSession] Running: ${cmd.command} ${cmd.args.join(" ")}`,
 			);
 
-			const spawnEnv = await this.prepareEnvironment(
-				currentState,
-				mcpServerUrl,
+			const spawnEnv = await EnvBuilder.build(currentState, mcpServerUrl, {
 				isGemini,
 				isCodex,
 				isClaude,
-			);
+			});
 			const resolvedCwd = await this.resolveSessionCwd();
 
 			if (currentState.config.cwd && !resolvedCwd) {
@@ -373,54 +366,6 @@ export class OneShotSession extends EventEmitter {
 		}
 	}
 
-	private async prepareEnvironment(
-		state: SessionState,
-		mcpServerUrl: string,
-		isGemini: boolean,
-		isCodex: boolean,
-		isClaude: boolean,
-	): Promise<NodeJS.ProcessEnv> {
-		let spawnEnv = { ...process.env, ...state.config.env };
-
-		if (isGemini) {
-			const geminiEnv = await prepareGeminiEnv({
-				mcpServerUrl,
-				existingHome: state.geminiHome,
-				apiKey: state.config.env?.GEMINI_API_KEY,
-				baseUrl: state.config.env?.GOOGLE_GEMINI_BASE_URL,
-				mode: state.config.mode,
-			});
-			if (geminiEnv.HOME) {
-				this.actor.send({
-					type: "SET_AGENT_DATA",
-					data: { geminiHome: geminiEnv.HOME },
-				});
-			}
-			spawnEnv = { ...spawnEnv, ...geminiEnv };
-		}
-
-		if (isCodex) {
-			const codexEnv = prepareCodexEnv({
-				apiKey: state.config.env?.OPENAI_API_KEY,
-				baseUrl: state.config.env?.OPENAI_BASE_URL,
-			});
-			spawnEnv = { ...spawnEnv, ...codexEnv };
-		}
-
-		if (isClaude) {
-			const claudeEnv = await prepareClaudeEnv(mcpServerUrl, state.claudeHome);
-			if (claudeEnv.CLAUDE_CONFIG_DIR) {
-				this.actor.send({
-					type: "SET_AGENT_DATA",
-					data: { claudeHome: claudeEnv.CLAUDE_CONFIG_DIR },
-				});
-			}
-			spawnEnv = { ...spawnEnv, ...claudeEnv };
-		}
-
-		return spawnEnv;
-	}
-
 	private handleProcessOutput(child: ChildProcess) {
 		if (child.stdout) {
 			child.stdout.on("data", (data) => {
@@ -444,7 +389,7 @@ export class OneShotSession extends EventEmitter {
 
 	private handleProcessClose(child: ChildProcess, code: number | null) {
 		console.log(
-			`[OneShotSession ${this.sessionId}] handleProcessClose called, code=${code}, hasPending=${!!this.state.pendingWorktreeResume}`,
+			`[OneShotSession ${this.sessionId}] handleProcessClose called, code=\${code}, hasPending=\${!!this.state.pendingWorktreeResume}`,
 		);
 
 		if (this.currentProcess !== child) {
@@ -462,11 +407,11 @@ export class OneShotSession extends EventEmitter {
 		this.currentProcess = undefined;
 
 		console.log(
-			`[OneShotSession ${this.sessionId}] Process exited with code ${code}, hasPendingResume=${hasPendingResume}`,
+			`[OneShotSession ${this.sessionId}] Process exited with code \${code}, hasPendingResume=\${hasPendingResume}`,
 		);
 
 		if (!hasPendingResume) {
-			this.emitLog(`\n[Process exited with code ${code}]\n`, "system");
+			this.emitLog(`\n[Process exited with code \${code}]\n`, "system");
 		}
 		this.handlePendingWorktreeResume();
 	}
@@ -480,7 +425,7 @@ export class OneShotSession extends EventEmitter {
 		if (isSessionInvalidError(stderr)) {
 			if (currentSessionState.geminiSessionId) {
 				console.warn(
-					`[OneShotSession ${this.sessionId}] Gemini session ${currentSessionState.geminiSessionId} is invalid.`,
+					`[OneShotSession ${this.sessionId}] Gemini session \${currentSessionState.geminiSessionId} is invalid.`,
 				);
 			}
 			// Mark invalid and stop
@@ -505,7 +450,7 @@ export class OneShotSession extends EventEmitter {
 			if (isQuotaError(stderr)) {
 				const resetTime = parseQuotaResetTime(stderr) ?? "some time";
 				this.emitLog(
-					`\n[Gemini Quota Error] API quota exhausted. Quota will reset after ${resetTime}.\n`,
+					`\n[Gemini Quota Error] API quota exhausted. Quota will reset after \${resetTime}.\n`,
 					"error",
 				);
 			} else {
@@ -556,7 +501,7 @@ export class OneShotSession extends EventEmitter {
 	private handlePendingWorktreeResume() {
 		const pending = this.state.pendingWorktreeResume;
 		console.log(
-			`[OneShotSession ${this.sessionId}] handlePendingWorktreeResume called, hasPending=${!!pending}`,
+			`[OneShotSession ${this.sessionId}] handlePendingWorktreeResume called, hasPending=\${!!pending}`,
 		);
 
 		if (!pending) {
@@ -567,7 +512,7 @@ export class OneShotSession extends EventEmitter {
 		}
 
 		console.log(
-			`[OneShotSession ${this.sessionId}] Activating worktree: branch=${pending.request.branch}, cwd=${pending.request.cwd}`,
+			`[OneShotSession ${this.sessionId}] Activating worktree: branch=\${pending.request.branch}, cwd=\${pending.request.cwd}`,
 		);
 
 		this.actor.send({ type: "CLEAR_PENDING_WORKTREE_RESUME" });
@@ -581,7 +526,7 @@ export class OneShotSession extends EventEmitter {
 		});
 
 		this.emitLog(
-			`\n[System] Switching to worktree ${pending.request.branch} at ${pending.request.cwd}\n`,
+			`\n[System] Switching to worktree \${pending.request.branch} at \${pending.request.cwd}\n`,
 			"system",
 		);
 
@@ -610,7 +555,7 @@ export class OneShotSession extends EventEmitter {
 					this.actor.send({ type: "CLEAR_ACTIVE_WORKTREE" });
 				}
 				this.emitLog(
-					`\n[System] Worktree path not found. Falling back to ${fallbackCwd}\n`,
+					`\n[System] Worktree path not found. Falling back to \${fallbackCwd}\n`,
 					"system",
 				);
 			}
@@ -619,7 +564,7 @@ export class OneShotSession extends EventEmitter {
 
 		if (requestedCwd) {
 			this.emitLog(
-				`\n[System] Working directory not found: ${requestedCwd}. Using default cwd.\n`,
+				`\n[System] Working directory not found: \${requestedCwd}. Using default cwd.\n`,
 				"system",
 			);
 		}
@@ -652,19 +597,6 @@ export class OneShotSession extends EventEmitter {
 			session.projectRoot ?? session.config.cwd,
 			!!session.activeWorktree,
 		);
-	}
-
-	private getDriver(config: AgentConfig): AgentDriver {
-		switch (config.type) {
-			case "gemini":
-				return new GeminiDriver();
-			case "claude":
-				return new ClaudeDriver();
-			case "codex":
-				return new CodexDriver();
-			default:
-				throw new Error(`Unknown agent command: ${config.command}`);
-		}
 	}
 
 	private emitLog(

@@ -2,53 +2,22 @@ import type {
 	AgentConfig,
 	AgentLogPayload,
 	AgentStatePayload,
+	IAgentManager,
 } from "@agent-manager/shared";
 
-/**
- * Interface for AgentManager implementations
- * Allows swapping between different implementations (PTY, OneShot, etc.)
- */
-export interface IAgentManager {
-	startSession(
-		sessionId: string,
-		command: string,
-		config?: Partial<AgentConfig>,
-	): void | Promise<void>;
-	resetSession(
-		sessionId: string,
-		command: string,
-		config?: Partial<AgentConfig>,
-	): void | Promise<void>;
-	stopSession(sessionId: string): boolean;
-	sendToSession(sessionId: string, message: string): Promise<void>;
-	isRunning(sessionId: string): boolean;
-	isProcessing?(sessionId: string): boolean;
-	listSessions(): string[];
-	on(event: "log", listener: (payload: AgentLogPayload) => void): void;
-	on(
-		event: "state-changed",
-		listener: (payload: AgentStatePayload) => void,
-	): void;
-	getSessionMetadata?(
-		sessionId: string,
-	): { geminiSessionId?: string; codexThreadId?: string } | undefined;
-	setPendingHandover?(sessionId: string, context: string): void;
-	consumePendingHandover?(sessionId: string): string | undefined;
-	requestWorktreeResume?(
-		sessionId: string,
-		request: WorktreeResumeRequest,
-	): boolean;
-	getSessionCwd?(sessionId: string): string | undefined;
-	getSessionHomes?(
-		sessionId: string,
-	): { geminiHome?: string; claudeHome?: string } | undefined;
-	getSessionConfig?(sessionId: string): AgentConfig | undefined;
-}
+// Re-export IAgentManager from shared for backward compatibility
+export type { IAgentManager } from "@agent-manager/shared";
 
+/**
+ * Extended proxy interface for convenient access to agent manager methods
+ */
 export interface AgentManagerProxy extends IAgentManager {
 	instance(): IAgentManager;
 }
 
+/**
+ * Request to resume an agent session in a git worktree
+ */
 export interface WorktreeResumeRequest {
 	cwd: string;
 	branch: string;
@@ -140,6 +109,15 @@ export const agentManager: AgentManagerProxy = {
 		return getAgentManager().listSessions();
 	},
 	on,
+	getSessionMetadata(sessionId: string) {
+		return getAgentManager().getSessionMetadata(sessionId);
+	},
+	setPendingHandover(sessionId: string, context: string) {
+		return getAgentManager().setPendingHandover(sessionId, context);
+	},
+	consumePendingHandover(sessionId: string) {
+		return getAgentManager().consumePendingHandover(sessionId);
+	},
 	requestWorktreeResume(sessionId: string, request: WorktreeResumeRequest) {
 		return (
 			getAgentManager().requestWorktreeResume?.(sessionId, request) ?? false
@@ -147,5 +125,11 @@ export const agentManager: AgentManagerProxy = {
 	},
 	getSessionCwd(sessionId: string): string | undefined {
 		return getAgentManager().getSessionCwd?.(sessionId);
+	},
+	getSessionHomes(sessionId: string) {
+		return getAgentManager().getSessionHomes?.(sessionId);
+	},
+	getSessionConfig(sessionId: string) {
+		return getAgentManager().getSessionConfig?.(sessionId);
 	},
 };

@@ -52,3 +52,13 @@ export interface AgentStatePayload {
 	value: AgentStateValue;
 	context: Record<string, unknown>;
 }
+
+export interface SummaryOptions {
+	agentType: string;
+	context: string;
+	cwd: string;
+	metadata?: {
+		geminiSessionId?: string;
+		codexThreadId?: string;
+	};
+}

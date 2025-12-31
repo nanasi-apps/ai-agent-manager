@@ -16,12 +16,14 @@ import { worktreesRouter } from "./worktrees";
 // Re-export services for external use
 export {
 	getAgentManagerOrThrow,
+	getHandoverServiceOrThrow,
 	getNativeDialog,
 	getStoreOrThrow,
 	getWorktreeManagerOrThrow,
 	type IAgentManager,
 	type INativeDialog,
 	setAgentManager,
+	setHandoverService,
 	setNativeDialog,
 	setStore,
 	setWorktreeManager,

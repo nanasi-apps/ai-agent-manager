@@ -50,13 +50,13 @@ export type AgentEvents =
 	| { type: "ACTIVATE_WORKTREE"; context: ActiveWorktreeContext }
 	| { type: "CLEAR_ACTIVE_WORKTREE" }
 	| {
-		type: "SET_AGENT_DATA";
-		data: {
-			geminiHome?: string;
-			claudeHome?: string;
-			invalidGeminiSession?: boolean;
-		};
-	}
+			type: "SET_AGENT_DATA";
+			data: {
+				geminiHome?: string;
+				claudeHome?: string;
+				invalidGeminiSession?: boolean;
+			};
+	  }
 	| { type: "RESET"; config?: Partial<AgentConfig>; mode?: "soft" | "hard" };
 
 export const agentMachine = setup({
@@ -124,7 +124,7 @@ export const agentMachine = setup({
 					: context.claudeHome,
 			invalidGeminiSession: ({ context, event }) =>
 				event.type === "SET_AGENT_DATA" &&
-					event.data.invalidGeminiSession !== undefined
+				event.data.invalidGeminiSession !== undefined
 					? event.data.invalidGeminiSession
 					: context.invalidGeminiSession,
 		}),

@@ -1,5 +1,4 @@
 import { exec } from "node:child_process";
-import { homedir } from "node:os";
 import * as path from "node:path";
 import { promisify } from "node:util";
 import type {
@@ -9,36 +8,9 @@ import type {
 	WorktreeStatus,
 	WorktreeStatusEntry,
 } from "@agent-manager/shared";
+import { getEnhancedEnv } from "../utils/path-enhancer";
 
 const execAsyncBase = promisify(exec);
-
-/**
- * Get an enhanced environment with PATH that includes common binary locations.
- * This is needed because Electron on macOS doesn't inherit shell PATH.
- */
-function getEnhancedEnv(): NodeJS.ProcessEnv {
-	if (process.platform !== "darwin") {
-		return process.env;
-	}
-
-	const extraPaths = [
-		"/opt/homebrew/bin", // Apple Silicon
-		"/usr/local/bin", // Intel Mac
-		path.join(homedir(), ".local", "bin"),
-	];
-
-	const currentPath = process.env.PATH || "";
-	const pathsToAdd = extraPaths.filter((p) => !currentPath.includes(p));
-
-	if (pathsToAdd.length === 0) {
-		return process.env;
-	}
-
-	return {
-		...process.env,
-		PATH: [...pathsToAdd, currentPath].join(":"),
-	};
-}
 
 /**
  * Execute a command with enhanced PATH.

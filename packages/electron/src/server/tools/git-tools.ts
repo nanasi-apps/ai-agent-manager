@@ -1,5 +1,10 @@
 import { z } from "zod";
 import { getCurrentBranch, runGit } from "../utils";
+import {
+	createSafeHandler,
+	errorResponse,
+	successResponse,
+} from "./safe-tool-wrapper";
 import type { ToolRegistrar } from "./types";
 
 export function registerGitTools(registerTool: ToolRegistrar) {
@@ -17,26 +22,11 @@ export function registerGitTools(registerTool: ToolRegistrar) {
 					.describe("Use short status output (default: true)"),
 			},
 		},
-		async ({ repoPath, short }) => {
-			try {
-				const useShort = short ?? true;
-				const args = useShort ? ["status", "-sb"] : ["status"];
-				const result = await runGit(repoPath, args);
-				return {
-					content: [{ type: "text", text: result }],
-				};
-			} catch (error: any) {
-				return {
-					content: [
-						{
-							type: "text",
-							text: `Error getting git status: ${error.message}`,
-						},
-					],
-					isError: true,
-				};
-			}
-		},
+		createSafeHandler(async ({ repoPath, short }) => {
+			const useShort = short ?? true;
+			const args = useShort ? ["status", "-sb"] : ["status"];
+			return await runGit(repoPath, args);
+		}, "Error getting git status"),
 	);
 
 	registerTool(
@@ -51,26 +41,14 @@ export function registerGitTools(registerTool: ToolRegistrar) {
 				paths: z.array(z.string()).optional().describe("Optional path filters"),
 			},
 		},
-		async ({ repoPath, staged, paths }) => {
-			try {
-				const args = ["diff"];
-				if (staged) args.push("--staged");
-				if (paths && paths.length > 0) {
-					args.push("--", ...paths);
-				}
-				const result = await runGit(repoPath, args);
-				return {
-					content: [{ type: "text", text: result }],
-				};
-			} catch (error: any) {
-				return {
-					content: [
-						{ type: "text", text: `Error getting git diff: ${error.message}` },
-					],
-					isError: true,
-				};
+		createSafeHandler(async ({ repoPath, staged, paths }) => {
+			const args = ["diff"];
+			if (staged) args.push("--staged");
+			if (paths && paths.length > 0) {
+				args.push("--", ...paths);
 			}
-		},
+			return await runGit(repoPath, args);
+		}, "Error getting git diff"),
 	);
 
 	registerTool(
@@ -93,28 +71,16 @@ export function registerGitTools(registerTool: ToolRegistrar) {
 				paths: z.array(z.string()).optional().describe("Optional path filters"),
 			},
 		},
-		async ({ repoPath, maxCount, oneline, paths }) => {
-			try {
-				const limit = Math.max(1, Math.min(maxCount ?? 20, 200));
-				const useOneline = oneline ?? true;
-				const args = ["log", "-n", String(limit)];
-				if (useOneline) args.push("--oneline");
-				if (paths && paths.length > 0) {
-					args.push("--", ...paths);
-				}
-				const result = await runGit(repoPath, args);
-				return {
-					content: [{ type: "text", text: result }],
-				};
-			} catch (error: any) {
-				return {
-					content: [
-						{ type: "text", text: `Error getting git log: ${error.message}` },
-					],
-					isError: true,
-				};
+		createSafeHandler(async ({ repoPath, maxCount, oneline, paths }) => {
+			const limit = Math.max(1, Math.min(maxCount ?? 20, 200));
+			const useOneline = oneline ?? true;
+			const args = ["log", "-n", String(limit)];
+			if (useOneline) args.push("--oneline");
+			if (paths && paths.length > 0) {
+				args.push("--", ...paths);
 			}
-		},
+			return await runGit(repoPath, args);
+		}, "Error getting git log"),
 	);
 
 	registerTool(
@@ -128,23 +94,11 @@ export function registerGitTools(registerTool: ToolRegistrar) {
 				all: z.boolean().optional().describe("Include remote branches"),
 			},
 		},
-		async ({ repoPath, all }) => {
-			try {
-				const args = ["branch"];
-				if (all) args.push("-a");
-				const result = await runGit(repoPath, args);
-				return {
-					content: [{ type: "text", text: result }],
-				};
-			} catch (error: any) {
-				return {
-					content: [
-						{ type: "text", text: `Error listing branches: ${error.message}` },
-					],
-					isError: true,
-				};
-			}
-		},
+		createSafeHandler(async ({ repoPath, all }) => {
+			const args = ["branch"];
+			if (all) args.push("-a");
+			return await runGit(repoPath, args);
+		}, "Error listing branches"),
 	);
 
 	registerTool(
@@ -157,24 +111,9 @@ export function registerGitTools(registerTool: ToolRegistrar) {
 					.describe("Absolute path to the git repository root"),
 			},
 		},
-		async ({ repoPath }) => {
-			try {
-				const branch = await getCurrentBranch(repoPath);
-				return {
-					content: [{ type: "text", text: branch }],
-				};
-			} catch (error: any) {
-				return {
-					content: [
-						{
-							type: "text",
-							text: `Error getting current branch: ${error.message}`,
-						},
-					],
-					isError: true,
-				};
-			}
-		},
+		createSafeHandler(async ({ repoPath }) => {
+			return await getCurrentBranch(repoPath);
+		}, "Error getting current branch"),
 	);
 
 	registerTool(
@@ -192,31 +131,16 @@ export function registerGitTools(registerTool: ToolRegistrar) {
 					.describe("Create the branch if it does not exist"),
 			},
 		},
-		async ({ repoPath, branch, create }) => {
-			try {
-				const normalizedBranch = branch.replace(/^refs\/heads\//, "");
-				const args = ["checkout"];
-				if (create) {
-					args.push("-b", normalizedBranch);
-				} else {
-					args.push(normalizedBranch);
-				}
-				const result = await runGit(repoPath, args);
-				return {
-					content: [{ type: "text", text: result }],
-				};
-			} catch (error: any) {
-				return {
-					content: [
-						{
-							type: "text",
-							text: `Error checking out branch: ${error.message}`,
-						},
-					],
-					isError: true,
-				};
+		createSafeHandler(async ({ repoPath, branch, create }) => {
+			const normalizedBranch = branch.replace(/^refs\/heads\//, "");
+			const args = ["checkout"];
+			if (create) {
+				args.push("-b", normalizedBranch);
+			} else {
+				args.push(normalizedBranch);
 			}
-		},
+			return await runGit(repoPath, args);
+		}, "Error checking out branch"),
 	);
 
 	registerTool(
@@ -234,39 +158,20 @@ export function registerGitTools(registerTool: ToolRegistrar) {
 					.describe("Specific paths to stage"),
 			},
 		},
-		async ({ repoPath, all, paths }) => {
-			try {
-				if (!all && (!paths || paths.length === 0)) {
-					return {
-						content: [
-							{
-								type: "text",
-								text: "Error staging files: paths is required when all is false.",
-							},
-						],
-						isError: true,
-					};
-				}
-				const args = ["add"];
-				if (all) {
-					args.push("-A");
-				} else if (paths?.length !== undefined) {
-					args.push("--", ...paths);
-				}
-
-				const result = await runGit(repoPath, args);
-				return {
-					content: [{ type: "text", text: result }],
-				};
-			} catch (error: any) {
-				return {
-					content: [
-						{ type: "text", text: `Error staging files: ${error.message}` },
-					],
-					isError: true,
-				};
+		createSafeHandler(async ({ repoPath, all, paths }) => {
+			if (!all && (!paths || paths.length === 0)) {
+				return errorResponse(
+					"Error staging files: paths is required when all is false.",
+				);
 			}
-		},
+			const args = ["add"];
+			if (all) {
+				args.push("-A");
+			} else if (paths?.length !== undefined) {
+				args.push("--", ...paths);
+			}
+			return await runGit(repoPath, args);
+		}, "Error staging files"),
 	);
 
 	registerTool(
@@ -284,35 +189,17 @@ export function registerGitTools(registerTool: ToolRegistrar) {
 					.describe("Stage all tracked files before commit"),
 			},
 		},
-		async ({ repoPath, message, all }) => {
-			try {
-				if (!message.trim()) {
-					return {
-						content: [
-							{
-								type: "text",
-								text: "Error creating commit: message must be non-empty.",
-							},
-						],
-						isError: true,
-					};
-				}
-				const args = ["commit"];
-				if (all) args.push("-a");
-				args.push("-m", message);
-				const result = await runGit(repoPath, args);
-				return {
-					content: [{ type: "text", text: result }],
-				};
-			} catch (error: any) {
-				return {
-					content: [
-						{ type: "text", text: `Error creating commit: ${error.message}` },
-					],
-					isError: true,
-				};
+		createSafeHandler(async ({ repoPath, message, all }) => {
+			if (!message.trim()) {
+				return errorResponse(
+					"Error creating commit: message must be non-empty.",
+				);
 			}
-		},
+			const args = ["commit"];
+			if (all) args.push("-a");
+			args.push("-m", message);
+			return await runGit(repoPath, args);
+		}, "Error creating commit"),
 	);
 
 	registerTool(
@@ -330,23 +217,11 @@ export function registerGitTools(registerTool: ToolRegistrar) {
 				stat: z.boolean().optional().describe("Include diffstat"),
 			},
 		},
-		async ({ repoPath, revision, stat }) => {
-			try {
-				const args = ["show"];
-				if (stat) args.push("--stat");
-				if (revision) args.push(revision);
-				const result = await runGit(repoPath, args);
-				return {
-					content: [{ type: "text", text: result }],
-				};
-			} catch (error: any) {
-				return {
-					content: [
-						{ type: "text", text: `Error showing revision: ${error.message}` },
-					],
-					isError: true,
-				};
-			}
-		},
+		createSafeHandler(async ({ repoPath, revision, stat }) => {
+			const args = ["show"];
+			if (stat) args.push("--stat");
+			if (revision) args.push(revision);
+			return await runGit(repoPath, args);
+		}, "Error showing revision"),
 	);
 }

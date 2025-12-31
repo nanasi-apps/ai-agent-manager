@@ -1,8 +1,8 @@
-import { spawn } from "node:child_process";
 import { os } from "@orpc/server";
 import { z } from "zod";
 import {
 	getAgentManagerOrThrow,
+	getHandoverServiceOrThrow,
 	getStoreOrThrow,
 } from "../services/dependency-container";
 import { parseModelId } from "../services/model-fetcher";
@@ -11,10 +11,7 @@ import {
 	buildSessionConfig,
 	startAgentSession,
 } from "../services/session-builder";
-import {
-	buildHandoverContext,
-	HANDOVER_SUMMARY_PROMPT,
-} from "../templates/handover-templates";
+import { buildHandoverContext } from "../templates/handover-templates";
 import { getModePrompt } from "../templates/mode-prompts";
 import type { AgentMode, ReasoningLevel } from "../types/agent";
 import { getAgentTemplate } from "../types/project";
@@ -54,6 +51,17 @@ function formatReasoningLabel(level?: ReasoningLevel): string {
 		default:
 			return "Default";
 	}
+}
+
+// Helper function to truncate content
+function summarizeContent(content: string): string {
+	const limit = 300;
+	const clean = content
+		.replace(/[\r\n]+/g, " ")
+		.replace(/\s+/g, " ")
+		.trim();
+	if (clean.length <= limit) return clean;
+	return clean.slice(0, limit) + "... (truncated)";
 }
 
 export const conversationsRouter = {
@@ -452,122 +460,6 @@ export const conversationsRouter = {
 				logType: "system",
 			});
 
-			// Helper to get summary from an agent process
-			async function getAgentSummary(
-				agentType: string,
-				context: string,
-				metadata?: { geminiSessionId?: string; codexThreadId?: string },
-			): Promise<string | null> {
-				return new Promise((resolve) => {
-					let command = "";
-					let args: string[] = [];
-					const prompt = HANDOVER_SUMMARY_PROMPT;
-
-					// Determine command based on agent type
-					if (agentType === "codex" && metadata?.codexThreadId) {
-						command = "codex";
-						args = [
-							"exec",
-							"resume",
-							"-m",
-							"gpt-5.2",
-							metadata.codexThreadId,
-							prompt,
-						];
-					} else if (agentType === "gemini" && metadata?.geminiSessionId) {
-						command = "gemini";
-						args = ["--resume", metadata.geminiSessionId, "-y", prompt];
-					} else if (agentType === "claude") {
-						command = "claude";
-						args = ["-p", prompt];
-					} else {
-						if (agentType === "codex") {
-							command = "codex";
-							args = ["exec", "-m", "gpt-5.2", prompt];
-						} else if (agentType === "gemini") {
-							command = "gemini";
-							args = ["-y", prompt];
-						} else {
-							return resolve(null);
-						}
-					}
-
-					console.log(
-						`[ConversationsRouter] Generating summary with: ${command} ${args.join(" ")}`,
-					);
-
-					try {
-						const child = spawn(command, args, {
-							cwd,
-							env: process.env,
-							stdio: ["pipe", "pipe", "pipe"],
-							shell: true,
-						});
-
-						let output = "";
-						let stderrOutput = "";
-
-						child.stderr.on("data", (data) => {
-							stderrOutput += data.toString();
-						});
-
-						const isResuming =
-							args.includes("resume") || args.includes("--resume");
-						if (!isResuming) {
-							child.stdin.write(context);
-						}
-						child.stdin.end();
-
-						child.stdout.on("data", (data) => {
-							output += data.toString();
-						});
-
-						child.on("close", (code) => {
-							if (code === 0 && output.trim()) {
-								resolve(output.trim());
-							} else {
-								console.warn(
-									`[ConversationsRouter] Summary generation failed/empty with code ${code}`,
-								);
-								if (stderrOutput.trim()) {
-									console.warn(
-										`[ConversationsRouter] Summary stderr: ${stderrOutput.trim()}`,
-									);
-								}
-								if (output.trim()) {
-									console.warn(
-										`[ConversationsRouter] Summary stdout: ${output.trim().slice(0, 200)}`,
-									);
-								}
-								resolve(null);
-							}
-						});
-
-						child.on("error", (err) => {
-							console.error(
-								`[ConversationsRouter] Summary generation error: ${err}`,
-							);
-							resolve(null);
-						});
-					} catch (e) {
-						console.error(
-							`[ConversationsRouter] Summary generation exception: ${e}`,
-						);
-						resolve(null);
-					}
-				});
-			}
-
-			function summarizeContent(content: string): string {
-				const limit = 300;
-				const clean = content
-					.replace(/[\r\n]+/g, " ")
-					.replace(/\s+/g, " ")
-					.trim();
-				if (clean.length <= limit) return clean;
-				return clean.slice(0, limit) + "... (truncated)";
-			}
-
 			// Prepare context handover data BEFORE resetting the session
 			let handoverSummary: string | null = null;
 			let handoverPreviousName = "";
@@ -583,23 +475,34 @@ export const conversationsRouter = {
 					.slice(-20);
 
 				if (recent.length > 0) {
+					handoverPreviousName =
+						currentTemplate?.name || conv.agentType || "unknown";
+
 					const historyText = recent
 						.map((m) => `${m.role === "user" ? "User" : "Agent"}: ${m.content}`)
 						.join("\n\n");
-					handoverPreviousName =
-						currentTemplate?.name || conv.agentType || "unknown";
 
 					// Get metadata BEFORE resetSession clears it
 					const metadata = agentManagerInstance.getSessionMetadata(
 						input.sessionId,
 					);
 
-					// Generate summary using the previous agent's context (if possible)
-					handoverSummary = await getAgentSummary(
-						conv.agentType || "gemini",
-						historyText,
-						metadata,
-					);
+					try {
+						// Generate summary using the injected service
+						const handoverService = getHandoverServiceOrThrow();
+						if (cwd) {
+							handoverSummary = await handoverService.generateAgentSummary({
+								agentType: conv.agentType || "gemini",
+								context: historyText,
+								cwd,
+								metadata,
+							});
+						}
+					} catch (error) {
+						console.error(
+							`[ConversationsRouter] Failed to generate summary: ${error}`,
+						);
+					}
 
 					// Fallback to simple truncation if smart summary failed
 					if (!handoverSummary) {

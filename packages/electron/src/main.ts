@@ -1,12 +1,11 @@
-import { execSync } from "node:child_process";
 import {
 	setAgentManager,
+	setHandoverService,
 	setNativeDialog,
 	setStore,
 	setWorktreeManager,
 } from "@agent-manager/shared";
 import { app, BrowserWindow, dialog } from "electron";
-import { homedir } from "os";
 import path from "path";
 import {
 	setAgentManager as setElectronAgentManager,
@@ -19,46 +18,12 @@ import { initializeWindowTheme, setupGlobalThemeHandlers } from "./main/theme";
 import { worktreeManager } from "./main/worktree-manager";
 import { startMcpServer } from "./server/mcp-server.js";
 import { startOrpcServer } from "./server/orpc-server";
+import * as handoverSummaryService from "./services/handover-summary-service";
 import { store } from "./store";
+import { fixProcessPath } from "./utils/path-enhancer";
 
-// Fix PATH for macOS GUI apps (Electron doesn't inherit shell PATH)
-// This ensures git and other CLI tools are found
-const fixPath = () => {
-	if (process.platform !== "darwin") return;
-
-	try {
-		// Get the PATH from the user's default shell
-		const shell = process.env.SHELL || "/bin/zsh";
-		const shellPath = execSync(`${shell} -ilc 'echo $PATH'`, {
-			encoding: "utf-8",
-			timeout: 5000,
-		}).trim();
-
-		if (shellPath && shellPath !== process.env.PATH) {
-			process.env.PATH = shellPath;
-			console.log("[Main] Fixed PATH from shell");
-		}
-	} catch (error) {
-		console.warn("[Main] Failed to get PATH from shell:", error);
-	}
-
-	// Fallback: ensure common bin paths are included
-	const ensurePathIncludes = (binPath: string) => {
-		const delimiter = ":";
-		if (!process.env.PATH?.includes(binPath)) {
-			process.env.PATH = `${binPath}${delimiter}${process.env.PATH}`;
-			console.log(`[Main] Added ${binPath} to PATH`);
-		}
-	};
-
-	const home = homedir();
-	ensurePathIncludes(path.join(home, ".local", "bin"));
-	ensurePathIncludes("/opt/homebrew/bin"); // Apple Silicon
-	ensurePathIncludes("/usr/local/bin"); // Intel Mac
-};
-
-// Call fixPath BEFORE any other imports that might use git
-fixPath();
+// Call fixProcessPath BEFORE any other imports that might use git
+fixProcessPath();
 
 // Set up dependencies for the router
 // Use unifiedAgentManager to support both CLI-based and API-based agents
@@ -66,6 +31,7 @@ setAgentManager(unifiedAgentManager);
 setElectronAgentManager(unifiedAgentManager);
 setStore(store);
 setWorktreeManager(worktreeManager);
+setHandoverService(handoverSummaryService);
 setNativeDialog({
 	selectDirectory: async () => {
 		const result = await dialog.showOpenDialog({

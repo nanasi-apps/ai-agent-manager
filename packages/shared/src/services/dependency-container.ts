@@ -53,10 +53,21 @@ export interface IAgentManager {
 	getSessionHomes?(
 		sessionId: string,
 	): { geminiHome?: string; claudeHome?: string } | undefined;
+	/** Get the current session config */
+	getSessionConfig?(sessionId: string): Partial<AgentConfig> | undefined;
 }
 
 export interface INativeDialog {
 	selectDirectory(): Promise<string | null>;
+}
+
+// ... types
+import type { SummaryOptions } from "../types/agent";
+
+// ... previous interfaces ...
+
+export interface IHandoverService {
+	generateAgentSummary(options: SummaryOptions): Promise<string | null>;
 }
 
 // Dependencies to be injected
@@ -64,6 +75,7 @@ let agentManager: IAgentManager | null = null;
 let store: IStore | null = null;
 let nativeDialog: INativeDialog | null = null;
 let worktreeManager: IWorktreeManager | null = null;
+let handoverService: IHandoverService | null = null;
 
 /**
  * Set the agent manager implementation
@@ -89,6 +101,11 @@ export function setNativeDialog(dialogImpl: INativeDialog | null): void {
 export function setWorktreeManager(manager: IWorktreeManager): void {
 	worktreeManager = manager;
 	console.log("[DependencyContainer] Worktree manager set");
+}
+
+export function setHandoverService(service: IHandoverService): void {
+	handoverService = service;
+	console.log("[DependencyContainer] Handover service set");
 }
 
 export function getAgentManagerOrThrow(): IAgentManager {
@@ -118,4 +135,13 @@ export function getWorktreeManagerOrThrow(): IWorktreeManager {
 		);
 	}
 	return worktreeManager;
+}
+
+export function getHandoverServiceOrThrow(): IHandoverService {
+	if (!handoverService) {
+		throw new Error(
+			"Handover service not initialized. Call setHandoverService first.",
+		);
+	}
+	return handoverService;
 }

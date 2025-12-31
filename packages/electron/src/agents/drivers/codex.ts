@@ -1,4 +1,8 @@
-import type { AgentConfig, AgentMode, ReasoningLevel } from "@agent-manager/shared";
+import type {
+	AgentConfig,
+	AgentMode,
+	ReasoningLevel,
+} from "@agent-manager/shared";
 import type {
 	AgentDriver,
 	AgentDriverCommand,

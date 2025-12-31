@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
+import type { AgentMode } from "@agent-manager/shared";
 import { getStoreOrThrow } from "@agent-manager/shared";
 import { StreamableHTTPTransport } from "@hono/mcp";
 import { serve } from "@hono/node-server";
@@ -6,6 +7,12 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { Hono } from "hono";
 import { getAgentManager } from "../agents/agent-manager";
+import {
+	buildToolBlockedResponse,
+	filterToolsByMode,
+	isToolAllowedForMode,
+	isToolDisabledForSession,
+} from "./tool-policy";
 import {
 	registerFsTools,
 	registerGitTools,
@@ -32,54 +39,31 @@ export async function startMcpServer(port: number = 3001) {
 
 			if (context?.sessionId) {
 				const conv = getStoreOrThrow().getConversation(context.sessionId);
-				// Check exact match "agents-manager-mcp-{toolName}" as stored by UI
-				const key = `agents-manager-mcp-${name}`;
-				if (conv?.disabledMcpTools?.includes(key)) {
+
+				// Check if tool is disabled by user
+				if (isToolDisabledForSession(name, conv?.disabledMcpTools)) {
 					console.log(
 						`[McpServer] Blocking disabled tool ${name} for session ${context.sessionId}`,
 					);
-					return {
-						content: [
-							{
-								type: "text" as const,
-								text: `Tool '${name}' is disabled for this session by the user.`,
-							},
-						],
-						isError: true,
-					};
+					return buildToolBlockedResponse(
+						name,
+						"disabled for this session by the user",
+					);
 				}
 
-				// Check Plan Mode via active session config
+				// Check Plan/Ask Mode restrictions
 				const manager = getAgentManager();
 				const config = manager.getSessionConfig?.(context.sessionId);
-				if (config?.mode === "plan" || config?.mode === "ask") {
-					// Plan/Ask mode: strictly forbid file operations and git
-					const forbiddenPatterns = [
-						"write_file",
-						"replace_file_content",
-						"git_add",
-						"git_commit",
-						"git_checkout",
-						"worktree_create",
-						"worktree_remove",
-						"worktree_complete",
-						"worktree_run",
-						"run_command",
-					];
-					if (forbiddenPatterns.some((p) => name.startsWith(p))) {
-						console.log(
-							`[McpServer] Blocking tool ${name} for session ${context.sessionId} (${config.mode} Mode)`,
-						);
-						return {
-							content: [
-								{
-									type: "text" as const,
-									text: `Tool '${name}' is not available in ${config.mode} Mode.`,
-								},
-							],
-							isError: true,
-						};
-					}
+				const mode = config?.mode as AgentMode | undefined;
+
+				if (!isToolAllowedForMode(name, mode)) {
+					console.log(
+						`[McpServer] Blocking tool ${name} for session ${context.sessionId} (${mode} Mode)`,
+					);
+					return buildToolBlockedResponse(
+						name,
+						`not available in ${mode} Mode`,
+					);
 				}
 			}
 			return handler(args, extra);
@@ -119,37 +103,20 @@ export async function startMcpServer(port: number = 3001) {
 
 					if (context?.sessionId && !context.isSuperuser && result.tools) {
 						const conv = getStoreOrThrow().getConversation(context.sessionId);
+
+						// Filter out disabled tools
 						if (conv?.disabledMcpTools) {
 							result.tools = result.tools.filter(
 								(t: any) =>
-									!conv.disabledMcpTools!.includes(
-										`agents-manager-mcp-${t.name}`,
-									),
+									!isToolDisabledForSession(t.name, conv.disabledMcpTools),
 							);
 						}
 
-						// Plan/Ask Mode: Filter out action tools from the list
+						// Filter by mode (Plan/Ask Mode restrictions)
 						const manager = getAgentManager();
 						const config = manager.getSessionConfig?.(context.sessionId);
-						if (config?.mode === "plan" || config?.mode === "ask") {
-							result.tools = result.tools.filter((t: any) => {
-								const forbiddenPatterns = [
-									"write_file",
-									"replace_file_content",
-									"git_add",
-									"git_commit",
-									"git_checkout",
-									"worktree_create",
-									"worktree_remove",
-									"worktree_complete",
-									"worktree_run",
-									"run_command",
-								];
-								return !forbiddenPatterns.some((pattern) =>
-									t.name.startsWith(pattern),
-								);
-							});
-						}
+						const mode = config?.mode as AgentMode | undefined;
+						result.tools = filterToolsByMode(result.tools, mode);
 					}
 					return result;
 				},
