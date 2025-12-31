@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { GitBranch, Plug } from "lucide-vue-next";
+import { FileText, GitBranch, Plug } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
 
 const props = defineProps<{
@@ -8,12 +8,14 @@ const props = defineProps<{
 	isConnected: boolean;
 	currentBranch: string | null;
 	isMcpSheetOpen: boolean;
+	isPlanViewerOpen: boolean;
 }>();
 
 const emit = defineEmits<{
 	(e: "update:titleDraft", value: string): void;
 	(e: "saveTitle"): void;
 	(e: "toggleMcp"): void;
+	(e: "togglePlanViewer"): void;
 }>();
 </script>
 
@@ -55,6 +57,16 @@ const emit = defineEmits<{
 		</div>
 
 		<div class="flex items-center gap-2">
+			<Button
+				variant="ghost"
+				size="icon"
+				class="h-8 w-8 text-muted-foreground"
+				:class="{ 'bg-accent text-accent-foreground': isPlanViewerOpen }"
+				@click="emit('togglePlanViewer')"
+				title="View Plan"
+			>
+				<FileText class="size-4" />
+			</Button>
 			<Button
 				variant="ghost"
 				size="icon"

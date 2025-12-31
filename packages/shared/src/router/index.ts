@@ -29,7 +29,7 @@ export {
 	setWorktreeManager,
 } from "../services/dependency-container";
 // Re-export model utilities
-export { buildModelId, parseModelId } from "../services/model-fetcher";
+export { buildModelId, HARDCODED_MODELS, parseModelId } from "../services/model-fetcher";
 // Re-export utilities
 export { generateUUID } from "../utils";
 

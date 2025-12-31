@@ -119,7 +119,7 @@ export const projectsRouter = {
 			if (input.name !== undefined) {
 				updates.name = input.name;
 			}
-			if (Object.hasOwn(input, "rootPath")) {
+			if ("rootPath" in input) {
 				updates.rootPath = input.rootPath ?? undefined;
 			}
 			if (input.activeGlobalRules !== undefined) {
@@ -164,10 +164,10 @@ export const projectsRouter = {
 					}
 
 					/*
-                    const finalContent = `${globalRulesContent}\n\n<!-- Project Specific Rules -->\n${projectRulesContent}`.trim();
-                    // await writeFile(join(updatedProject.rootPath, 'Agents.md'), finalContent, 'utf-8');
-                    // await writeFile(join(updatedProject.rootPath, 'Claude.md'), finalContent, 'utf-8');
-                    */
+					const finalContent = `${globalRulesContent}\n\n<!-- Project Specific Rules -->\n${projectRulesContent}`.trim();
+					// await writeFile(join(updatedProject.rootPath, 'Agents.md'), finalContent, 'utf-8');
+					// await writeFile(join(updatedProject.rootPath, 'Claude.md'), finalContent, 'utf-8');
+					*/
 				} catch (e) {
 					console.error("Failed to generate rule files", e);
 				}

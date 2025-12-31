@@ -80,7 +80,6 @@ const loadProject = async () => {
 		// Ensure projectRules is parsed correctly or initialized
 		const parsedProject = {
 			...p,
-			// @ts-expect-error
 			projectRules:
 				p?.projectRules && Array.isArray(p.projectRules) ? p.projectRules : [],
 		};

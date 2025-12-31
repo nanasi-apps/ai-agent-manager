@@ -14,6 +14,7 @@ import {
 	ResizablePanelGroup,
 } from "@/components/ui/resizable";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import PlanViewer from "@/components/plan/PlanViewer.vue";
 import { useConversation } from "@/composables/useConversation";
 import { onAgentStateChangedPort } from "@/services/agent-state-port";
 
@@ -220,9 +221,11 @@ onBeforeRouteLeave(() => {
 			:is-connected="conversation.isConnected.value"
 			:current-branch="conversation.currentBranch.value"
 			:is-mcp-sheet-open="conversation.isMcpSheetOpen.value"
+			:is-plan-viewer-open="conversation.isPlanViewerOpen.value"
 			@update:title-draft="conversation.titleDraft.value = $event"
 			@save-title="handleSaveTitle"
 			@toggle-mcp="handleToggleMcp"
+			@toggle-plan-viewer="conversation.togglePlanViewer"
 		/>
 
 		<ResizablePanelGroup
@@ -272,7 +275,7 @@ onBeforeRouteLeave(() => {
 				</div>
 			</ResizablePanel>
 
-			<ResizableHandle v-if="conversation.isMcpSheetOpen.value" />
+			<ResizableHandle v-if="conversation.isMcpSheetOpen.value || conversation.isPlanViewerOpen.value" />
 
 			<!-- MCP Sidebar -->
 			<Transition name="sidebar">
@@ -296,6 +299,22 @@ onBeforeRouteLeave(() => {
 						@close="handleCloseMcp"
 						@toggle-server="handleToggleMcpServer"
 						@toggle-tool="handleToggleMcpTool"
+					/>
+				</ResizablePanel>
+			</Transition>
+
+			<!-- Plan Viewer Sidebar -->
+			<Transition name="sidebar">
+				<ResizablePanel
+					v-if="conversation.isPlanViewerOpen.value"
+					:default-size="30"
+					:min-size="20"
+					class="bg-background flex flex-col min-w-[300px] max-w-[45vw] overflow-hidden"
+				>
+					<PlanViewer
+						:content="conversation.latestPlanContent.value"
+						:is-open="conversation.isPlanViewerOpen.value"
+						@close="conversation.togglePlanViewer"
 					/>
 				</ResizablePanel>
 			</Transition>

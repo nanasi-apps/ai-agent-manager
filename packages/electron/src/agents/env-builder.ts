@@ -1,4 +1,5 @@
-import { getSessionMcpServersLogic } from "@agent-manager/shared";
+import { getSessionMcpServersLogic, HARDCODED_MODELS } from "@agent-manager/shared";
+import { store } from "../store";
 import { getEnhancedEnv } from "../utils/path-enhancer";
 import type { SessionState } from "./types";
 
@@ -29,13 +30,47 @@ export class EnvBuilder {
 			Object.assign(env, state.config.env);
 		}
 
-		// Inject API keys if present in process.env
-		if (process.env.GEMINI_API_KEY) {
-			env.GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+		// Inject API keys and Base URLs from Store settings
+		// ONLY if using a Custom Model (one that is not in the hardcoded list)
+		// This prevents overriding standard CLI auth/config for standard models
+		const apiSettings = store.getApiSettings();
+		const currentModel = state.config.model;
+		const configType = state.config.type; // gemini, codex, etc.
+
+		// Check if the model is "standard" (hardcoded)
+		// If configType is unknown or model is missing, we assume it might be custom or rely on defaults
+		// But here the user specifically wants to inject "only when custom model is selected".
+		// We define "Custom Model" as: NOT in HARDCODED_MODELS for that type.
+		let isStandardModel = false;
+		if (configType && currentModel && HARDCODED_MODELS[configType]) {
+			isStandardModel = HARDCODED_MODELS[configType].includes(currentModel);
 		}
-		if (process.env.OPENAI_API_KEY) {
-			env.OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+
+		// Gemini
+		// Inject if NOT standard model (i.e. Custom)
+		if (options.isGemini && !isStandardModel) {
+			if (apiSettings.geminiApiKey) {
+				env.GEMINI_API_KEY = apiSettings.geminiApiKey;
+			}
+			if (apiSettings.geminiBaseUrl) {
+				env.GEMINI_BASE_URL = apiSettings.geminiBaseUrl;
+				env.GOOGLE_GENAI_BASE_URL = apiSettings.geminiBaseUrl;
+				env.API_BASE = apiSettings.geminiBaseUrl;
+				env.GEMINI_API_BASE = apiSettings.geminiBaseUrl;
+			}
 		}
+
+		// OpenAI / Codex
+		if (options.isCodex && !isStandardModel) {
+			if (apiSettings.openaiApiKey) {
+				env.OPENAI_API_KEY = apiSettings.openaiApiKey;
+			}
+			if (apiSettings.openaiBaseUrl) {
+				env.OPENAI_BASE_URL = apiSettings.openaiBaseUrl;
+			}
+		}
+
+		// Anthropic
 		if (process.env.ANTHROPIC_API_KEY) {
 			env.ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 		}

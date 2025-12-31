@@ -327,6 +327,12 @@ export class OneShotSession extends EventEmitter {
 				isCodex,
 				isClaude,
 			});
+
+			if (isGemini) {
+				console.log(
+					`[OneShotSession] Spawn Env Check: GEMINI_BASE_URL=${spawnEnv.GEMINI_BASE_URL}, GEMINI_API_BASE=${spawnEnv.GEMINI_API_BASE}, GEMINI_API_KEY=${spawnEnv.GEMINI_API_KEY ? "***" : "missing"}`,
+				);
+			}
 			const resolvedCwd = await this.resolveSessionCwd();
 
 			if (currentState.config.cwd && !resolvedCwd) {

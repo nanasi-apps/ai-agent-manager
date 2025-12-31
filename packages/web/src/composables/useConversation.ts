@@ -112,10 +112,25 @@ export function useConversation(initialSessionId: string) {
 	const mcpToolsError = ref<string | null>(null);
 	const disabledMcpTools = ref(new Set<string>());
 
+	// Plan Viewer state
+	const isPlanViewerOpen = ref(false);
+
 	// Computed
 	const selectedModelTemplate = computed(() =>
 		modelTemplates.value.find((m) => m.id === modelIdDraft.value),
 	);
+
+	const latestPlanContent = computed(() => {
+		// Find the last message from agent that is text
+		// We iterate backwards
+		for (let i = messages.value.length - 1; i >= 0; i--) {
+			const msg = messages.value[i];
+			if (msg && msg.role === "agent" && (!msg.logType || msg.logType === "text")) {
+				return msg.content;
+			}
+		}
+		return "";
+	});
 
 	const supportsReasoning = computed(() => {
 		const template = selectedModelTemplate.value;
@@ -796,8 +811,26 @@ export function useConversation(initialSessionId: string) {
 		}
 	};
 
+	// Plan Viewer functions
+	const togglePlanViewer = () => {
+		isPlanViewerOpen.value = !isPlanViewerOpen.value;
+		// If opening plan viewer, ensure MCP sheet is closed to avoid clutter?
+		// Or allow both? Let's allow one sidebar at a time for now for better UX on small screens
+		if (isPlanViewerOpen.value) {
+			isMcpSheetOpen.value = false;
+		}
+	};
+
 	// Setup watchers
 	const setupWatchers = () => {
+		// Auto-open plan viewer when switching to plan mode?
+		watch(currentMode, (newMode) => {
+			if (newMode === "plan") {
+				// isPlanViewerOpen.value = true; 
+				// Maybe don't auto-open yet, let user decide
+			}
+		});
+
 		watch(modelIdDraft, async (newVal) => {
 			if (newVal && newVal !== currentModelId.value) {
 				await swapModel();
@@ -841,10 +874,11 @@ export function useConversation(initialSessionId: string) {
 		modelTemplates,
 		modelIdDraft,
 		currentModelId,
+		conversationAgentType,
+		conversationAgentModel,
 		isSwappingModel,
 		isUpdatingReasoning,
 		isUpdatingMode,
-		isUpdatingAgent,
 		reasoningDraft,
 		currentReasoning,
 		modeDraft,
@@ -853,10 +887,6 @@ export function useConversation(initialSessionId: string) {
 		projectId,
 		copiedId,
 		expandedMessageIds,
-		selectedModelTemplate,
-		supportsReasoning,
-
-		// MCP state
 		isMcpSheetOpen,
 		isLoadingMcp,
 		sessionMcpServers,
@@ -868,6 +898,15 @@ export function useConversation(initialSessionId: string) {
 		mcpToolsError,
 		disabledMcpTools,
 
+		// Plan Viewer
+		isPlanViewerOpen,
+		latestPlanContent,
+
+		// Computed
+		selectedModelTemplate,
+		supportsReasoning,
+		isUpdatingAgent,
+
 		// Helpers
 		matchesStateValue,
 		formatModelLabel,
@@ -875,30 +914,30 @@ export function useConversation(initialSessionId: string) {
 		formatModeLabel,
 		formatTime,
 		getLogSummary,
-		getCleanContent,
 		sanitizeLogContent,
 		hasContent,
 		isAlwaysOpen,
 		toggleMessage,
 		copyMessage,
-
-		// API calls
 		loadModelTemplates,
 		loadConversation,
-		loadBranchInfo,
 		saveTitle,
 		sendMessage,
 		stopGeneration,
-		appendAgentLog,
 
-		// MCP functions
+		// MCP Methods
+		loadMcpServers,
 		toggleMcpSheet,
 		getMcpConnectionInfo,
-		isToolDisabled,
-		handleToolClick,
 		toggleMcpServer,
+		handleToolClick,
+		isToolDisabled,
+
+		// Plan Viewer Methods
+		togglePlanViewer,
 
 		// Setup
 		setupWatchers,
+		appendAgentLog,
 	};
 }

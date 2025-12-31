@@ -175,6 +175,7 @@ async function ensureGeminiSettings(
 	if (useApiKey) {
 		if (!settings.security) settings.security = {};
 		if (!settings.security.auth) settings.security.auth = {};
+		// Reverting to gemini-api-key to ensure GoogleGenAI client is used, which supports GEMINI_API_BASE
 		settings.security.auth.selectedType = "gemini-api-key";
 		console.log(
 			"[EnvUtils] Configured Gemini security.auth.selectedType = gemini-api-key",

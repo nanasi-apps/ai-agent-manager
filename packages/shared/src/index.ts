@@ -8,6 +8,7 @@ export {
 	getHandoverServiceOrThrow,
 	getSessionMcpServersLogic,
 	getStoreOrThrow,
+	HARDCODED_MODELS,
 	listMcpToolsLogic,
 	mcpRouter,
 	setAgentManager,

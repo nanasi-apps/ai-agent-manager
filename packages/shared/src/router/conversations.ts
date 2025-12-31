@@ -421,7 +421,6 @@ export const conversationsRouter = {
 				resolvedModel,
 				input.reasoning ?? conv.agentReasoning,
 			);
-			const nextModelLabel = resolvedModel;
 
 			const project = storeInstance.getProject(conv.projectId);
 			const cwd = project?.rootPath || nextTemplate.agent.cwd;
