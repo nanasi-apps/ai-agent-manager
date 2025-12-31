@@ -11,7 +11,7 @@ import {
 } from "lucide-vue-next";
 import { useI18n } from "vue-i18n";
 import { Avatar } from "@/components/ui/avatar";
-import type { LogType, Message } from "@/composables/useConversation";
+import type { LogType, Message, ModelTemplate } from "@/composables/useConversation";
 import { useMarkdown } from "@/composables/useMarkdown";
 
 const { t } = useI18n();
@@ -21,6 +21,7 @@ const props = defineProps<{
 	isGenerating: boolean;
 	copiedId: string | null;
 	expandedMessageIds: Set<string>;
+	currentModel?: ModelTemplate;
 }>();
 
 const emit = defineEmits<{
@@ -29,6 +30,18 @@ const emit = defineEmits<{
 }>();
 
 const { renderMarkdown } = useMarkdown();
+
+const getAgentLabel = () => {
+	if (!props.currentModel) return t('chat.agent');
+	
+	const modelName = props.currentModel.model || props.currentModel.name;
+	const agentName = props.currentModel.agentName;
+	
+	if (modelName && agentName) {
+		return `${modelName} - ${agentName}`;
+	}
+	return agentName || t('chat.agent');
+};
 
 const getLogSummary = (msg: Message) => {
 	const content = msg.content || "";
@@ -154,7 +167,7 @@ const formatTime = (timestamp: number) => {
 				>
 					<div class="flex items-center gap-2 px-1">
 						<span class="text-xs font-medium text-muted-foreground">
-							{{ msg.role === "agent" ? t('chat.agent') : t('chat.you') }}
+							{{ msg.role === "agent" ? getAgentLabel() : t('chat.you') }}
 						</span>
 						<span
 							class="text-[10px] text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity"
