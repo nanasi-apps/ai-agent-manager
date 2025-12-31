@@ -1,4 +1,3 @@
-import { AsyncLocalStorage } from "node:async_hooks";
 import type { AgentMode } from "@agent-manager/shared";
 import { getStoreOrThrow } from "@agent-manager/shared";
 import { StreamableHTTPTransport } from "@hono/mcp";
@@ -13,18 +12,15 @@ import {
 	isToolAllowedForMode,
 	isToolDisabledForSession,
 } from "./tool-policy";
+import { getSessionContext, runWithSessionContext } from "./mcp-session-context";
 import {
 	registerFsTools,
 	registerGitTools,
+	registerPlanTools,
 	registerSearchTools,
 	registerWorktreeTools,
 	type ToolRegistrar,
 } from "./tools";
-
-const sessionContext = new AsyncLocalStorage<{
-	sessionId: string;
-	isSuperuser: boolean;
-}>();
 
 export async function startMcpServer(port: number = 3001) {
 	const server = new McpServer({
@@ -35,7 +31,7 @@ export async function startMcpServer(port: number = 3001) {
 	// Create a tool registrar that wraps handlers with security checks
 	const registerTool: ToolRegistrar = (name, schema, handler) => {
 		server.registerTool(name, schema, async (args: any, extra: any) => {
-			const context = sessionContext.getStore();
+			const context = getSessionContext();
 
 			if (context?.sessionId) {
 				const conv = getStoreOrThrow().getConversation(context.sessionId);
@@ -73,6 +69,7 @@ export async function startMcpServer(port: number = 3001) {
 	// Register all tools from modular files
 	registerFsTools(registerTool);
 	registerGitTools(registerTool);
+	registerPlanTools(registerTool);
 	registerWorktreeTools(registerTool);
 	registerSearchTools(registerTool);
 
@@ -99,7 +96,7 @@ export async function startMcpServer(port: number = 3001) {
 				ListToolsRequestSchema,
 				async (req: any, extra: any) => {
 					const result = await originalHandler(req, extra);
-					const context = sessionContext.getStore();
+					const context = getSessionContext();
 
 					if (context?.sessionId && !context.isSuperuser && result.tools) {
 						const conv = getStoreOrThrow().getConversation(context.sessionId);
@@ -132,7 +129,7 @@ export async function startMcpServer(port: number = 3001) {
 	app.all("/mcp/:sessionId/*", async (c) => {
 		const sessionId = c.req.param("sessionId");
 		const isSuperuser = c.req.query("superuser") === "true";
-		return sessionContext.run({ sessionId, isSuperuser }, () =>
+		return runWithSessionContext({ sessionId, isSuperuser }, () =>
 			transport.handleRequest(c as any),
 		);
 	});

@@ -643,6 +643,9 @@ export class OneShotSession extends EventEmitter {
 
 	private getWorktreeInstructions(): string {
 		const session = this.state;
+		if (session.config.mode === "regular") {
+			return "";
+		}
 		return buildInstructions(
 			this.sessionId,
 			session.projectRoot ?? session.config.cwd,
