@@ -25,9 +25,9 @@ export class CodexDriver implements AgentDriver {
 		// Escape message for shell - handles newlines, special characters, brackets, etc.
 		const escapedMessage = shellEscape(fullMessage);
 
-		// Check if --json mode was requested
+		// Check if --json mode was requested (only supported for initial exec)
 		const hasJson = base.args.includes("--json");
-		const jsonArgs = hasJson ? ["--json"] : [];
+		const jsonArgsExec = hasJson ? ["--json"] : [];
 
 		// Check if --full-auto was requested
 		const hasFullAuto = base.args.includes("--full-auto");
@@ -59,7 +59,7 @@ export class CodexDriver implements AgentDriver {
 			args = [
 				"exec",
 				...fullAutoArgs,
-				...jsonArgs,
+				...jsonArgsExec,
 				...modelArgs,
 				...reasoningArgs,
 				...modeArgs,
@@ -73,8 +73,9 @@ export class CodexDriver implements AgentDriver {
 			const modelArgs = config.model ? ["-c", `model="${config.model}"`] : [];
 			args = [
 				"exec",
+				...fullAutoArgs,
+				...jsonArgsExec,
 				"resume",
-				...jsonArgs,
 				...modelArgs,
 				...reasoningArgs,
 				...modeArgs,
@@ -92,7 +93,7 @@ export class CodexDriver implements AgentDriver {
 			args = [
 				"exec",
 				...fullAutoArgs,
-				...jsonArgs,
+				...jsonArgsExec,
 				...modelArgs,
 				...reasoningArgs,
 				...modeArgs,
