@@ -41,6 +41,7 @@ export type AgentEvents =
 	| { type: "WORKTREE_SWITCH_START"; context: ActiveWorktreeContext }
 	| { type: "WORKTREE_SWITCH_COMPLETE" }
 	| { type: "SET_GEMINI_SESSION"; id: string }
+	| { type: "SET_CODEX_THREAD"; id: string }
 	| { type: "INVALIDATE_SESSION" }
 	| { type: "SET_PENDING_HANDOVER"; context: string }
 	| { type: "CONSUME_PENDING_HANDOVER" }
@@ -49,13 +50,13 @@ export type AgentEvents =
 	| { type: "ACTIVATE_WORKTREE"; context: ActiveWorktreeContext }
 	| { type: "CLEAR_ACTIVE_WORKTREE" }
 	| {
-			type: "SET_AGENT_DATA";
-			data: {
-				geminiHome?: string;
-				claudeHome?: string;
-				invalidGeminiSession?: boolean;
-			};
-	  }
+		type: "SET_AGENT_DATA";
+		data: {
+			geminiHome?: string;
+			claudeHome?: string;
+			invalidGeminiSession?: boolean;
+		};
+	}
 	| { type: "RESET"; config?: Partial<AgentConfig>; mode?: "soft" | "hard" };
 
 export const agentMachine = setup({
@@ -102,6 +103,10 @@ export const agentMachine = setup({
 			geminiSessionId: ({ event }) =>
 				event.type === "SET_GEMINI_SESSION" ? event.id : undefined,
 		}),
+		setCodexThread: assign({
+			codexThreadId: ({ event }) =>
+				event.type === "SET_CODEX_THREAD" ? event.id : undefined,
+		}),
 		invalidateSession: assign({
 			geminiSessionId: undefined,
 			messageCount: 0,
@@ -119,7 +124,7 @@ export const agentMachine = setup({
 					: context.claudeHome,
 			invalidGeminiSession: ({ context, event }) =>
 				event.type === "SET_AGENT_DATA" &&
-				event.data.invalidGeminiSession !== undefined
+					event.data.invalidGeminiSession !== undefined
 					? event.data.invalidGeminiSession
 					: context.invalidGeminiSession,
 		}),
@@ -188,8 +193,9 @@ export const agentMachine = setup({
 				},
 				ACTIVATE_WORKTREE: { actions: "activateWorktree" },
 				CLEAR_ACTIVE_WORKTREE: { actions: "clearActiveWorktree" },
-				SET_GEMINI_SESSION: { actions: "setGeminiSession" }, // Added to idle
-				INVALIDATE_SESSION: { actions: "invalidateSession" }, // Added to idle
+				SET_GEMINI_SESSION: { actions: "setGeminiSession" },
+				SET_CODEX_THREAD: { actions: "setCodexThread" },
+				INVALIDATE_SESSION: { actions: "invalidateSession" },
 				RESET: {
 					target: "idle",
 					actions: assign(({ context, event }) => {
@@ -228,6 +234,7 @@ export const agentMachine = setup({
 				},
 				AGENT_COMPLETE: "idle",
 				SET_GEMINI_SESSION: { actions: "setGeminiSession" },
+				SET_CODEX_THREAD: { actions: "setCodexThread" },
 				SET_AGENT_DATA: { actions: "setAgentData" },
 				INVALIDATE_SESSION: { actions: "invalidateSession" },
 			},

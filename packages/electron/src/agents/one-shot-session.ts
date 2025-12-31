@@ -540,13 +540,10 @@ export class OneShotSession extends EventEmitter {
 						});
 					}
 					if (log.metadata?.codexThreadId) {
-						// this.stateManager.setCodexThreadId(log.metadata.codexThreadId);
-						// Need event for codex too or generic setAgentData
-						// I didn't add SET_CODEX_THREAD_ID.
-						// I'll ignore for now or assume it's part of context not needing explicit set?
-						// Wait, it is persistent. I need to set it.
-						// I'll use SET_AGENT_DATA if I add it? No, generic is risky.
-						// I'll skip codex for now as I focused on Gemini/Claude in plan.
+						this.actor.send({
+							type: "SET_CODEX_THREAD",
+							id: log.metadata.codexThreadId,
+						});
 					}
 					this.emitLog(log.data, log.type, log.raw);
 				}

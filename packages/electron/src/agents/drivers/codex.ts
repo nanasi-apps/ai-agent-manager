@@ -1,4 +1,4 @@
-import type { AgentConfig, ReasoningLevel } from "@agent-manager/shared";
+import type { AgentConfig, AgentMode, ReasoningLevel } from "@agent-manager/shared";
 import type {
 	AgentDriver,
 	AgentDriverCommand,
@@ -43,6 +43,10 @@ export class CodexDriver implements AgentDriver {
 
 		const reasoningArgs = buildReasoningArgs(config.model, config.reasoning);
 
+		// Plan/Ask mode: restrict to read-only sandbox to disable file writes and command execution
+		// This is Codex's equivalent of Gemini's tools.exclude feature
+		const modeArgs = buildModeArgs(config.mode);
+
 		if (context.messageCount === 0) {
 			// First message: start fresh
 			// Usage: codex exec [OPTIONS] [PROMPT]
@@ -54,6 +58,7 @@ export class CodexDriver implements AgentDriver {
 				...jsonArgs,
 				...modelArgs,
 				...reasoningArgs,
+				...modeArgs,
 				...mcpArgs,
 				escapedMessage,
 			];
@@ -67,6 +72,7 @@ export class CodexDriver implements AgentDriver {
 				...jsonArgs,
 				...modelArgs,
 				...reasoningArgs,
+				...modeArgs,
 				...mcpArgs,
 				"resume",
 				context.codexThreadId,
@@ -85,6 +91,7 @@ export class CodexDriver implements AgentDriver {
 				...jsonArgs,
 				...modelArgs,
 				...reasoningArgs,
+				...modeArgs,
 				...mcpArgs,
 				escapedMessage,
 			];
@@ -117,4 +124,17 @@ function mapReasoningLevel(level: ReasoningLevel): string {
 	if (level === "middle") return "medium";
 	if (level === "extraHigh") return "extra_high";
 	return level;
+}
+
+/**
+ * Build mode-specific arguments for Codex CLI
+ * Plan/Ask modes use read-only sandbox to restrict file writes and command execution
+ */
+function buildModeArgs(mode?: AgentMode): string[] {
+	if (mode === "plan" || mode === "ask") {
+		// Use read-only sandbox to disable file writes and command execution
+		// This is the closest equivalent to Gemini's tools.exclude feature
+		return ["--sandbox", "read-only"];
+	}
+	return [];
 }
