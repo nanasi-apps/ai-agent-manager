@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Check, Eye, EyeOff, Key, Loader2 } from "lucide-vue-next";
+import { Check, Eye, EyeOff, Key, Loader2, Globe } from "lucide-vue-next";
 import { computed, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { Badge } from "@/components/ui/badge";
@@ -15,13 +15,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { orpc } from "@/services/orpc";
 
-const { t } = useI18n();
+const { t, locale } = useI18n();
 
 interface ApiSettings {
 	openaiApiKey?: string;
 	openaiBaseUrl?: string;
 	geminiApiKey?: string;
 	geminiBaseUrl?: string;
+	language?: string;
 }
 
 // API Settings state
@@ -35,6 +36,7 @@ const openaiApiKeyInput = ref("");
 const openaiBaseUrlInput = ref("");
 const geminiApiKeyInput = ref("");
 const geminiBaseUrlInput = ref("");
+const selectedLanguage = ref("en");
 
 // Visibility toggles
 const showOpenaiKey = ref(false);
@@ -52,6 +54,14 @@ async function loadApiSettings() {
 		// Initialize inputs with base URLs (keys are masked)
 		openaiBaseUrlInput.value = settings.openaiBaseUrl || "";
 		geminiBaseUrlInput.value = settings.geminiBaseUrl || "";
+		
+		// Initialize language
+		if (settings.language) {
+			selectedLanguage.value = settings.language;
+			locale.value = settings.language;
+		} else {
+			selectedLanguage.value = locale.value;
+		}
 	} catch (err) {
 		console.error("Failed to load API settings", err);
 	} finally {
@@ -78,12 +88,23 @@ async function saveApiSettings() {
 		if (geminiBaseUrlInput.value !== (apiSettings.value.geminiBaseUrl || "")) {
 			updates.geminiBaseUrl = geminiBaseUrlInput.value || undefined;
 		}
+		
+		// Update language if changed
+		if (selectedLanguage.value !== apiSettings.value.language) {
+			updates.language = selectedLanguage.value;
+		}
 
 		if (Object.keys(updates).length > 0) {
 			await orpc.updateApiSettings(updates);
 			// Clear key inputs after save
 			openaiApiKeyInput.value = "";
 			geminiApiKeyInput.value = "";
+			
+			// Update locale immediately
+			if (updates.language) {
+				locale.value = updates.language;
+			}
+			
 			// Reload to get updated state
 			await loadApiSettings();
 			apiSaveSuccess.value = true;
@@ -129,6 +150,40 @@ onMounted(() => {
       <h1 class="text-2xl font-bold mb-2">{{ t('settings.title') }}</h1>
       <p class="text-muted-foreground">{{ t('settings.description') }}</p>
     </div>
+    
+    <!-- General Settings Section -->
+    <div class="space-y-4">
+      <div class="flex items-center gap-2">
+        <Globe class="size-5" />
+        <h2 class="text-xl font-semibold">{{ t('settings.generalSettings') }}</h2>
+      </div>
+      <p class="text-sm text-muted-foreground">
+        {{ t('settings.generalSettingsDesc') }}
+      </p>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle class="text-base">{{ t('settings.language') }}</CardTitle>
+            <CardDescription>
+              {{ t('settings.languageDesc') }}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div class="space-y-2">
+              <Label>{{ t('settings.language') }}</Label>
+              <select
+                v-model="selectedLanguage"
+                class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="en">English</option>
+                <option value="ja">日本語</option>
+              </select>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
 
     <!-- API Settings Section -->
     <div class="space-y-4">
@@ -136,6 +191,7 @@ onMounted(() => {
         <Key class="size-5" />
         <h2 class="text-xl font-semibold">{{ t('settings.apiSettings') }}</h2>
       </div>
+
       <p class="text-sm text-muted-foreground">
         {{ t('settings.apiSettingsDesc') }}
       </p>

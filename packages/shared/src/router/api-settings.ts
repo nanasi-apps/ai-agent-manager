@@ -10,6 +10,7 @@ export const apiSettingsRouter = {
 				openaiBaseUrl: z.string().optional(),
 				geminiApiKey: z.string().optional(),
 				geminiBaseUrl: z.string().optional(),
+				language: z.string().optional(),
 			}),
 		)
 		.handler(async () => {
@@ -20,6 +21,7 @@ export const apiSettingsRouter = {
 				openaiBaseUrl: settings.openaiBaseUrl,
 				geminiApiKey: settings.geminiApiKey ? "***" : undefined,
 				geminiBaseUrl: settings.geminiBaseUrl,
+				language: settings.language,
 			};
 		}),
 
@@ -30,6 +32,7 @@ export const apiSettingsRouter = {
 				openaiBaseUrl: z.string().optional(),
 				geminiApiKey: z.string().optional(),
 				geminiBaseUrl: z.string().optional(),
+				language: z.string().optional(),
 			}),
 		)
 		.output(z.object({ success: z.boolean() }))
@@ -46,6 +49,9 @@ export const apiSettingsRouter = {
 			}
 			if (input.geminiBaseUrl !== undefined) {
 				updates.geminiBaseUrl = input.geminiBaseUrl || undefined;
+			}
+			if (input.language !== undefined) {
+				updates.language = input.language || undefined;
 			}
 			getStoreOrThrow().updateApiSettings(updates);
 			return { success: true };
