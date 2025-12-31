@@ -358,11 +358,17 @@ export const conversationsRouter = {
 					createdAt: z.number(),
 					updatedAt: z.number(),
 					agentType: z.string().optional(),
+					isProcessing: z.boolean().optional(),
 				}),
 			),
 		)
 		.handler(async ({ input }) => {
-			return getStoreOrThrow().listConversations(input.projectId);
+			const conversations = getStoreOrThrow().listConversations(input.projectId);
+			const agentManager = getAgentManagerOrThrow();
+			return conversations.map((c) => ({
+				...c,
+				isProcessing: agentManager.isProcessing?.(c.id) ?? false,
+			}));
 		}),
 
 	swapConversationAgent: os

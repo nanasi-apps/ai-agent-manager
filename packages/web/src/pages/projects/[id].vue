@@ -139,6 +139,7 @@ watch(projectId, loadData, { immediate: true });
               :title="conv.title"
               :project-name="project?.name"
               :updated-at="conv.updatedAt"
+              :is-running="conv.isProcessing"
               @click="openConversation(conv.id)"
             />
           </div>

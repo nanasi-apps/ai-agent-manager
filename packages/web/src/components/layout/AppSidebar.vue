@@ -41,8 +41,15 @@ import {
 } from "@/components/ui/sidebar";
 import { useNewConversionDialog } from "@/composables/useNewConversionDialog";
 import { orpc } from "@/services/orpc";
+import { onAgentStateChangedPort } from "@/services/agent-state-port";
 
 const { t } = useI18n();
+
+const projects = ref<ProjectWithConversations[]>([]);
+
+const anyAgentProcessing = computed(() => {
+	return projects.value.some((p) => p.conversations.some((c) => c.isRunning));
+});
 
 // Main navigation items.
 const navItems = computed(() => [
@@ -54,7 +61,7 @@ const navItems = computed(() => [
 	},
 	{
 		id: "inbox",
-		title: t('sidebar.inbox'),
+		title: t('general.inbox'),
 		url: "/inbox",
 		icon: Inbox,
 	},
@@ -78,7 +85,6 @@ interface ProjectWithConversations {
 }
 
 const route = useRoute();
-const projects = ref<ProjectWithConversations[]>([]);
 const activeItem = ref("dashboard");
 const isProjectDialogOpen = ref(false);
 
@@ -97,10 +103,10 @@ const refreshData = async () => {
 			conversations: fetchedConversations
 				.filter((c: { projectId: string }) => c.projectId === p.id)
 				.sort((a: any, b: any) => (b.updatedAt || 0) - (a.updatedAt || 0))
-				.map((c: { id: string; title: string }) => ({
+				.map((c: { id: string; title: string; isProcessing?: boolean }) => ({
 					id: c.id,
 					title: c.title,
-					isRunning: false,
+					isRunning: c.isProcessing ?? false,
 				})),
 		}));
 	} catch (e) {
@@ -109,16 +115,22 @@ const refreshData = async () => {
 };
 
 let refreshInterval: any = null;
+let stateChangeUnsubscribe: (() => void) | null = null;
 
 onMounted(() => {
 	refreshData();
 	window.addEventListener("agent-manager:data-change", refreshData);
 	refreshInterval = setInterval(refreshData, 3000);
+	
+	stateChangeUnsubscribe = onAgentStateChangedPort(() => {
+		refreshData();
+	});
 });
 
 onUnmounted(() => {
 	window.removeEventListener("agent-manager:data-change", refreshData);
 	if (refreshInterval) clearInterval(refreshInterval);
+	if (stateChangeUnsubscribe) stateChangeUnsubscribe();
 });
 
 // Update active item based on route
@@ -238,9 +250,9 @@ function handleMouseUp() {
                 @click="handleItemClick(item.id)"
                 class="transition-all duration-200 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground data-[active=true]:border data-[active=true]:border-sidebar-border data-[active=true]:shadow-sm"
               >
-                <router-link :to="item.url" class="flex items-center gap-2 !text-inherit">
-                  <component :is="item.icon" class="size-4" />
-                  <span class="font-medium">{{ item.title }}</span>
+                <router-link :to="item.url" class="flex items-center gap-2 !text-inherit grow overflow-hidden">
+                  <component :is="item.icon" class="size-4 shrink-0" />
+                  <span class="font-medium truncate">{{ item.title }}</span>
                 </router-link>
               </SidebarMenuButton>
             </SidebarMenuItem>
@@ -283,6 +295,7 @@ function handleMouseUp() {
                        <router-link :to="`/projects/${project.id}`" class="flex-1 truncate">
                           {{ project.name }}
                        </router-link>
+                       <Loader2 v-if="project.conversations.some(c => c.isRunning)" class="size-3 animate-spin shrink-0 text-muted-foreground mr-1" />
                      </div>
                    </SidebarMenuButton>
                    <SidebarMenuAction @click.stop="openNewConversion(project.id)">
@@ -339,9 +352,9 @@ function handleMouseUp() {
                 @click="handleItemClick(item.id)"
                 class="transition-all duration-200 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground data-[active=true]:border data-[active=true]:border-sidebar-border data-[active=true]:shadow-sm"
               >
-                <router-link :to="item.url" class="flex items-center gap-2 !text-inherit">
-                  <component :is="item.icon" class="size-4" />
-                  <span class="font-medium">{{ item.title }}</span>
+                <router-link :to="item.url" class="flex items-center gap-2 !text-inherit grow overflow-hidden">
+                  <component :is="item.icon" class="size-4 shrink-0" />
+                  <span class="font-medium truncate">{{ item.title }}</span>
                 </router-link>
               </SidebarMenuButton>
 
@@ -376,9 +389,10 @@ function handleMouseUp() {
               @click="handleItemClick(item.id)"
               class="transition-all duration-200 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground data-[active=true]:border data-[active=true]:border-sidebar-border data-[active=true]:shadow-sm"
             >
-              <router-link :to="item.url" class="flex items-center gap-2 !text-inherit">
-                <component :is="item.icon" class="size-4" />
-                <span class="font-medium">{{ item.title }}</span>
+                <router-link :to="item.url" class="flex items-center gap-2 !text-inherit grow overflow-hidden">
+                <component :is="item.icon" class="size-4 shrink-0" />
+                <span class="font-medium truncate">{{ item.title }}</span>
+                <div v-if="(item as any).isRunning" class="size-2 rounded-full bg-green-500 animate-pulse ml-auto mr-1 shrink-0 shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
               </router-link>
             </SidebarMenuButton>
           </SidebarMenuItem>

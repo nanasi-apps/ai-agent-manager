@@ -23,6 +23,7 @@ interface Conversation {
 	title: string;
 	createdAt: number;
 	updatedAt: number;
+	isProcessing?: boolean;
 }
 
 const router = useRouter();
@@ -94,6 +95,7 @@ onMounted(() => {
               :title="conv.title"
               :project-name="getProjectName(conv.projectId)"
               :updated-at="conv.updatedAt"
+              :is-running="conv.isProcessing"
               @click="openConversation(conv.id)"
             />
           </div>

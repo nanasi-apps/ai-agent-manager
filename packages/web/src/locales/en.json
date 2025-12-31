@@ -9,7 +9,8 @@
     "refresh": "Refresh",
     "enabled": "Enabled",
     "disabled": "Disabled",
-    "clear": "Clear"
+    "clear": "Clear",
+    "inbox": "Inbox"
   },
   "sidebar": {
     "dashboard": "Dashboard",

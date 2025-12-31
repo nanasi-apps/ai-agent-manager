@@ -217,7 +217,7 @@ onMounted(async () => {
     <!-- Header -->
     <div class="flex items-center gap-3 p-4 border-b shrink-0">
       <Inbox class="size-6" />
-      <h1 class="text-2xl font-bold">{{ t('inbox.title', 'Inbox') }}</h1>
+      <h1 class="text-2xl font-bold">{{ t('general.inbox', 'Inbox') }}</h1>
       <Badge v-if="pendingApprovals.length > 0" variant="secondary">
         {{ pendingApprovals.length }}
       </Badge>

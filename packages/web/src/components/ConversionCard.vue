@@ -10,6 +10,7 @@ const props = defineProps<{
 	title: string;
 	projectName?: string;
 	updatedAt: number;
+	isRunning?: boolean;
 }>();
 
 const formattedTime = computed(() => {
@@ -34,7 +35,10 @@ const formattedTime = computed(() => {
           <MessageSquare class="size-5 text-muted-foreground group-hover:text-primary transition-colors" />
         </div>
         <div class="min-w-0 flex flex-col gap-0.5">
-          <p class="font-medium text-sm truncate group-hover:text-primary transition-colors">{{ title }}</p>
+          <div class="flex items-center gap-2">
+            <p class="font-medium text-sm truncate group-hover:text-primary transition-colors">{{ title }}</p>
+            <Loader2 v-if="isRunning" class="size-3 animate-spin shrink-0 text-muted-foreground" />
+          </div>
           <div class="flex items-center gap-2 text-xs text-muted-foreground">
             <span v-if="projectName" class="truncate max-w-[150px] font-medium text-foreground/70">
               {{ projectName }}

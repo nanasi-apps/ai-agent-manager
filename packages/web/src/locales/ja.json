@@ -9,11 +9,11 @@
     "refresh": "更新",
     "enabled": "有効",
     "disabled": "無効",
-    "clear": "クリア"
+    "clear": "クリア",
+    "inbox": "Inbox"
   },
   "sidebar": {
     "dashboard": "ダッシュボード",
-    "inbox": "Inbox",
     "search": "検索",
     "projects": "プロジェクト",
     "addProject": "プロジェクトを追加",
@@ -35,7 +35,6 @@
     "noConversations": "最近の会話はありません。サイドバーからプロジェクトを選択して開始してください！"
   },
   "inbox": {
-    "title": "インボックス",
     "pending": "承認待ち",
     "history": "履歴",
     "planRequest": "プラン承認リクエスト",
