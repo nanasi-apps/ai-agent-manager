@@ -1,15 +1,9 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { EventEmitter } from "node:events";
-import { statSync } from "node:fs";
 import type { AgentConfig, AgentLogPayload } from "@agent-manager/shared";
-import * as fs from "fs/promises";
 import { createActor, type SnapshotFrom } from "xstate";
 import type { WorktreeResumeRequest } from "./agent-manager";
 import { isAgentType } from "./agent-type-utils";
-import {
-	buildWorktreeInstructions,
-	buildWorktreeResumeMessage,
-} from "./context-builder";
 import {
 	type AgentDriver,
 	type AgentDriverContext,
@@ -24,7 +18,21 @@ import {
 } from "./env-utils";
 import { type AgentContext, agentMachine } from "./machines/agent-machine";
 import { AgentOutputParser } from "./output-parser";
+import {
+	killChildProcess,
+	killProcessGroup,
+	isSessionInvalidError,
+	isGeminiApiError,
+	isQuotaError,
+	parseQuotaResetTime,
+} from "./process-utils";
 import type { AgentStateChangePayload, SessionState } from "./types";
+import {
+	pathExists,
+	validateWorktreePath,
+	buildResumeMessage,
+	buildInstructions,
+} from "./worktree-utils";
 
 type AgentMachineSnapshot = SnapshotFrom<typeof agentMachine>;
 
@@ -197,36 +205,23 @@ export class OneShotSession extends EventEmitter {
 	}
 
 	private killCurrentProcess() {
-		if (this.currentProcess) {
-			try {
-				if (this.currentProcess.pid) {
-					// Kill the entire process group
-					process.kill(-this.currentProcess.pid, "SIGKILL");
-				}
-			} catch {
-				// Fallback
-				this.currentProcess.kill("SIGKILL");
-			}
-			this.currentProcess = undefined;
-		}
+		killChildProcess(this.currentProcess);
+		this.currentProcess = undefined;
 	}
 
 	requestWorktreeResume(request: WorktreeResumeRequest): boolean {
-		try {
-			if (!statSync(request.cwd).isDirectory()) {
-				throw new Error("Worktree path is not a directory.");
-			}
-		} catch (error: any) {
-			const message = error?.message || String(error);
+		const validation = validateWorktreePath(request.cwd);
+		if (!validation.valid) {
 			this.emitLog(
-				`\n[System] Worktree resume blocked: ${message}\n`,
+				`\n[System] Worktree resume blocked: ${validation.error}\n`,
 				"system",
 			);
 			return false;
 		}
 
 		const resumeMessage =
-			request.resumeMessage ?? this.getResumeMessageForWorktree(request);
+			request.resumeMessage ??
+			buildResumeMessage(request, this.state.projectRoot, this.state.lastUserMessage);
 
 		this.actor.send({
 			type: "SET_PENDING_WORKTREE_RESUME",
@@ -248,11 +243,7 @@ export class OneShotSession extends EventEmitter {
 					console.log(
 						`[OneShotSession ${this.sessionId}] Killing process (pid=${currentProcess.pid}) for worktree switch`,
 					);
-					try {
-						process.kill(-currentProcess.pid, "SIGKILL");
-					} catch {
-						currentProcess.kill("SIGKILL");
-					}
+					killProcessGroup(currentProcess.pid);
 				}
 			}, 500);
 		} else {
@@ -485,10 +476,8 @@ export class OneShotSession extends EventEmitter {
 
 		const currentSessionState = this.state;
 
-		if (
-			stderr.includes("Invalid session identifier") ||
-			stderr.includes("No previous sessions found")
-		) {
+		// Check for session invalidation errors
+		if (isSessionInvalidError(stderr)) {
 			if (currentSessionState.geminiSessionId) {
 				console.warn(
 					`[OneShotSession ${this.sessionId}] Gemini session ${currentSessionState.geminiSessionId} is invalid.`,
@@ -496,7 +485,7 @@ export class OneShotSession extends EventEmitter {
 			}
 			// Mark invalid and stop
 			this.actor.send({ type: "INVALIDATE_SESSION" });
-			this.actor.send({ type: "STOP" }); // To be sure
+			this.actor.send({ type: "STOP" });
 			this.currentProcess = undefined;
 
 			this.emitLog(
@@ -511,12 +500,10 @@ export class OneShotSession extends EventEmitter {
 			}
 		}
 
-		if (stderr.includes("Error when talking to Gemini API")) {
-			const quotaMatch = stderr.match(
-				/Your quota will reset after (\d+h\d+m\d+s|\d+m\d+s|\d+s)/,
-			);
-			if (stderr.includes("exhausted your capacity") || quotaMatch) {
-				const resetTime = quotaMatch ? quotaMatch[1] : "some time";
+		// Check for Gemini API errors
+		if (isGeminiApiError(stderr)) {
+			if (isQuotaError(stderr)) {
+				const resetTime = parseQuotaResetTime(stderr) ?? "some time";
 				this.emitLog(
 					`\n[Gemini Quota Error] API quota exhausted. Quota will reset after ${resetTime}.\n`,
 					"error",
@@ -611,12 +598,12 @@ export class OneShotSession extends EventEmitter {
 		const state = this.state;
 		const requestedCwd = state.config.cwd;
 
-		if (requestedCwd && (await this.pathExists(requestedCwd))) {
+		if (requestedCwd && (await pathExists(requestedCwd))) {
 			return requestedCwd;
 		}
 
 		const fallbackCwd = state.projectRoot;
-		if (fallbackCwd && (await this.pathExists(fallbackCwd))) {
+		if (fallbackCwd && (await pathExists(fallbackCwd))) {
 			if (requestedCwd) {
 				this.actor.send({
 					type: "UPDATE_CONFIG",
@@ -647,7 +634,7 @@ export class OneShotSession extends EventEmitter {
 		const state = this.state;
 		if (!state.activeWorktree) return;
 		const cwd = state.config.cwd;
-		if (cwd && (await this.pathExists(cwd))) return;
+		if (cwd && (await pathExists(cwd))) return;
 
 		this.actor.send({ type: "CLEAR_ACTIVE_WORKTREE" });
 
@@ -661,37 +648,13 @@ export class OneShotSession extends EventEmitter {
 		);
 	}
 
-	private async pathExists(targetPath: string): Promise<boolean> {
-		try {
-			const stats = await fs.stat(targetPath);
-			return stats.isDirectory();
-		} catch {
-			return false;
-		}
-	}
-
-	private getResumeMessageForWorktree(request: WorktreeResumeRequest): string {
-		return buildWorktreeResumeMessage({
-			branch: request.branch,
-			worktreePath: request.cwd,
-			projectRoot: this.state.projectRoot ?? request.repoPath,
-			originalMessage: this.state.lastUserMessage,
-		});
-	}
-
 	private getWorktreeInstructions(): string {
 		const session = this.state;
-
-		// If already in a worktree, skip instructions entirely.
-		// The resume message already contains all necessary context.
-		if (session.activeWorktree) {
-			return "";
-		}
-
-		return buildWorktreeInstructions({
-			sessionId: this.sessionId,
-			projectRoot: session.projectRoot ?? session.config.cwd,
-		});
+		return buildInstructions(
+			this.sessionId,
+			session.projectRoot ?? session.config.cwd,
+			!!session.activeWorktree,
+		);
 	}
 
 	private getDriver(config: AgentConfig): AgentDriver {
