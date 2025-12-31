@@ -34,32 +34,13 @@ const getLogSummary = (msg: Message) => {
 	const content = msg.content || "";
 	const type = msg.logType;
 
-	if (type === "tool_call") {
-		const toolMatch = content.match(new RegExp("\\[Tool: ([^\\]+)\\]"));
-		if (toolMatch) return toolMatch[1];
-		const execMatch = content.match(new RegExp("\\[Executing: ([^\\]+)\\]"));
-		if (execMatch) return execMatch[1];
-		return t('chat.toolCall');
-	}
-
-	if (type === "tool_result") {
-		const resultMatch = content.match(new RegExp("\\[Result: ([^\\]+)\\]"));
-		if (resultMatch) return `Result (${resultMatch[1]})`;
-		if (content.includes("[Output]")) return t('chat.output');
-		if (content.includes("[File ")) return t('chat.fileChange');
-		return t('chat.toolResult');
-	}
-
-	if (type === "error") return t('chat.error');
-	if (type === "thinking") return t('chat.thinking');
-
 	if (type === "system") {
-		const modelMatch = content.match(new RegExp("\\[Using model: ([^\\]+)\\]"));
-		if (modelMatch) return `${t('chat.model')}: ${modelMatch[1]}`;
-		return t('chat.system');
+		const modelMatch = content.match(new RegExp("\\[Using model: ([^\\]]+)\\]"));
+		if (modelMatch) return `Model: ${modelMatch[1]}`;
+		return "System";
 	}
 
-	return type?.replace("_", " ") || "Log";
+	return type;
 };
 
 const getCleanContent = (content: string, logType?: LogType) => {
@@ -67,16 +48,16 @@ const getCleanContent = (content: string, logType?: LogType) => {
 
 	let clean = content;
 	const prefixes = [
-		new RegExp("^\\s*\\[Tool: [^\\]+\\]\\s*"),
-		new RegExp("^\\s*\\[Executing: [^\\]+\\]\\s*"),
-		new RegExp("^\\s*\\[Result(: [^\\]+)?\\]\\s*"),
+		new RegExp("^\\s*\\[Tool: [^\\]]+\\]\\s*"),
+		new RegExp("^\\s*\\[Executing: [^\\]]+\\]\\s*"),
+		new RegExp("^\\s*\\[Result(: [^\\]]+)?\\]\\s*"),
 		new RegExp("^\\s*\\[Thinking\\]\\s*"),
 		new RegExp("^\\s*\\[Error\\]\\s*"),
 		new RegExp("^\\s*\\[System\\]\\s*"),
-		new RegExp("^\\s*\\[Using model: [^\\]+\\]\\s*"),
+		new RegExp("^\\s*\\[Using model: [^\\]]+\\]\\s*"),
 		new RegExp("^\\s*\\[Output\\]\\s*"),
-		new RegExp("^\\s*\\[File [^:]+: [^\\]+\\]\\s*"),
-		new RegExp("^\\s*\\[Exit code: [^\\]+\\]\\s*"),
+		new RegExp("^\\s*\\[File [^:]+: [^\\]]+\\]\\s*"),
+		new RegExp("^\\s*\\[Exit code: [^\\]]+\\]\\s*"),
 		new RegExp("^\\s*\\[Session started\\]\\s*"),
 	];
 
@@ -90,7 +71,7 @@ const getCleanContent = (content: string, logType?: LogType) => {
 const sanitizeLogContent = (content: string, logType?: LogType) => {
 	const clean = getCleanContent(content, logType);
 
-	if (!clean) return t('chat.noContent');
+	if (!clean) return "No content";
 
 	if (logType === "tool_call") {
 		return "```json\n" + clean + "\n```";
