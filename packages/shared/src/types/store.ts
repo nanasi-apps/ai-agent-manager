@@ -84,6 +84,7 @@ export interface ApiSettings {
 	geminiApiKey?: string;
 	geminiBaseUrl?: string;
 	language?: string;
+	notifyOnAgentComplete?: boolean;
 }
 
 /**

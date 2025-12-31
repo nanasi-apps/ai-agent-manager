@@ -12,6 +12,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { orpc } from "@/services/orpc";
@@ -24,7 +25,10 @@ interface ApiSettings {
 	geminiApiKey?: string;
 	geminiBaseUrl?: string;
 	language?: string;
+	notifyOnAgentComplete?: boolean;
 }
+
+const defaultNotifyOnAgentComplete = true;
 
 // API Settings state
 const apiSettings = ref<ApiSettings>({});
@@ -38,6 +42,7 @@ const openaiBaseUrlInput = ref("");
 const geminiApiKeyInput = ref("");
 const geminiBaseUrlInput = ref("");
 const selectedLanguage = ref("en");
+const notifyOnAgentComplete = ref(defaultNotifyOnAgentComplete);
 
 // Visibility toggles
 const showOpenaiKey = ref(false);
@@ -63,6 +68,9 @@ async function loadApiSettings() {
 		} else {
 			selectedLanguage.value = locale.value;
 		}
+
+		notifyOnAgentComplete.value =
+			settings.notifyOnAgentComplete ?? defaultNotifyOnAgentComplete;
 	} catch (err) {
 		console.error("Failed to load API settings", err);
 	} finally {
@@ -94,6 +102,11 @@ async function saveApiSettings(isAutoSave = false) {
 		if (selectedLanguage.value !== apiSettings.value.language) {
 			updates.language = selectedLanguage.value;
 		}
+		const currentNotifySetting =
+			apiSettings.value.notifyOnAgentComplete ?? defaultNotifyOnAgentComplete;
+		if (notifyOnAgentComplete.value !== currentNotifySetting) {
+			updates.notifyOnAgentComplete = notifyOnAgentComplete.value;
+		}
 
 		if (Object.keys(updates).length > 0) {
 			await orpc.updateApiSettings(updates);
@@ -110,6 +123,9 @@ async function saveApiSettings(isAutoSave = false) {
 				if (updates.openaiBaseUrl !== undefined) apiSettings.value.openaiBaseUrl = updates.openaiBaseUrl;
 				if (updates.geminiBaseUrl !== undefined) apiSettings.value.geminiBaseUrl = updates.geminiBaseUrl;
 				if (updates.language) apiSettings.value.language = updates.language;
+				if (updates.notifyOnAgentComplete !== undefined) {
+					apiSettings.value.notifyOnAgentComplete = updates.notifyOnAgentComplete;
+				}
 			} else {
 				// Clear key inputs after manual save
 				openaiApiKeyInput.value = "";
@@ -138,6 +154,7 @@ watchDebounced(
 		geminiApiKeyInput,
 		geminiBaseUrlInput,
 		selectedLanguage,
+		notifyOnAgentComplete,
 	],
 	() => {
 		saveApiSettings(true);
@@ -205,6 +222,31 @@ onMounted(() => {
                 <option value="en">English</option>
                 <option value="ja">日本語</option>
               </select>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle class="text-base">{{ t('settings.notifications.title') }}</CardTitle>
+            <CardDescription>
+              {{ t('settings.notifications.desc') }}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div class="flex items-center gap-3">
+              <Checkbox
+                id="notify-on-agent-complete"
+                :checked="notifyOnAgentComplete"
+                @update:checked="(checked: boolean | 'indeterminate') => {
+                  notifyOnAgentComplete = checked === true;
+                }"
+              />
+              <Label
+                for="notify-on-agent-complete"
+                class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer select-none"
+              >
+                {{ t('settings.notifications.onCompletion') }}
+              </Label>
             </div>
           </CardContent>
         </Card>
