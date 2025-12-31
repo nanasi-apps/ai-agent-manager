@@ -63,7 +63,7 @@ export interface WorktreeInstructionsParams {
 export function buildWorktreeInstructions(
 	params: WorktreeInstructionsParams,
 ): string {
-	const branchSuggestion = `agent/${params.sessionId.slice(0, 8)}`;
+	const branchSuggestion = `agent/}`;
 	return renderTemplate(getTemplate("worktree-instructions"), {
 		sessionId: params.sessionId,
 		projectRoot: params.projectRoot,
