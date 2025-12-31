@@ -9,6 +9,7 @@ export interface AgentDriverContext {
 	sessionId: string;
 	messageCount: number;
 	geminiSessionId?: string;
+	codexSessionId?: string;
 	codexThreadId?: string;
 	mcpServerUrl?: string; // URL for internal MCP server injection
 }

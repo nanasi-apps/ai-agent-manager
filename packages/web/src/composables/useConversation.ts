@@ -609,6 +609,8 @@ export function useConversation(initialSessionId: string) {
 		if (
 			content.includes("Scheduled resume in worktree") ||
 			content.includes("Worktree created") ||
+			content.includes("Worktree resume scheduled") ||
+			content.includes("Resume scheduled") ||
 			content.includes("[Agent Manager] Scheduled resume") ||
 			content.includes("Switching to worktree")
 		) {

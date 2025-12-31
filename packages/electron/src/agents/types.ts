@@ -28,6 +28,7 @@ export interface SessionState {
 
 	// Agent Specific
 	geminiSessionId?: string;
+	codexSessionId?: string;
 	codexThreadId?: string;
 	geminiHome?: string;
 	claudeHome?: string;

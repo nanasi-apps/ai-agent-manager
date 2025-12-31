@@ -229,18 +229,23 @@ export class OneShotSession extends EventEmitter {
 		);
 
 		const currentProcess = this.currentProcess;
-		const isProcessRunning =
-			currentProcess && currentProcess.pid && !currentProcess.killed;
+		const hasProcess = currentProcess && currentProcess.pid;
 
-		if (isProcessRunning) {
-			setTimeout(() => {
-				if (this.currentProcess === currentProcess && currentProcess.pid) {
-					console.log(
-						`[OneShotSession ${this.sessionId}] Killing process (pid=${currentProcess.pid}) for worktree switch`,
-					);
-					killProcessGroup(currentProcess.pid);
-				}
-			}, 500);
+		if (hasProcess) {
+			if (!currentProcess.killed) {
+				setTimeout(() => {
+					if (this.currentProcess === currentProcess && currentProcess.pid) {
+						console.log(
+							`[OneShotSession ${this.sessionId}] Killing process (pid=${currentProcess.pid}) for worktree switch`,
+						);
+						killProcessGroup(currentProcess.pid);
+					}
+				}, 500);
+			} else {
+				console.log(
+					`[OneShotSession ${this.sessionId}] Process already marked killed; waiting for close event`,
+				);
+			}
 		} else {
 			console.log(
 				`[OneShotSession ${this.sessionId}] Process not running, triggering immediate worktree resume`,
@@ -305,6 +310,7 @@ export class OneShotSession extends EventEmitter {
 			const context: AgentDriverContext = {
 				sessionId: this.sessionId,
 				geminiSessionId: currentState.geminiSessionId,
+				codexSessionId: currentState.codexSessionId,
 				codexThreadId: currentState.codexThreadId,
 				messageCount: currentState.messageCount,
 				mcpServerUrl:
@@ -522,6 +528,12 @@ export class OneShotSession extends EventEmitter {
 							id: log.metadata.codexThreadId,
 						});
 					}
+					if (log.metadata?.codexSessionId) {
+						this.actor.send({
+							type: "SET_CODEX_SESSION",
+							id: log.metadata.codexSessionId,
+						});
+					}
 					this.emitLog(log.data, log.type, log.raw);
 				}
 			} catch {
@@ -539,6 +551,13 @@ export class OneShotSession extends EventEmitter {
 		if (!pending) {
 			console.log(
 				`[OneShotSession ${this.sessionId}] No pending worktree resume, skipping`,
+			);
+			return;
+		}
+
+		if (this.isProcessing) {
+			console.log(
+				`[OneShotSession ${this.sessionId}] Worktree resume deferred; agent still processing`,
 			);
 			return;
 		}

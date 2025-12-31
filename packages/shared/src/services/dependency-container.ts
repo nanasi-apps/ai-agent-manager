@@ -32,7 +32,11 @@ export interface IAgentManager {
 	): void;
 	getSessionMetadata(
 		sessionId: string,
-	): { geminiSessionId?: string; codexThreadId?: string } | undefined;
+	): {
+		geminiSessionId?: string;
+		codexSessionId?: string;
+		codexThreadId?: string;
+	} | undefined;
 	/** Store handover context to prepend to next user message */
 	setPendingHandover(sessionId: string, context: string): void;
 	/** Retrieve and clear pending handover context */

@@ -20,6 +20,7 @@ export interface AgentContext {
 	// Agent Specifics (Persistent across same agent type)
 	geminiSessionId?: string;
 	codexThreadId?: string;
+	codexSessionId?: string;
 	geminiHome?: string;
 	claudeHome?: string;
 
@@ -42,6 +43,7 @@ export type AgentEvents =
 	| { type: "WORKTREE_SWITCH_COMPLETE" }
 	| { type: "SET_GEMINI_SESSION"; id: string }
 	| { type: "SET_CODEX_THREAD"; id: string }
+	| { type: "SET_CODEX_SESSION"; id: string }
 	| { type: "INVALIDATE_SESSION" }
 	| { type: "SET_PENDING_HANDOVER"; context: string }
 	| { type: "CONSUME_PENDING_HANDOVER" }
@@ -107,8 +109,14 @@ export const agentMachine = setup({
 			codexThreadId: ({ event }) =>
 				event.type === "SET_CODEX_THREAD" ? event.id : undefined,
 		}),
+		setCodexSession: assign({
+			codexSessionId: ({ event }) =>
+				event.type === "SET_CODEX_SESSION" ? event.id : undefined,
+		}),
 		invalidateSession: assign({
 			geminiSessionId: undefined,
+			codexSessionId: undefined,
+			codexThreadId: undefined,
 			messageCount: 0,
 			buffer: "",
 			errorMessage: undefined, // Maybe?
@@ -195,6 +203,7 @@ export const agentMachine = setup({
 				CLEAR_ACTIVE_WORKTREE: { actions: "clearActiveWorktree" },
 				SET_GEMINI_SESSION: { actions: "setGeminiSession" },
 				SET_CODEX_THREAD: { actions: "setCodexThread" },
+				SET_CODEX_SESSION: { actions: "setCodexSession" },
 				INVALIDATE_SESSION: { actions: "invalidateSession" },
 				RESET: {
 					target: "idle",
@@ -215,6 +224,7 @@ export const agentMachine = setup({
 						return {
 							...baseUpdate,
 							geminiSessionId: undefined,
+							codexSessionId: undefined,
 							codexThreadId: undefined,
 							geminiHome: undefined,
 							claudeHome: undefined,
@@ -233,8 +243,15 @@ export const agentMachine = setup({
 					actions: "appendBuffer",
 				},
 				AGENT_COMPLETE: "idle",
+				SET_PENDING_WORKTREE_RESUME: {
+					actions: "setPendingWorktreeResume",
+				},
+				CLEAR_PENDING_WORKTREE_RESUME: {
+					actions: "clearPendingWorktreeResume",
+				},
 				SET_GEMINI_SESSION: { actions: "setGeminiSession" },
 				SET_CODEX_THREAD: { actions: "setCodexThread" },
+				SET_CODEX_SESSION: { actions: "setCodexSession" },
 				SET_AGENT_DATA: { actions: "setAgentData" },
 				INVALIDATE_SESSION: { actions: "invalidateSession" },
 			},

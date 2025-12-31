@@ -66,7 +66,7 @@ export class CodexDriver implements AgentDriver {
 				...mcpArgs,
 				escapedMessage,
 			];
-		} else if (context.codexThreadId) {
+		} else if (context.codexSessionId) {
 			// Resume existing session
 			// Usage: codex exec resume [OPTIONS] [SESSION_ID] [PROMPT]
 			// Note: -m/--model is NOT available for resume subcommand, must use -c model="..."
@@ -80,14 +80,14 @@ export class CodexDriver implements AgentDriver {
 				...reasoningArgs,
 				...modeArgs,
 				...mcpArgs,
-				context.codexThreadId,
+				context.codexSessionId,
 				escapedMessage,
 			];
 		} else {
-			// No thread ID but not first message:
+			// No session ID but not first message:
 			// Start fresh rather than using unreliable sessionId as resume target
 			console.warn(
-				"[CodexDriver] No codexThreadId stored, starting fresh session",
+				"[CodexDriver] No codexSessionId stored, starting fresh session",
 			);
 			const modelArgs = config.model ? ["-m", config.model] : [];
 			args = [

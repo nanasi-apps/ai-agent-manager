@@ -20,6 +20,7 @@ export interface SummaryOptions {
 	cwd: string;
 	metadata?: {
 		geminiSessionId?: string;
+		codexSessionId?: string;
 		codexThreadId?: string;
 	};
 }
@@ -43,7 +44,17 @@ export function generateAgentSummary(
 		const prompt = HANDOVER_SUMMARY_PROMPT;
 
 		// Determine command based on agent type
-		if (agentType === "codex" && metadata?.codexThreadId) {
+		if (agentType === "codex" && metadata?.codexSessionId) {
+			command = "codex";
+			args = [
+				"exec",
+				"resume",
+				"-m",
+				"gpt-5.2",
+				metadata.codexSessionId,
+				prompt,
+			];
+		} else if (agentType === "codex" && metadata?.codexThreadId) {
 			command = "codex";
 			args = [
 				"exec",

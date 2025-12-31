@@ -15,6 +15,7 @@ export interface ParsedLog {
  */
 export interface ParsedLogMetadata {
 	geminiSessionId?: string;
+	codexSessionId?: string;
 	codexThreadId?: string;
 }
 
@@ -285,6 +286,11 @@ export class AgentOutputParser {
 		results: ParsedLog[],
 	) {
 		const type = json.type as string | undefined;
+		const startIndex = results.length;
+		const sessionId =
+			(json.session_id as string | undefined) ||
+			(json.sessionId as string | undefined) ||
+			(json.session as string | undefined);
 
 		switch (type) {
 			case "thread.started": {
@@ -297,8 +303,11 @@ export class AgentOutputParser {
 					raw: json,
 				};
 
-				if (threadId) {
-					log.metadata = { codexThreadId: threadId };
+				if (threadId || sessionId) {
+					log.metadata = {
+						...(sessionId ? { codexSessionId: sessionId } : {}),
+						...(threadId ? { codexThreadId: threadId } : {}),
+					};
 				}
 
 				results.push(log);
@@ -406,6 +415,16 @@ export class AgentOutputParser {
 				} else if (json.message && typeof json.message === "string") {
 					results.push({ data: json.message + "\n", type: "text", raw: json });
 				}
+		}
+
+		if (sessionId && results.length > startIndex) {
+			const target = results[startIndex];
+			if (!target.metadata?.codexSessionId) {
+				target.metadata = {
+					...target.metadata,
+					codexSessionId: sessionId,
+				};
+			}
 		}
 	}
 }

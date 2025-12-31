@@ -132,11 +132,16 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
 
 	getSessionMetadata(
 		sessionId: string,
-	): { geminiSessionId?: string; codexThreadId?: string } | undefined {
+	): {
+		geminiSessionId?: string;
+		codexSessionId?: string;
+		codexThreadId?: string;
+	} | undefined {
 		const session = this.sessions.get(sessionId);
 		if (!session) return undefined;
 		return {
 			geminiSessionId: session.state.geminiSessionId,
+			codexSessionId: session.state.codexSessionId,
 			codexThreadId: session.state.codexThreadId,
 		};
 	}

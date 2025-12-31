@@ -59,6 +59,7 @@ export interface SummaryOptions {
 	cwd: string;
 	metadata?: {
 		geminiSessionId?: string;
+		codexSessionId?: string;
 		codexThreadId?: string;
 	};
 }
