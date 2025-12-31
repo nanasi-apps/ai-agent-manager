@@ -103,7 +103,7 @@ const hasContent = (msg: Message) => {
 };
 
 const isAlwaysOpen = (msg: Message) => {
-	return msg.logType === "system" && hasContent(msg);
+	return (msg.logType === "system" || msg.logType === "error") && hasContent(msg)
 };
 
 const formatTime = (timestamp: number) => {
