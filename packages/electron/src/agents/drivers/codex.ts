@@ -73,12 +73,12 @@ export class CodexDriver implements AgentDriver {
 			const modelArgs = config.model ? ["-c", `model="${config.model}"`] : [];
 			args = [
 				"exec",
+				"resume",
 				...jsonArgs,
 				...modelArgs,
 				...reasoningArgs,
 				...modeArgs,
 				...mcpArgs,
-				"resume",
 				context.codexThreadId,
 				escapedMessage,
 			];
