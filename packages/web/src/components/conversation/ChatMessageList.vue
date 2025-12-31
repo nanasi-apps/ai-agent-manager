@@ -9,9 +9,12 @@ import {
 	Sparkles,
 	Terminal,
 } from "lucide-vue-next";
+import { useI18n } from "vue-i18n";
 import { Avatar } from "@/components/ui/avatar";
 import type { LogType, Message } from "@/composables/useConversation";
 import { useMarkdown } from "@/composables/useMarkdown";
+
+const { t } = useI18n();
 
 const props = defineProps<{
 	messages: Message[];
@@ -32,28 +35,28 @@ const getLogSummary = (msg: Message) => {
 	const type = msg.logType;
 
 	if (type === "tool_call") {
-		const toolMatch = content.match(/\[Tool: ([^\]]+)\]/);
+		const toolMatch = content.match(new RegExp("\\[Tool: ([^\\]+)\\]"));
 		if (toolMatch) return toolMatch[1];
-		const execMatch = content.match(/\[Executing: ([^\]]+)\]/);
+		const execMatch = content.match(new RegExp("\\[Executing: ([^\\]+)\\]"));
 		if (execMatch) return execMatch[1];
-		return "Tool Call";
+		return t('chat.toolCall');
 	}
 
 	if (type === "tool_result") {
-		const resultMatch = content.match(/\[Result: ([^\]]+)\]/);
+		const resultMatch = content.match(new RegExp("\\[Result: ([^\\]+)\\]"));
 		if (resultMatch) return `Result (${resultMatch[1]})`;
-		if (content.includes("[Output]")) return "Output";
-		if (content.includes("[File ")) return "File Change";
-		return "Tool Result";
+		if (content.includes("[Output]")) return t('chat.output');
+		if (content.includes("[File ")) return t('chat.fileChange');
+		return t('chat.toolResult');
 	}
 
-	if (type === "error") return "Error";
-	if (type === "thinking") return "Thinking";
+	if (type === "error") return t('chat.error');
+	if (type === "thinking") return t('chat.thinking');
 
 	if (type === "system") {
-		const modelMatch = content.match(/\[Using model: ([^\]]+)\]/);
-		if (modelMatch) return `Model: ${modelMatch[1]}`;
-		return "System";
+		const modelMatch = content.match(new RegExp("\\[Using model: ([^\\]+)\\]"));
+		if (modelMatch) return `${t('chat.model')}: ${modelMatch[1]}`;
+		return t('chat.system');
 	}
 
 	return type?.replace("_", " ") || "Log";
@@ -64,17 +67,17 @@ const getCleanContent = (content: string, logType?: LogType) => {
 
 	let clean = content;
 	const prefixes = [
-		/^\s*\[Tool: [^\]]+\]\s*/,
-		/^\s*\[Executing: [^\]]+\]\s*/,
-		/^\s*\[Result(: [^\]]+)?\]\s*/,
-		/^\s*\[Thinking\]\s*/,
-		/^\s*\[Error\]\s*/,
-		/^\s*\[System\]\s*/,
-		/^\s*\[Using model: [^\]]+\]\s*/,
-		/^\s*\[Output\]\s*/,
-		/^\s*\[File [^:]+: [^\]]+\]\s*/,
-		/^\s*\[Exit code: [^\]]+\]\s*/,
-		/^\s*\[Session started\]\s*/,
+		new RegExp("^\\s*\\[Tool: [^\\]+\\]\\s*"),
+		new RegExp("^\\s*\\[Executing: [^\\]+\\]\\s*"),
+		new RegExp("^\\s*\\[Result(: [^\\]+)?\\]\\s*"),
+		new RegExp("^\\s*\\[Thinking\\]\\s*"),
+		new RegExp("^\\s*\\[Error\\]\\s*"),
+		new RegExp("^\\s*\\[System\\]\\s*"),
+		new RegExp("^\\s*\\[Using model: [^\\]+\\]\\s*"),
+		new RegExp("^\\s*\\[Output\\]\\s*"),
+		new RegExp("^\\s*\\[File [^:]+: [^\\]+\\]\\s*"),
+		new RegExp("^\\s*\\[Exit code: [^\\]+\\]\\s*"),
+		new RegExp("^\\s*\\[Session started\\]\\s*"),
 	];
 
 	for (const p of prefixes) {
@@ -87,7 +90,7 @@ const getCleanContent = (content: string, logType?: LogType) => {
 const sanitizeLogContent = (content: string, logType?: LogType) => {
 	const clean = getCleanContent(content, logType);
 
-	if (!clean) return "_No content_";
+	if (!clean) return t('chat.noContent');
 
 	if (logType === "tool_call") {
 		return "```json\n" + clean + "\n```";
@@ -128,9 +131,9 @@ const formatTime = (timestamp: number) => {
 			>
 				<Sparkles class="size-6 text-muted-foreground" />
 			</div>
-			<h3 class="font-semibold text-lg mb-2">Start a conversation</h3>
+			<h3 class="font-semibold text-lg mb-2">{{ t('chat.startConversation') }}</h3>
 			<p class="text-sm text-muted-foreground max-w-sm">
-				Send a message to start working with your agent.
+				{{ t('chat.startPrompt') }}
 			</p>
 		</div>
 
@@ -159,7 +162,7 @@ const formatTime = (timestamp: number) => {
 						v-else
 						class="flex items-center justify-center size-full text-muted-foreground font-semibold text-xs"
 					>
-						You
+						{{ t('chat.you') }}
 					</div>
 				</Avatar>
 
@@ -170,7 +173,7 @@ const formatTime = (timestamp: number) => {
 				>
 					<div class="flex items-center gap-2 px-1">
 						<span class="text-xs font-medium text-muted-foreground">
-							{{ msg.role === "agent" ? "Agent" : "You" }}
+							{{ msg.role === "agent" ? t('chat.agent') : t('chat.you') }}
 						</span>
 						<span
 							class="text-[10px] text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity"
@@ -207,8 +210,8 @@ const formatTime = (timestamp: number) => {
 					class="flex items-center gap-2 select-none px-2 py-1.5 rounded-md transition-colors opacity-80 hover:opacity-100"
 					:class="
 						!isAlwaysOpen(msg) && hasContent(msg)
-							? 'cursor-pointer hover:bg-black/5 dark:hover:bg-white/5'
-							: 'cursor-default'
+								? 'cursor-pointer hover:bg-black/5 dark:hover:bg-white/5'
+									: 'cursor-default'
 					"
 				>
 					<!-- Spacer if always open or empty, Chevron otherwise -->
@@ -245,7 +248,7 @@ const formatTime = (timestamp: number) => {
 					</span>
 
 					<!-- Timestamp (faint) -->
-					<span class="ml-auto text-[10px] text-muted-foreground/40">{{
+					<span class="ml-auto text-[10px] text-muted-foreground/40">{{ 
 						formatTime(msg.timestamp)
 					}}</span>
 				</div>

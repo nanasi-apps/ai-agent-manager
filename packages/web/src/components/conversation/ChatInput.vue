@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import type { AgentMode, ReasoningLevel } from "@agent-manager/shared";
 import { computed } from "vue";
+import { useI18n } from "vue-i18n";
 import { ChevronDown, Loader2, Send, Square } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { ModelTemplate } from "@/composables/useConversation";
 import { groupModelTemplates } from "@/lib/modelTemplateGroups";
+
+const { t } = useI18n();
 
 const props = defineProps<{
 	input: string;
@@ -68,8 +71,8 @@ const handleKeydown = (e: KeyboardEvent) => {
 					>
 						<Textarea
 							:model-value="input"
-							@update:model-value="emit('update:input', $event)"
-							placeholder="Send a message..."
+							@update:model-value="emit('update:input', $event as string)"
+							:placeholder="t('chat.placeholder')"
 							class="min-h-[56px] max-h-[200px] py-3 px-4 bg-transparent border-0 focus-visible:ring-0 resize-none shadow-none text-sm"
 							:disabled="isLoading"
 							@keydown="handleKeydown"

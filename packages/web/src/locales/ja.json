@@ -101,5 +101,23 @@
   "time": {
       "justNow": "たった今",
       "ago": "{time}前"
+  },
+  "chat": {
+    "placeholder": "メッセージを送信...",
+    "startConversation": "会話を開始",
+    "startPrompt": "メッセージを送信して、エージェントとの作業を開始してください。",
+    "agent": "エージェント",
+    "you": "あなた",
+    "model": "モデル",
+    "mode": "モード",
+    "reasoning": "推論",
+    "toolCall": "ツール呼び出し",
+    "toolResult": "ツール結果",
+    "output": "出力",
+    "fileChange": "ファイル変更",
+    "error": "エラー",
+    "thinking": "思考中",
+    "system": "システム",
+    "noContent": "_コンテンツなし_"
   }
 }

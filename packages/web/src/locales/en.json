@@ -101,5 +101,23 @@
   "time": {
       "justNow": "Just now",
       "ago": "{time} ago"
+  },
+  "chat": {
+    "placeholder": "Send a message...",
+    "startConversation": "Start a conversation",
+    "startPrompt": "Send a message to start working with your agent.",
+    "agent": "Agent",
+    "you": "You",
+    "model": "Model",
+    "mode": "Mode",
+    "reasoning": "Reasoning",
+    "toolCall": "Tool Call",
+    "toolResult": "Tool Result",
+    "output": "Output",
+    "fileChange": "File Change",
+    "error": "Error",
+    "thinking": "Thinking",
+    "system": "System",
+    "noContent": "_No content_"
   }
 }
