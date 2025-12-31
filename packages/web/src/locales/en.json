@@ -1,0 +1,22 @@
+{
+  "general": {
+    "cancel": "Cancel"
+  },
+  "sidebar": {
+    "dashboard": "Dashboard",
+    "inbox": "Inbox",
+    "search": "Search",
+    "projects": "Projects",
+    "addProject": "Add Project",
+    "newConversion": "New Conversion",
+    "viewAll": "View all...",
+    "noConversations": "No conversations",
+    "agentsManager": "Agents Manager",
+    "mcpServers": "MCP Servers",
+    "rules": "Rules",
+    "settings": "Settings",
+    "overview": "Overview",
+    "close": "Close Sidebar",
+    "toggle": "Toggle"
+  }
+}

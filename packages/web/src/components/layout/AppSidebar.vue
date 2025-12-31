@@ -13,8 +13,9 @@ import {
 	Search,
 	Settings,
 } from "lucide-vue-next";
-import { onMounted, onUnmounted, ref, watch } from "vue";
+import { onMounted, onUnmounted, ref, watch, computed } from "vue";
 import { useRoute } from "vue-router";
+import { useI18n } from "vue-i18n";
 import NewProjectDialog from "@/components/dialogs/NewProjectDialog.vue";
 import {
 	Collapsible,
@@ -41,24 +42,29 @@ import {
 import { useNewConversionDialog } from "@/composables/useNewConversionDialog";
 import { orpc } from "@/services/orpc";
 
+const { t } = useI18n();
+
 // Main navigation items.
-const navItems = [
+const navItems = computed(() => [
 	{
-		title: "Dashboard",
+		id: "dashboard",
+		title: t('sidebar.dashboard'),
 		url: "/",
 		icon: Home,
 	},
 	{
-		title: "Inbox",
+		id: "inbox",
+		title: t('sidebar.inbox'),
 		url: "/inbox",
 		icon: Inbox,
 	},
 	{
-		title: "Search",
+		id: "search",
+		title: t('sidebar.search'),
 		url: "#",
 		icon: Search,
 	},
-];
+]);
 
 // Projects data
 interface ProjectWithConversations {
@@ -73,7 +79,7 @@ interface ProjectWithConversations {
 
 const route = useRoute();
 const projects = ref<ProjectWithConversations[]>([]);
-const activeItem = ref("Dashboard");
+const activeItem = ref("dashboard");
 const isProjectDialogOpen = ref(false);
 
 const { open: openNewConversion } = useNewConversionDialog();
@@ -120,59 +126,61 @@ watch(
 	() => route.path,
 	(path) => {
 		if (path === "/") {
-			activeItem.value = "Dashboard";
+			activeItem.value = "dashboard";
 		} else if (path === "/inbox") {
-			activeItem.value = "Inbox";
+			activeItem.value = "inbox";
 		} else if (path.startsWith("/projects/")) {
 			const id = path.split("/")[2] || "";
-			// We might want to highlight the project name, but for now we don't have a direct "active" state for project headers unless we change the logic.
-			// However, let's try to match it if possible, strictly referencing the project ID might not work with current navItems logic unless we add projects to navItems or handle it separately.
-			// The current template iterates projects separately.
-			// Let's iterate projects and see if we match.
 			activeItem.value = id;
 		} else if (path.startsWith("/conversions/")) {
 			const id = path.split("/")[2] || "";
 			activeItem.value = id;
 		} else if (path === "/agents") {
-			activeItem.value = "Agents Manager";
+			activeItem.value = "agents-manager";
 		} else if (path === "/rules") {
-			activeItem.value = "Rules";
+			activeItem.value = "rules";
 		} else if (path === "/settings") {
-			activeItem.value = "Settings";
+			activeItem.value = "settings";
+		} else if (path === "/mcp") {
+			activeItem.value = "mcp-servers";
 		}
 	},
 	{ immediate: true },
 );
 
 // Bottom navigation items.
-const bottomItems = [
+const bottomItems = computed(() => [
 	{
-		title: "Agents Manager",
+		id: "agents-manager",
+		title: t('sidebar.agentsManager'),
 		url: "/agents",
 		icon: Bot,
 	},
 	{
-		title: "MCP Servers",
+		id: "mcp-servers",
+		title: t('sidebar.mcpServers'),
 		url: "/mcp",
 		icon: Plug,
 	},
 	{
-		title: "Rules",
+		id: "rules",
+		title: t('sidebar.rules'),
 		url: "/rules",
 		icon: BookOpen,
 	},
 	{
-		title: "Settings",
+		id: "settings",
+		title: t('sidebar.settings'),
 		url: "/settings",
 		icon: Settings,
 	},
-];
+]);
 
 const { setSidebarWidth, setOpen, isResizing, state, toggleSidebar } =
 	useSidebar();
 
-function handleItemClick(title: string) {
-	activeItem.value = title;
+function handleItemClick(id: string) {
+	activeItem.value = id;
 }
 
 function handleMouseDown(e: MouseEvent) {
@@ -222,12 +230,12 @@ function handleMouseUp() {
       <SidebarGroup>
         <SidebarGroupContent>
           <SidebarMenu>
-            <SidebarMenuItem v-for="item in navItems" :key="item.title">
+            <SidebarMenuItem v-for="item in navItems" :key="item.id">
               <SidebarMenuButton 
                 as-child 
                 :tooltip="item.title"
-                :isActive="activeItem === item.title"
-                @click="handleItemClick(item.title)"
+                :isActive="activeItem === item.id"
+                @click="handleItemClick(item.id)"
                 class="transition-all duration-200 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground data-[active=true]:border data-[active=true]:border-sidebar-border data-[active=true]:shadow-sm"
               >
                 <router-link :to="item.url" class="flex items-center gap-2 !text-inherit">
@@ -242,10 +250,10 @@ function handleMouseUp() {
 
       <SidebarGroup class="group-data-[collapsible=icon]:hidden">
         <SidebarGroupLabel>
-          Projects
+          {{ t('sidebar.projects') }}
         </SidebarGroupLabel>
-        <SidebarGroupAction title="Add Project" @click="isProjectDialogOpen = true">
-          <Plus /> <span class="sr-only">Add Project</span>
+        <SidebarGroupAction :title="t('sidebar.addProject')" @click="isProjectDialogOpen = true">
+          <Plus /> <span class="sr-only">{{ t('sidebar.addProject') }}</span>
         </SidebarGroupAction>
         <SidebarGroupContent>
           <SidebarMenu>
@@ -278,7 +286,7 @@ function handleMouseUp() {
                      </div>
                    </SidebarMenuButton>
                    <SidebarMenuAction @click.stop="openNewConversion(project.id)">
-                      <Plus /> <span class="sr-only">New Conversion</span>
+                      <Plus /> <span class="sr-only">{{ t('sidebar.newConversion') }}</span>
                    </SidebarMenuAction>
                  </div>
 
@@ -300,14 +308,14 @@ function handleMouseUp() {
                        <SidebarMenuSubItem v-if="project.conversations.length > 5">
                           <SidebarMenuSubButton as-child>
                              <router-link :to="`/projects/${project.id}`" class="text-xs text-muted-foreground hover:text-foreground">
-                                View all...
+                                {{ t('sidebar.viewAll') }}
                              </router-link>
                           </SidebarMenuSubButton>
                        </SidebarMenuSubItem>
                      </SidebarMenuSub>
                      <SidebarMenuSub v-else>
                         <SidebarMenuSubItem>
-                           <span class="text-xs text-muted-foreground px-2 py-1">No conversations</span>
+                           <span class="text-xs text-muted-foreground px-2 py-1">{{ t('sidebar.noConversations') }}</span>
                         </SidebarMenuSubItem>
                      </SidebarMenuSub>
                    </div>
@@ -321,14 +329,14 @@ function handleMouseUp() {
     
     <SidebarFooter class="border-t p-2">
       <SidebarMenu>
-        <template v-for="item in bottomItems" :key="item.title">
-          <Collapsible v-if="item.title === 'Agents Manager'" as-child class="group/collapsible-agents">
+        <template v-for="item in bottomItems" :key="item.id">
+          <Collapsible v-if="item.id === 'agents-manager'" as-child class="group/collapsible-agents">
             <SidebarMenuItem>
               <SidebarMenuButton 
                 as-child 
                 :tooltip="item.title"
-                :isActive="activeItem === item.title"
-                @click="handleItemClick(item.title)"
+                :isActive="activeItem === item.id"
+                @click="handleItemClick(item.id)"
                 class="transition-all duration-200 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground data-[active=true]:border data-[active=true]:border-sidebar-border data-[active=true]:shadow-sm"
               >
                 <router-link :to="item.url" class="flex items-center gap-2 !text-inherit">
@@ -342,7 +350,7 @@ function handleMouseUp() {
                   class="transition-all duration-200 opacity-0 group-hover/collapsible-agents:opacity-100 group-data-[state=open]/collapsible-agents:opacity-100 group-data-[state=open]/collapsible-agents:rotate-90"
                 >
                   <ChevronRight class="size-4" />
-                  <span class="sr-only">Toggle</span>
+                  <span class="sr-only">{{ t('sidebar.toggle') }}</span>
                 </SidebarMenuAction>
               </CollapsibleTrigger>
 
@@ -351,11 +359,10 @@ function handleMouseUp() {
                   <SidebarMenuSubItem>
                     <SidebarMenuSubButton as-child>
                       <router-link to="/agents" class="text-xs">
-                        Overview
+                        {{ t('sidebar.overview') }}
                       </router-link>
                     </SidebarMenuSubButton>
                   </SidebarMenuSubItem>
-                  <!-- We can add more sub items here if needed in the future -->
                 </SidebarMenuSub>
               </CollapsibleContent>
             </SidebarMenuItem>
@@ -365,8 +372,8 @@ function handleMouseUp() {
             <SidebarMenuButton 
               as-child 
               :tooltip="item.title"
-              :isActive="activeItem === item.title"
-              @click="handleItemClick(item.title)"
+              :isActive="activeItem === item.id"
+              @click="handleItemClick(item.id)"
               class="transition-all duration-200 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground data-[active=true]:border data-[active=true]:border-sidebar-border data-[active=true]:shadow-sm"
             >
               <router-link :to="item.url" class="flex items-center gap-2 !text-inherit">
@@ -380,12 +387,12 @@ function handleMouseUp() {
         <SidebarMenuItem>
           <SidebarMenuButton 
             @click="toggleSidebar"
-            tooltip="サイドバーを閉じる"
+            :tooltip="t('sidebar.close')"
             class="w-full justify-start gap-2 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
           >
             <PanelLeft class="size-4" />
             <span class="truncate group-data-[collapsible=icon]:hidden">
-              サイドバーを閉じる
+              {{ t('sidebar.close') }}
             </span>
           </SidebarMenuButton>
         </SidebarMenuItem>
