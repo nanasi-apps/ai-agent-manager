@@ -94,8 +94,28 @@ export const modelsRouter = {
 					models = getModelsForCliType(cliType);
 				}
 
+				const modelEntries: { model: string; isCustom: boolean }[] = [];
+				if (isCustomEndpoint) {
+					const hardcodedModels = getModelsForCliType(cliType);
+					const seen = new Set<string>();
+					for (const model of hardcodedModels) {
+						if (seen.has(model)) continue;
+						seen.add(model);
+						modelEntries.push({ model, isCustom: false });
+					}
+					for (const model of models) {
+						if (seen.has(model)) continue;
+						seen.add(model);
+						modelEntries.push({ model, isCustom: true });
+					}
+				} else {
+					for (const model of models) {
+						modelEntries.push({ model, isCustom: false });
+					}
+				}
+
 				// Only add default entry if there are no hardcoded models
-				if (models.length === 0) {
+				if (modelEntries.length === 0) {
 					const defaultName = agentName.toLowerCase().includes("default")
 						? agentName
 						: `${agentName} (Default)`;
@@ -107,18 +127,18 @@ export const modelsRouter = {
 					});
 				} else {
 					// Add all models
-					for (const model of models) {
+					for (const entry of modelEntries) {
 						// For custom endpoints, add suffix to show it's from custom API
-						const displayName = isCustomEndpoint
-							? `${model} - Custom API (${agentName})`
-							: model;
+						const displayName = entry.isCustom
+							? `${entry.model} - Custom API (${agentName})`
+							: entry.model;
 
 						results.push({
-							id: buildModelId(agentType, model),
+							id: buildModelId(agentType, entry.model),
 							name: displayName,
 							agentType,
 							agentName,
-							model,
+							model: entry.model,
 						});
 					}
 				}
