@@ -428,11 +428,11 @@ export const conversationsRouter = {
 
 			const previousCliName = currentTemplate?.name || conv.agentType || "unknown";
 			const previousModel = conv.agentModel || "default";
-			const previousLabel = `${previousCliName} ${previousModel}`;
+			const previousLabel = `${previousCliName} - ${previousModel}`;
 
 			const nextCliName = nextTemplate.name;
 			const nextModel = resolvedModel || "default";
-			const nextLabel = `${nextCliName} ${nextModel}`;
+			const nextLabel = `${nextCliName} - ${nextModel}`;
 
 			const agentChanged = conv.agentType !== resolvedAgentType;
 			const modelChanged = conv.agentModel !== resolvedModel;
