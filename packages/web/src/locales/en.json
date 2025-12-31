@@ -1,6 +1,15 @@
 {
   "general": {
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "save": "Save",
+    "saved": "Saved!",
+    "delete": "Delete",
+    "create": "Create",
+    "loading": "Loading...",
+    "refresh": "Refresh",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "clear": "Clear"
   },
   "sidebar": {
     "dashboard": "Dashboard",
@@ -18,5 +27,79 @@
     "overview": "Overview",
     "close": "Close Sidebar",
     "toggle": "Toggle"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "subtitle": "Continue your recent work or select a project from the sidebar.",
+    "recentConversations": "Recent Conversations",
+    "noConversations": "No recent conversations. Select a project from the sidebar to start one!"
+  },
+  "inbox": {
+    "title": "Inbox",
+    "message": "Your messages will appear here."
+  },
+  "agents": {
+    "title": "Agent Manager",
+    "description": "Orchestration features are currently disabled or undergoing refactoring."
+  },
+  "mcp": {
+    "title": "MCP Servers",
+    "description": "View MCP (Model Context Protocol) servers configured in your AI CLI tools",
+    "refresh": "Refresh",
+    "allServers": "All Configured MCP Servers",
+    "allServersDesc": "Servers from all supported CLI tools",
+    "sourceServers": "{source} Servers",
+    "sourceServersDesc": "Servers configured for {source}",
+    "noServers": "No MCP servers configured",
+    "noServersIn": "No MCP servers configured in {source}",
+    "configureHint": "Configure servers in Gemini CLI or Claude to see them here.",
+    "comingSoon": "Coming Soon: Enable/disable MCP servers per session, add custom servers, and view available tools from each server.",
+    "table": {
+        "name": "Name",
+        "source": "Source",
+        "type": "Type",
+        "connection": "Connection",
+        "status": "Status"
+    }
+  },
+  "rules": {
+      "title": "Global Rules",
+      "noRules": "No rules found.",
+      "selectRule": "Select a rule to edit",
+      "saveRule": "Save Rule",
+      "createTitle": "Create Global Rule",
+      "createDesc": "Enter a name for the new rule (e.g., \"Coding Standards\", \"Git Workflow\").",
+      "placeholder": "Rule Name",
+      "confirmDelete": "Are you sure you want to delete this rule?"
+  },
+  "settings": {
+      "title": "Settings",
+      "description": "Configure your application settings.",
+      "apiSettings": "API Settings",
+      "apiSettingsDesc": "Configure API keys for direct API-based agents (OpenAI API, Gemini API).",
+      "loading": "Loading API settings...",
+      "openai": {
+          "title": "OpenAI API",
+          "desc": "Used for OpenAI API agent and compatible services.",
+          "configured": "Configured",
+          "notSet": "Not Set",
+          "apiKey": "API Key",
+          "baseUrl": "Base URL (optional)",
+          "baseUrlDesc": "Custom endpoint for Azure OpenAI or compatible APIs."
+      },
+      "gemini": {
+          "title": "Gemini API",
+          "desc": "Used for Gemini API agent.",
+          "configured": "Configured",
+          "notSet": "Not Set",
+          "apiKey": "API Key",
+          "baseUrl": "Base URL (optional)",
+          "baseUrlDesc": "Custom endpoint for Gemini API proxy."
+      },
+      "saveButton": "Save API Settings"
+  },
+  "time": {
+      "justNow": "Just now",
+      "ago": "{time} ago"
   }
 }

@@ -10,6 +10,7 @@ import {
 	Terminal,
 } from "lucide-vue-next";
 import { computed, onMounted, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,6 +30,8 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { orpc } from "@/services/orpc";
+
+const { t } = useI18n();
 
 interface McpServerEntry {
 	name: string;
@@ -153,15 +156,15 @@ onMounted(() => {
       <div>
         <h1 class="text-2xl font-bold flex items-center gap-2">
           <Plug class="size-6" />
-          MCP Servers
+          {{ t('mcp.title') }}
         </h1>
         <p class="text-muted-foreground mt-1">
-          View MCP (Model Context Protocol) servers configured in your AI CLI tools
+          {{ t('mcp.description') }}
         </p>
       </div>
       <Button variant="outline" size="sm" @click="loadServers" :disabled="isLoading">
         <RefreshCw class="size-4 mr-2" :class="{ 'animate-spin': isLoading }" />
-        Refresh
+        {{ t('mcp.refresh') }}
       </Button>
     </div>
 
@@ -266,27 +269,28 @@ onMounted(() => {
       <Card>
         <CardHeader>
           <CardTitle class="text-lg">
-            {{ activeFilter === 'all' ? 'All Configured MCP Servers' : getSourceLabel(activeFilter as McpServerEntry['source']) + ' Servers' }}
+            {{ activeFilter === 'all' ? t('mcp.allServers') : t('mcp.sourceServers', { source: getSourceLabel(activeFilter as McpServerEntry['source']) }) }}
           </CardTitle>
           <CardDescription>
-            {{ activeFilter === 'all' ? 'Servers from all supported CLI tools' : `Servers configured for ${getSourceLabel(activeFilter as McpServerEntry['source'])}` }}
+            {{ activeFilter === 'all' ? t('mcp.allServersDesc') : t('mcp.sourceServersDesc', { source: getSourceLabel(activeFilter as McpServerEntry['source']) }) }}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div v-if="filteredServers.length === 0" class="text-center py-12 text-muted-foreground">
             <Server class="size-12 mx-auto mb-4 opacity-20" />
-            <p>No MCP servers configured{{ activeFilter !== 'all' ? ` in ${getSourceLabel(activeFilter as McpServerEntry['source'])}` : '' }}.</p>
-            <p class="text-sm mt-2">Configure servers in Gemini CLI or Claude to see them here.</p>
+            <p v-if="activeFilter === 'all'">{{ t('mcp.noServers') }}</p>
+            <p v-else>{{ t('mcp.noServersIn', { source: getSourceLabel(activeFilter as McpServerEntry['source']) }) }}</p>
+            <p class="text-sm mt-2">{{ t('mcp.configureHint') }}</p>
           </div>
           <ScrollArea v-else class="max-h-[500px]">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead class="w-[180px]">Name</TableHead>
-                  <TableHead class="w-[120px]">Source</TableHead>
-                  <TableHead class="w-[80px]">Type</TableHead>
-                  <TableHead>Connection</TableHead>
-                  <TableHead class="w-[100px]">Status</TableHead>
+                  <TableHead class="w-[180px]">{{ t('mcp.table.name') }}</TableHead>
+                  <TableHead class="w-[120px]">{{ t('mcp.table.source') }}</TableHead>
+                  <TableHead class="w-[80px]">{{ t('mcp.table.type') }}</TableHead>
+                  <TableHead>{{ t('mcp.table.connection') }}</TableHead>
+                  <TableHead class="w-[100px]">{{ t('mcp.table.status') }}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -314,7 +318,7 @@ onMounted(() => {
                     <div class="flex items-center gap-1.5">
                       <CheckCircle v-if="server.enabled" class="size-4 text-green-500" />
                       <AlertCircle v-else class="size-4 text-yellow-500" />
-                      <span class="text-xs">{{ server.enabled ? 'Enabled' : 'Disabled' }}</span>
+                      <span class="text-xs">{{ server.enabled ? t('general.enabled') : t('general.disabled') }}</span>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -327,7 +331,7 @@ onMounted(() => {
       <!-- Future Features Note -->
       <div class="mt-6 p-4 rounded-lg border border-dashed bg-muted/30">
         <p class="text-sm text-muted-foreground">
-          <strong>Coming Soon:</strong> Enable/disable MCP servers per session, add custom servers, and view available tools from each server.
+          <strong>{{ t('mcp.comingSoon') }}</strong>
         </p>
       </div>
     </div>
