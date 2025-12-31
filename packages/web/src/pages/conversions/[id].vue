@@ -250,6 +250,7 @@ onBeforeRouteLeave(() => {
 							:is-generating="conversation.isGenerating.value"
 							:copied-id="conversation.copiedId.value"
 							:expanded-message-ids="conversation.expandedMessageIds.value"
+							:current-model="conversation.selectedModelTemplate.value"
 							@copy="handleCopyMessage"
 							@toggle="handleToggleMessage"
 						/>
