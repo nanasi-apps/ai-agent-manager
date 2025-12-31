@@ -382,6 +382,9 @@ export class OneShotSession extends EventEmitter {
 			child.stderr.on("data", (data) => {
 				const str = data.toString();
 				console.log(`[OneShotSession ${this.sessionId}] stderr:`, str);
+				if (!this.state.config.streamJson) {
+					this.emitLog(str, "text");
+				}
 				this.checkForErrors(child, str);
 			});
 		}
@@ -389,7 +392,7 @@ export class OneShotSession extends EventEmitter {
 
 	private handleProcessClose(child: ChildProcess, code: number | null) {
 		console.log(
-			`[OneShotSession ${this.sessionId}] handleProcessClose called, code=\${code}, hasPending=\${!!this.state.pendingWorktreeResume}`,
+			`[OneShotSession ${this.sessionId}] handleProcessClose called, code=${code}, hasPending=${!!this.state.pendingWorktreeResume}`,
 		);
 
 		if (this.currentProcess !== child) {
@@ -407,11 +410,11 @@ export class OneShotSession extends EventEmitter {
 		this.currentProcess = undefined;
 
 		console.log(
-			`[OneShotSession ${this.sessionId}] Process exited with code \${code}, hasPendingResume=\${hasPendingResume}`,
+			`[OneShotSession ${this.sessionId}] Process exited with code ${code}, hasPendingResume=${hasPendingResume}`,
 		);
 
 		if (!hasPendingResume) {
-			this.emitLog(`\n[Process exited with code \${code}]\n`, "system");
+			this.emitLog(`\n[Process exited with code ${code}]\n`, "system");
 		}
 		this.handlePendingWorktreeResume();
 	}
@@ -425,7 +428,7 @@ export class OneShotSession extends EventEmitter {
 		if (isSessionInvalidError(stderr)) {
 			if (currentSessionState.geminiSessionId) {
 				console.warn(
-					`[OneShotSession ${this.sessionId}] Gemini session \${currentSessionState.geminiSessionId} is invalid.`,
+					`[OneShotSession ${this.sessionId}] Gemini session ${currentSessionState.geminiSessionId} is invalid.`,
 				);
 			}
 			// Mark invalid and stop
@@ -450,7 +453,7 @@ export class OneShotSession extends EventEmitter {
 			if (isQuotaError(stderr)) {
 				const resetTime = parseQuotaResetTime(stderr) ?? "some time";
 				this.emitLog(
-					`\n[Gemini Quota Error] API quota exhausted. Quota will reset after \${resetTime}.\n`,
+					`\n[Gemini Quota Error] API quota exhausted. Quota will reset after ${resetTime}.\n`,
 					"error",
 				);
 			} else {
@@ -501,7 +504,7 @@ export class OneShotSession extends EventEmitter {
 	private handlePendingWorktreeResume() {
 		const pending = this.state.pendingWorktreeResume;
 		console.log(
-			`[OneShotSession ${this.sessionId}] handlePendingWorktreeResume called, hasPending=\${!!pending}`,
+			`[OneShotSession ${this.sessionId}] handlePendingWorktreeResume called, hasPending=${!!pending}`,
 		);
 
 		if (!pending) {
@@ -512,7 +515,7 @@ export class OneShotSession extends EventEmitter {
 		}
 
 		console.log(
-			`[OneShotSession ${this.sessionId}] Activating worktree: branch=\${pending.request.branch}, cwd=\${pending.request.cwd}`,
+			`[OneShotSession ${this.sessionId}] Activating worktree: branch=${pending.request.branch}, cwd=${pending.request.cwd}`,
 		);
 
 		this.actor.send({ type: "CLEAR_PENDING_WORKTREE_RESUME" });
@@ -526,7 +529,7 @@ export class OneShotSession extends EventEmitter {
 		});
 
 		this.emitLog(
-			`\n[System] Switching to worktree \${pending.request.branch} at \${pending.request.cwd}\n`,
+			`\n[System] Switching to worktree ${pending.request.branch} at ${pending.request.cwd}\n`,
 			"system",
 		);
 
@@ -555,7 +558,7 @@ export class OneShotSession extends EventEmitter {
 					this.actor.send({ type: "CLEAR_ACTIVE_WORKTREE" });
 				}
 				this.emitLog(
-					`\n[System] Worktree path not found. Falling back to \${fallbackCwd}\n`,
+					`\n[System] Worktree path not found. Falling back to ${fallbackCwd}\n`,
 					"system",
 				);
 			}
@@ -564,7 +567,7 @@ export class OneShotSession extends EventEmitter {
 
 		if (requestedCwd) {
 			this.emitLog(
-				`\n[System] Working directory not found: \${requestedCwd}. Using default cwd.\n`,
+				`\n[System] Working directory not found: ${requestedCwd}. Using default cwd.\n`,
 				"system",
 			);
 		}
