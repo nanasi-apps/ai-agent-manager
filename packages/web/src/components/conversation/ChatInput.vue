@@ -190,14 +190,6 @@ const handleKeydown = (e: KeyboardEvent) => {
 							</div>
 						</div>
 					</div>
-
-					<p class="text-[10px] text-muted-foreground">
-						Press
-						<kbd class="px-1 py-0.5 rounded bg-muted text-[9px] font-mono">⌘</kbd>
-						+
-						<kbd class="px-1 py-0.5 rounded bg-muted text-[9px] font-mono">Enter</kbd>
-						to send
-					</p>
 				</div>
 			</form>
 		</div>
