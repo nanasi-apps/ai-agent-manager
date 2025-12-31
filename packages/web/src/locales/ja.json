@@ -108,6 +108,10 @@
   "settings": {
     "title": "設定",
     "description": "アプリケーションの設定を行います。",
+    "generalSettings": "一般設定",
+    "generalSettingsDesc": "アプリケーションの一般的な設定を行います。",
+    "language": "言語",
+    "languageDesc": "ユーザーインターフェースの言語を選択します。",
     "apiSettings": "API設定",
     "apiSettingsDesc": "直接APIベースのエージェント（OpenAI API、Gemini API）のAPIキーを設定します。",
     "loading": "API設定を読み込み中...",

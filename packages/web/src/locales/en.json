@@ -110,6 +110,10 @@
   "settings": {
     "title": "Settings",
     "description": "Configure your application settings.",
+    "generalSettings": "General Settings",
+    "generalSettingsDesc": "Configure general application preferences.",
+    "language": "Language",
+    "languageDesc": "Select the language for the user interface.",
     "apiSettings": "API Settings",
     "apiSettingsDesc": "Configure API keys for direct API-based agents (OpenAI API, Gemini API).",
     "loading": "Loading API settings...",

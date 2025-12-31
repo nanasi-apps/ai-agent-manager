@@ -83,6 +83,7 @@ export interface ApiSettings {
 	openaiBaseUrl?: string;
 	geminiApiKey?: string;
 	geminiBaseUrl?: string;
+	language?: string;
 }
 
 /**
