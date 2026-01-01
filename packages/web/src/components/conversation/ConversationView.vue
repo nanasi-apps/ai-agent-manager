@@ -335,12 +335,13 @@ onUnmounted(() => {
 				:default-size="conversation.isMcpSheetOpen.value ? 80 : 100"
 				:min-size="30"
 			>
-				<div class="flex flex-col h-full min-w-0">
-					<!-- Messages Area -->
-					<ScrollArea class="flex-1 min-h-0" ref="scrollAreaRef">
-                        <div v-if="conversation.sessionId.value === 'new'" class="h-full flex flex-col items-center justify-center text-muted-foreground p-8 text-center">
-                             <!-- New Session Setup UI -->
-                            <div class="space-y-6 w-full text-left max-w-3xl p-4">
+				<Transition name="viewer-fade" mode="out-in">
+					<div :key="props.sessionId" class="flex flex-col h-full min-w-0">
+						<!-- Messages Area -->
+						<ScrollArea class="flex-1 min-h-0" ref="scrollAreaRef">
+							<div v-if="conversation.sessionId.value === 'new'" class="h-full flex flex-col items-center justify-center text-muted-foreground p-8 text-center">
+								<!-- New Session Setup UI -->
+								<div class="space-y-6 w-full text-left max-w-3xl p-4">
                                 <h3 class="text-xl font-semibold text-foreground">Start a new conversation</h3>
                                 
                                 <div class="flex flex-col gap-4">
@@ -413,18 +414,18 @@ onUnmounted(() => {
                             </div>
                         </div>
 
-						<ChatMessageList
-                            v-else
-							:messages="conversation.messages.value"
-							:is-generating="conversation.isGenerating.value"
-							:copied-id="conversation.copiedId.value"
-							:expanded-message-ids="conversation.expandedMessageIds.value"
-							:current-model="conversation.selectedModelTemplate.value"
-							@copy="handleCopyMessage"
-							@toggle="handleToggleMessage"
-						/>
-						<div ref="messagesEndRef" class="h-px" />
-					</ScrollArea>
+							<ChatMessageList
+								v-else
+								:messages="conversation.messages.value"
+								:is-generating="conversation.isGenerating.value"
+								:copied-id="conversation.copiedId.value"
+								:expanded-message-ids="conversation.expandedMessageIds.value"
+								:current-model="conversation.selectedModelTemplate.value"
+								@copy="handleCopyMessage"
+								@toggle="handleToggleMessage"
+							/>
+							<div ref="messagesEndRef" class="h-px" />
+						</ScrollArea>
 
 					<!-- Input Area -->
 					<ChatInput
@@ -448,7 +449,7 @@ onUnmounted(() => {
 						@send="handleSendMessage"
 						@stop="handleStopGeneration"
 					/>
-				</div>
+				</div></Transition>
 			</ResizablePanel>
 
 			<ResizableHandle v-if="conversation.isMcpSheetOpen.value || conversation.isPlanViewerOpen.value" />
@@ -515,5 +516,15 @@ onUnmounted(() => {
 	max-width: 0 !important;
 	opacity: 0;
 	transform: translateX(20px);
+}
+
+.viewer-fade-enter-active,
+.viewer-fade-leave-active {
+	transition: opacity 220ms ease;
+}
+
+.viewer-fade-enter-from,
+.viewer-fade-leave-to {
+	opacity: 0;
 }
 </style>
