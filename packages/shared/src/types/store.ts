@@ -1,5 +1,9 @@
 import type { AgentMode, ReasoningLevel } from "./agent";
-import type { ApprovalRequest, ApprovalStatus } from "./approval";
+import type {
+	ApprovalChannel,
+	ApprovalRequest,
+	ApprovalStatus,
+} from "./approval";
 
 /**
  * Chat message
@@ -78,13 +82,17 @@ export interface ResourceLock {
  * API Settings for direct API calls (OpenAI, Gemini)
  * Stored separately from projects for security
  */
+export interface AppSettings {
+	language?: string;
+	notifyOnAgentComplete?: boolean;
+	approvalNotificationChannels?: ApprovalChannel[];
+}
+
 export interface ApiSettings {
 	openaiApiKey?: string;
 	openaiBaseUrl?: string;
 	geminiApiKey?: string;
 	geminiBaseUrl?: string;
-	language?: string;
-	notifyOnAgentComplete?: boolean;
 }
 
 /**
@@ -122,6 +130,10 @@ export interface IStore {
 	// API settings methods
 	getApiSettings(): ApiSettings;
 	updateApiSettings(settings: Partial<ApiSettings>): void;
+
+	// App settings methods
+	getAppSettings(): AppSettings;
+	updateAppSettings(settings: Partial<AppSettings>): void;
 
 	// Approval methods
 	addApproval(approval: ApprovalRequest): void;

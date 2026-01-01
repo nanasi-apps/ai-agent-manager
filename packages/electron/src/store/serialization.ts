@@ -1,4 +1,5 @@
 import type {
+	AppSettings,
 	ApiSettings,
 	ApprovalRequest,
 	Conversation,
@@ -13,6 +14,7 @@ export interface StoreData {
 	locks?: ResourceLock[];
 	approvals?: ApprovalRequest[];
 	apiSettings?: ApiSettings;
+	appSettings?: AppSettings;
 }
 
 export function normalizeMessages(messages: Message[]): Message[] {

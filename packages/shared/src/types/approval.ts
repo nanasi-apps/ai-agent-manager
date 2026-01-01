@@ -26,6 +26,8 @@ export interface ApprovalRequest {
     status: ApprovalStatus;
     /** Where to send the notification */
     channel: ApprovalChannel;
+    /** Channels to notify (always includes inbox) */
+    notificationChannels?: ApprovalChannel[];
     /** Requested at timestamp */
     createdAt: number;
     /** Updated at timestamp */
@@ -50,7 +52,6 @@ export interface CreateApprovalRequest {
     projectId: string;
     planContent: string;
     planSummary?: string;
-    channel?: ApprovalChannel;
 }
 
 /**

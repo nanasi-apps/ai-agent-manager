@@ -9,16 +9,17 @@ import {
     buildSessionConfig,
     startAgentSession,
 } from "../services/session-builder";
-import type { ApprovalRequest } from "../types/approval";
+import type { ApprovalChannel, ApprovalRequest } from "../types/approval";
 import { generateUUID } from "../utils";
 
+const approvalChannels = ["inbox", "slack", "discord"] as const;
 const approvalStatusSchema = z.enum([
     "pending",
     "approved",
     "rejected",
     "expired",
 ]);
-const approvalChannelSchema = z.enum(["inbox", "slack", "discord"]);
+const approvalChannelSchema = z.enum(approvalChannels);
 
 /**
  * Generate a summary from plan content
@@ -33,6 +34,18 @@ function generatePlanSummary(planContent: string): string {
     return clean.slice(0, 200) + "...";
 }
 
+function resolveNotificationChannels(
+    configuredChannels: ApprovalChannel[] | undefined,
+): ApprovalChannel[] {
+    const unique = new Set<ApprovalChannel>(["inbox"]);
+    for (const channel of configuredChannels ?? []) {
+        if (approvalChannels.includes(channel)) {
+            unique.add(channel);
+        }
+    }
+    return Array.from(unique);
+}
+
 export const approvalsRouter = {
     /**
      * Create a new approval request
@@ -44,7 +57,6 @@ export const approvalsRouter = {
                 projectId: z.string(),
                 planContent: z.string(),
                 planSummary: z.string().optional(),
-                channel: approvalChannelSchema.optional(),
             }),
         )
         .output(
@@ -56,6 +68,9 @@ export const approvalsRouter = {
         .handler(async ({ input }) => {
             const storeInstance = getStoreOrThrow();
             const now = Date.now();
+            const notificationChannels = resolveNotificationChannels(
+                storeInstance.getAppSettings().approvalNotificationChannels,
+            );
 
             const approval: ApprovalRequest = {
                 id: generateUUID(),
@@ -64,7 +79,8 @@ export const approvalsRouter = {
                 planContent: input.planContent,
                 planSummary: input.planSummary || generatePlanSummary(input.planContent),
                 status: "pending",
-                channel: input.channel || "inbox",
+                channel: "inbox",
+                notificationChannels,
                 createdAt: now,
                 updatedAt: now,
             };
@@ -89,6 +105,9 @@ export const approvalsRouter = {
                     planSummary: z.string(),
                     status: approvalStatusSchema,
                     channel: approvalChannelSchema,
+                    notificationChannels: z
+                        .array(approvalChannelSchema)
+                        .optional(),
                     createdAt: z.number(),
                     updatedAt: z.number(),
                     approvedModelId: z.string().optional(),
@@ -122,6 +141,9 @@ export const approvalsRouter = {
                     planSummary: z.string(),
                     status: approvalStatusSchema,
                     channel: approvalChannelSchema,
+                    notificationChannels: z
+                        .array(approvalChannelSchema)
+                        .optional(),
                     createdAt: z.number(),
                     updatedAt: z.number(),
                 }),
@@ -137,6 +159,7 @@ export const approvalsRouter = {
                 planSummary: a.planSummary,
                 status: a.status,
                 channel: a.channel,
+                notificationChannels: a.notificationChannels,
                 createdAt: a.createdAt,
                 updatedAt: a.updatedAt,
             }));

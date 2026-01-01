@@ -1,6 +1,7 @@
 import { os } from "@orpc/server";
 import { z } from "zod";
 import { agentsRouter } from "./agents";
+import { appSettingsRouter } from "./app-settings";
 import { apiSettingsRouter } from "./api-settings";
 import { approvalsRouter } from "./approvals";
 import { conversationsRouter } from "./conversations";
@@ -52,6 +53,9 @@ export const appRouter = os.router({
 
 	// Rules
 	...rulesRouter,
+
+	// App Settings
+	...appSettingsRouter,
 
 	// API Settings
 	...apiSettingsRouter,

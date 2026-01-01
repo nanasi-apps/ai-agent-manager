@@ -1,7 +1,9 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import type {
+	AppSettings,
 	ApiSettings,
+	ApprovalChannel,
 	ApprovalRequest,
 	ApprovalStatus,
 	Conversation,
@@ -16,6 +18,15 @@ import {
 	tryMergeMessage,
 } from "./serialization";
 
+const approvalChannelSet = new Set<ApprovalChannel>([
+	"inbox",
+	"slack",
+	"discord",
+]);
+
+const isApprovalChannel = (value: unknown): value is ApprovalChannel =>
+	typeof value === "string" && approvalChannelSet.has(value as ApprovalChannel);
+
 /**
  * File-based persistent store
  * Uses Electron's userData path for persistence
@@ -26,6 +37,7 @@ export class FileStore implements IStore {
 	private locks: Map<string, ResourceLock> = new Map();
 	private approvals: Map<string, ApprovalRequest> = new Map();
 	private apiSettings: ApiSettings = {};
+	private appSettings: AppSettings = {};
 	private dataPath: string | null = null;
 	private saveTimeout: ReturnType<typeof setTimeout> | null = null;
 
@@ -74,7 +86,48 @@ export class FileStore implements IStore {
 				}
 
 				if (data.apiSettings) {
-					this.apiSettings = data.apiSettings;
+					const { openaiApiKey, openaiBaseUrl, geminiApiKey, geminiBaseUrl } =
+						data.apiSettings;
+					this.apiSettings = {
+						openaiApiKey,
+						openaiBaseUrl,
+						geminiApiKey,
+						geminiBaseUrl,
+					};
+				}
+
+				if (data.appSettings) {
+					this.appSettings = data.appSettings;
+				}
+
+				const legacyAppSettings = data.apiSettings as
+					| (ApiSettings & Partial<AppSettings>)
+					| undefined;
+				const migratedSettings: Partial<AppSettings> = {};
+				if (
+					this.appSettings.language === undefined &&
+					typeof legacyAppSettings?.language === "string"
+				) {
+					migratedSettings.language = legacyAppSettings.language;
+				}
+				if (
+					this.appSettings.notifyOnAgentComplete === undefined &&
+					typeof legacyAppSettings?.notifyOnAgentComplete === "boolean"
+				) {
+					migratedSettings.notifyOnAgentComplete =
+						legacyAppSettings.notifyOnAgentComplete;
+				}
+				if (
+					this.appSettings.approvalNotificationChannels === undefined &&
+					Array.isArray(legacyAppSettings?.approvalNotificationChannels)
+				) {
+					migratedSettings.approvalNotificationChannels =
+						legacyAppSettings.approvalNotificationChannels.filter(
+							isApprovalChannel,
+						);
+				}
+				if (Object.keys(migratedSettings).length > 0) {
+					this.appSettings = { ...this.appSettings, ...migratedSettings };
 				}
 
 				if (data.approvals) {
@@ -120,6 +173,7 @@ export class FileStore implements IStore {
 				locks: Array.from(this.locks.values()),
 				approvals: Array.from(this.approvals.values()),
 				apiSettings: this.apiSettings,
+				appSettings: this.appSettings,
 			};
 			fs.writeFileSync(this.dataPath, JSON.stringify(data, null, 2), "utf-8");
 			console.log(
@@ -299,6 +353,16 @@ export class FileStore implements IStore {
 
 	updateApiSettings(settings: Partial<ApiSettings>): void {
 		this.apiSettings = { ...this.apiSettings, ...settings };
+		this.scheduleSave();
+	}
+
+	// App settings methods
+	getAppSettings(): AppSettings {
+		return { ...this.appSettings };
+	}
+
+	updateAppSettings(settings: Partial<AppSettings>): void {
+		this.appSettings = { ...this.appSettings, ...settings };
 		this.scheduleSave();
 	}
 

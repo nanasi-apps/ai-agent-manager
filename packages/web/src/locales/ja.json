@@ -117,7 +117,14 @@
     "notifications": {
       "title": "通知",
       "desc": "エージェントの実行完了時にOS通知を送ります。",
-      "onCompletion": "完了時に通知する"
+      "onCompletion": "完了時に通知する",
+      "approvalsTitle": "プラン承認",
+      "approvalsDesc": "プラン承認リクエストを追加チャンネルに送信します。",
+      "approvalsHint": "Inbox の通知は常に有効です。",
+      "channels": {
+        "slack": "Slack",
+        "discord": "Discord"
+      }
     },
     "loading": "API設定を読み込み中...",
     "openai": {

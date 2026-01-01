@@ -23,7 +23,8 @@ function shouldNotifyOnComplete(
 	if ((context as { pendingWorktreeResume?: unknown })?.pendingWorktreeResume) {
 		return false;
 	}
-	const notifyEnabled = store.getApiSettings().notifyOnAgentComplete ?? true;
+	const notifyEnabled = store.getAppSettings().notifyOnAgentComplete ?? true;
+
 	return notifyEnabled && Notification.isSupported();
 }
 
@@ -38,8 +39,8 @@ function sendCompletionNotification(sessionId: string) {
 	if (conversation?.title) bodyParts.push(conversation.title);
 	if (project?.name) bodyParts.push(project.name);
 	const body = bodyParts.length > 0 ? bodyParts.join(" • ") : sessionId;
-
-	new Notification({ title, body, silent: false }).show();
+	console.log(`[AgentState] Sending completion notification for ${sessionId}: ${body}`);
+	new Notification({ title, body, silent: false, }).show();
 }
 
 export function setupAgentState() {
@@ -69,6 +70,7 @@ export function setupAgentState() {
 			};
 
 			if (shouldNotifyOnComplete(payload.value, previousValue, payload.context)) {
+				console.log(`[AgentState] Sending completion notification for ${payload.sessionId}`);
 				sendCompletionNotification(payload.sessionId);
 			}
 

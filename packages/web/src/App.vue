@@ -12,7 +12,7 @@ const { locale } = useI18n();
 onMounted(async () => {
 	// Load language
 	try {
-		const settings = await orpc.getApiSettings();
+		const settings = await orpc.getAppSettings();
 		if (settings.language) {
 			locale.value = settings.language;
 		}

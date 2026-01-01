@@ -119,7 +119,14 @@
     "notifications": {
       "title": "Notifications",
       "desc": "Control OS notifications for agent runs.",
-      "onCompletion": "Notify when an agent finishes"
+      "onCompletion": "Notify when an agent finishes",
+      "approvalsTitle": "Plan approvals",
+      "approvalsDesc": "Send approval requests to additional channels.",
+      "approvalsHint": "Inbox notifications are always enabled.",
+      "channels": {
+        "slack": "Slack",
+        "discord": "Discord"
+      }
     },
     "loading": "Loading API settings...",
     "openai": {

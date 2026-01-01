@@ -1,10 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { getStoreOrThrow } from "@agent-manager/shared";
+import { type ApprovalChannel, getStoreOrThrow } from "@agent-manager/shared";
 import { z } from "zod";
 import { getSessionContext } from "../mcp-session-context";
 import type { ToolRegistrar } from "./types";
-
-const approvalChannelSchema = z.enum(["inbox", "slack", "discord"]);
 
 function generateFallbackUUID(): string {
 	return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
@@ -42,16 +40,13 @@ export function registerPlanTools(registerTool: ToolRegistrar) {
 					.string()
 					.optional()
 					.describe("Optional summary shown in the approval list"),
-				channel: approvalChannelSchema
-					.optional()
-					.describe("Notification channel for the approval request"),
 				sessionId: z
 					.string()
 					.optional()
 					.describe("Optional session ID when not using a session MCP URL"),
 			},
 		},
-		async ({ planContent, planSummary, channel, sessionId: sessionIdArg }) => {
+		async ({ planContent, planSummary, sessionId: sessionIdArg }) => {
 			if (!planContent || !planContent.trim()) {
 				return {
 					content: [
@@ -97,6 +92,12 @@ export function registerPlanTools(registerTool: ToolRegistrar) {
 			const now = Date.now();
 			const approvalId = generateId();
 			const summary = planSummary?.trim() || generatePlanSummary(planContent);
+			const notificationChannels = Array.from(
+				new Set<ApprovalChannel>([
+					"inbox",
+					...(store.getAppSettings().approvalNotificationChannels || []),
+				]),
+			);
 
 			store.addApproval({
 				id: approvalId,
@@ -105,7 +106,8 @@ export function registerPlanTools(registerTool: ToolRegistrar) {
 				planContent,
 				planSummary: summary,
 				status: "pending",
-				channel: channel || "inbox",
+				channel: "inbox",
+				notificationChannels,
 				createdAt: now,
 				updatedAt: now,
 			});
@@ -123,7 +125,7 @@ export function registerPlanTools(registerTool: ToolRegistrar) {
 					{
 						type: "text",
 						text: JSON.stringify(
-							{ id: approvalId, success: true, channel: channel || "inbox" },
+							{ id: approvalId, success: true, channel: "inbox" },
 							null,
 							2,
 						),

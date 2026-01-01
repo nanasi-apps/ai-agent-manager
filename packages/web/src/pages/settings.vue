@@ -24,14 +24,21 @@ interface ApiSettings {
 	openaiBaseUrl?: string;
 	geminiApiKey?: string;
 	geminiBaseUrl?: string;
+}
+
+type ApprovalChannel = "inbox" | "slack" | "discord";
+
+interface AppSettings {
 	language?: string;
 	notifyOnAgentComplete?: boolean;
+	approvalNotificationChannels?: ApprovalChannel[];
 }
 
 const defaultNotifyOnAgentComplete = true;
 
 // API Settings state
 const apiSettings = ref<ApiSettings>({});
+const appSettings = ref<AppSettings>({});
 const apiLoading = ref(false);
 const apiSaving = ref(false);
 const apiSaveSuccess = ref(false);
@@ -43,6 +50,7 @@ const geminiApiKeyInput = ref("");
 const geminiBaseUrlInput = ref("");
 const selectedLanguage = ref("en");
 const notifyOnAgentComplete = ref(defaultNotifyOnAgentComplete);
+const approvalNotificationChannels = ref<ApprovalChannel[]>([]);
 
 // Visibility toggles
 const showOpenaiKey = ref(false);
@@ -52,86 +60,142 @@ const showGeminiKey = ref(false);
 const hasOpenaiKey = computed(() => apiSettings.value.openaiApiKey === "***");
 const hasGeminiKey = computed(() => apiSettings.value.geminiApiKey === "***");
 
-async function loadApiSettings() {
+const normalizeChannels = (channels: ApprovalChannel[] | undefined) =>
+	Array.from(new Set(channels ?? [])).sort();
+
+const areChannelsEqual = (
+	a: ApprovalChannel[],
+	b: ApprovalChannel[],
+): boolean => a.length === b.length && a.every((value, index) => value === b[index]);
+
+const isApprovalChannelEnabled = (channel: ApprovalChannel) =>
+	approvalNotificationChannels.value.includes(channel);
+
+const toggleApprovalChannel = (channel: ApprovalChannel, enabled: boolean) => {
+	const next = new Set(approvalNotificationChannels.value);
+	if (enabled) {
+		next.add(channel);
+	} else {
+		next.delete(channel);
+	}
+	approvalNotificationChannels.value = Array.from(next);
+};
+
+async function loadSettings() {
 	apiLoading.value = true;
 	try {
-		const settings = await orpc.getApiSettings();
-		apiSettings.value = settings;
+		const [apiData, appData] = await Promise.all([
+			orpc.getApiSettings(),
+			orpc.getAppSettings(),
+		]);
+		apiSettings.value = apiData;
+		appSettings.value = appData;
 		// Initialize inputs with base URLs (keys are masked)
-		openaiBaseUrlInput.value = settings.openaiBaseUrl || "";
-		geminiBaseUrlInput.value = settings.geminiBaseUrl || "";
+		openaiBaseUrlInput.value = apiData.openaiBaseUrl || "";
+		geminiBaseUrlInput.value = apiData.geminiBaseUrl || "";
 		
 		// Initialize language
-		if (settings.language) {
-			selectedLanguage.value = settings.language;
-			locale.value = settings.language;
+		if (appData.language) {
+			selectedLanguage.value = appData.language;
+			locale.value = appData.language;
 		} else {
 			selectedLanguage.value = locale.value;
 		}
 
 		notifyOnAgentComplete.value =
-			settings.notifyOnAgentComplete ?? defaultNotifyOnAgentComplete;
+			appData.notifyOnAgentComplete ?? defaultNotifyOnAgentComplete;
+		approvalNotificationChannels.value =
+			appData.approvalNotificationChannels ?? [];
 	} catch (err) {
-		console.error("Failed to load API settings", err);
+		console.error("Failed to load settings", err);
 	} finally {
 		apiLoading.value = false;
 	}
 }
 
-async function saveApiSettings(isAutoSave = false) {
+async function saveSettings(isAutoSave = false) {
 	apiSaving.value = true;
 	apiSaveSuccess.value = false;
 	try {
-		const updates: Partial<ApiSettings> = {};
+		const apiUpdates: Partial<ApiSettings> = {};
+		const appUpdates: Partial<AppSettings> = {};
 
 		// Only include fields that have been explicitly set
 		if (openaiApiKeyInput.value) {
-			updates.openaiApiKey = openaiApiKeyInput.value;
+			apiUpdates.openaiApiKey = openaiApiKeyInput.value;
 		}
 		if (openaiBaseUrlInput.value !== (apiSettings.value.openaiBaseUrl || "")) {
-			updates.openaiBaseUrl = openaiBaseUrlInput.value || undefined;
+			apiUpdates.openaiBaseUrl = openaiBaseUrlInput.value || undefined;
 		}
 		if (geminiApiKeyInput.value) {
-			updates.geminiApiKey = geminiApiKeyInput.value;
+			apiUpdates.geminiApiKey = geminiApiKeyInput.value;
 		}
 		if (geminiBaseUrlInput.value !== (apiSettings.value.geminiBaseUrl || "")) {
-			updates.geminiBaseUrl = geminiBaseUrlInput.value || undefined;
+			apiUpdates.geminiBaseUrl = geminiBaseUrlInput.value || undefined;
 		}
 		
 		// Update language if changed
-		if (selectedLanguage.value !== apiSettings.value.language) {
-			updates.language = selectedLanguage.value;
+		if (selectedLanguage.value !== appSettings.value.language) {
+			appUpdates.language = selectedLanguage.value;
 		}
 		const currentNotifySetting =
-			apiSettings.value.notifyOnAgentComplete ?? defaultNotifyOnAgentComplete;
+			appSettings.value.notifyOnAgentComplete ?? defaultNotifyOnAgentComplete;
 		if (notifyOnAgentComplete.value !== currentNotifySetting) {
-			updates.notifyOnAgentComplete = notifyOnAgentComplete.value;
+			appUpdates.notifyOnAgentComplete = notifyOnAgentComplete.value;
+		}
+		const currentApprovalChannels = normalizeChannels(
+			appSettings.value.approvalNotificationChannels,
+		);
+		const nextApprovalChannels = normalizeChannels(
+			approvalNotificationChannels.value,
+		);
+		if (!areChannelsEqual(currentApprovalChannels, nextApprovalChannels)) {
+			appUpdates.approvalNotificationChannels = nextApprovalChannels;
 		}
 
-		if (Object.keys(updates).length > 0) {
-			await orpc.updateApiSettings(updates);
+		if (
+			Object.keys(apiUpdates).length > 0 ||
+			Object.keys(appUpdates).length > 0
+		) {
+			if (Object.keys(apiUpdates).length > 0) {
+				await orpc.updateApiSettings(apiUpdates);
+			}
+			if (Object.keys(appUpdates).length > 0) {
+				await orpc.updateAppSettings(appUpdates);
+			}
 
 			// Update locale immediately
-			if (updates.language) {
-				locale.value = updates.language;
+			if (appUpdates.language) {
+				locale.value = appUpdates.language;
 			}
 
 			if (isAutoSave) {
 				// Update local state to reflect changes without reloading/clearing inputs
-				if (updates.openaiApiKey) apiSettings.value.openaiApiKey = "***";
-				if (updates.geminiApiKey) apiSettings.value.geminiApiKey = "***";
-				if (updates.openaiBaseUrl !== undefined) apiSettings.value.openaiBaseUrl = updates.openaiBaseUrl;
-				if (updates.geminiBaseUrl !== undefined) apiSettings.value.geminiBaseUrl = updates.geminiBaseUrl;
-				if (updates.language) apiSettings.value.language = updates.language;
-				if (updates.notifyOnAgentComplete !== undefined) {
-					apiSettings.value.notifyOnAgentComplete = updates.notifyOnAgentComplete;
+				if (apiUpdates.openaiApiKey) apiSettings.value.openaiApiKey = "***";
+				if (apiUpdates.geminiApiKey) apiSettings.value.geminiApiKey = "***";
+				if (apiUpdates.openaiBaseUrl !== undefined) {
+					apiSettings.value.openaiBaseUrl = apiUpdates.openaiBaseUrl;
+				}
+				if (apiUpdates.geminiBaseUrl !== undefined) {
+					apiSettings.value.geminiBaseUrl = apiUpdates.geminiBaseUrl;
+				}
+				if (appUpdates.language) {
+					appSettings.value.language = appUpdates.language;
+				}
+				if (appUpdates.notifyOnAgentComplete !== undefined) {
+					appSettings.value.notifyOnAgentComplete =
+						appUpdates.notifyOnAgentComplete;
+				}
+				if (appUpdates.approvalNotificationChannels !== undefined) {
+					appSettings.value.approvalNotificationChannels =
+						appUpdates.approvalNotificationChannels;
 				}
 			} else {
 				// Clear key inputs after manual save
 				openaiApiKeyInput.value = "";
 				geminiApiKeyInput.value = "";
 				// Reload to get updated state
-				await loadApiSettings();
+				await loadSettings();
 			}
 			
 			apiSaveSuccess.value = true;
@@ -140,7 +204,7 @@ async function saveApiSettings(isAutoSave = false) {
 			}, 2000);
 		}
 	} catch (err) {
-		console.error("Failed to save API settings", err);
+		console.error("Failed to save settings", err);
 	} finally {
 		apiSaving.value = false;
 	}
@@ -155,9 +219,10 @@ watchDebounced(
 		geminiBaseUrlInput,
 		selectedLanguage,
 		notifyOnAgentComplete,
+		approvalNotificationChannels,
 	],
 	() => {
-		saveApiSettings(true);
+		saveSettings(true);
 	},
 	{ debounce: 1000, maxWait: 5000 },
 );
@@ -166,7 +231,7 @@ async function clearOpenaiKey() {
 	apiSaving.value = true;
 	try {
 		await orpc.updateApiSettings({ openaiApiKey: "" });
-		await loadApiSettings();
+		await loadSettings();
 	} finally {
 		apiSaving.value = false;
 	}
@@ -176,14 +241,14 @@ async function clearGeminiKey() {
 	apiSaving.value = true;
 	try {
 		await orpc.updateApiSettings({ geminiApiKey: "" });
-		await loadApiSettings();
+		await loadSettings();
 	} finally {
 		apiSaving.value = false;
 	}
 }
 
 onMounted(() => {
-	loadApiSettings();
+	loadSettings();
 });
 </script>
 
@@ -233,20 +298,63 @@ onMounted(() => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div class="flex items-center gap-3">
-              <Checkbox
-                id="notify-on-agent-complete"
-                :checked="notifyOnAgentComplete"
-                @update:checked="(checked: boolean | 'indeterminate') => {
-                  notifyOnAgentComplete = checked === true;
-                }"
-              />
-              <Label
-                for="notify-on-agent-complete"
-                class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer select-none"
-              >
-                {{ t('settings.notifications.onCompletion') }}
-              </Label>
+            <div class="space-y-4">
+              <div class="flex items-center gap-3">
+                <Checkbox
+                  id="notify-on-agent-complete"
+                  :checked="notifyOnAgentComplete"
+                  @update:checked="(checked: boolean | 'indeterminate') => {
+                    notifyOnAgentComplete = checked === true;
+                  }"
+                />
+                <Label
+                  for="notify-on-agent-complete"
+                  class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer select-none"
+                >
+                  {{ t('settings.notifications.onCompletion') }}
+                </Label>
+              </div>
+              <div class="space-y-2">
+                <Label class="text-sm font-medium">
+                  {{ t('settings.notifications.approvalsTitle') }}
+                </Label>
+                <p class="text-xs text-muted-foreground">
+                  {{ t('settings.notifications.approvalsDesc') }}
+                </p>
+                <div class="flex items-center gap-3">
+                  <Checkbox
+                    id="notify-approval-slack"
+                    :checked="isApprovalChannelEnabled('slack')"
+                    @update:checked="(checked: boolean | 'indeterminate') => {
+                      toggleApprovalChannel('slack', checked === true);
+                    }"
+                  />
+                  <Label
+                    for="notify-approval-slack"
+                    class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer select-none"
+                  >
+                    {{ t('settings.notifications.channels.slack') }}
+                  </Label>
+                </div>
+                <div class="flex items-center gap-3">
+                  <Checkbox
+                    id="notify-approval-discord"
+                    :checked="isApprovalChannelEnabled('discord')"
+                    @update:checked="(checked: boolean | 'indeterminate') => {
+                      toggleApprovalChannel('discord', checked === true);
+                    }"
+                  />
+                  <Label
+                    for="notify-approval-discord"
+                    class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer select-none"
+                  >
+                    {{ t('settings.notifications.channels.discord') }}
+                  </Label>
+                </div>
+                <p class="text-xs text-muted-foreground">
+                  {{ t('settings.notifications.approvalsHint') }}
+                </p>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -390,7 +498,7 @@ onMounted(() => {
       </div>
 
       <div class="flex items-center gap-4">
-        <Button @click="saveApiSettings" :disabled="apiSaving || apiLoading">
+        <Button @click="saveSettings" :disabled="apiSaving || apiLoading">
           <Loader2 v-if="apiSaving" class="size-4 mr-2 animate-spin" />
           <Check v-else-if="apiSaveSuccess" class="size-4 mr-2" />
           {{ apiSaveSuccess ? t('general.saved') : t('settings.saveButton') }}
