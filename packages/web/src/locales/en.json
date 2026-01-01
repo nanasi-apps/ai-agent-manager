@@ -114,13 +114,19 @@
     "generalSettingsDesc": "Configure general application preferences.",
     "language": "Language",
     "languageDesc": "Select the language for the user interface.",
-    "apiSettings": "API Settings",
-    "apiSettingsDesc": "Configure API keys for direct API-based agents (OpenAI API, Gemini API).",
     "notifications": {
       "title": "Notifications",
       "desc": "Control OS notifications for agent runs.",
       "onCompletion": "Notify when an agent finishes"
     },
+    "newConversion": {
+      "title": "New Conversion",
+      "desc": "Configure how new conversions open.",
+      "openMode": "Open Mode",
+      "page": "Page",
+      "dialog": "Dialog"
+    },
+    "apiSettings": "API Settings",
     "loading": "Loading API settings...",
     "openai": {
       "title": "OpenAI API",

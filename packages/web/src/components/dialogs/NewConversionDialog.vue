@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import type { ModelTemplate } from "@/composables/useConversation";
+import { useChatDialog } from "@/composables/useChatDialog";
 import { useNewConversionDialog } from "@/composables/useNewConversionDialog";
 import { groupModelTemplates } from "@/lib/modelTemplateGroups";
 import { orpc } from "@/services/orpc";
@@ -27,6 +28,7 @@ const {
 	close,
 	projectId: preselectedProjectId,
 } = useNewConversionDialog();
+const { open: openChatDialog } = useChatDialog();
 const router = useRouter();
 const route = useRoute();
 
@@ -39,6 +41,7 @@ const projects = ref<Project[]>([]);
 const modelTemplates = ref<ModelTemplate[]>([]);
 const isLoading = ref(false);
 const isInitializing = ref(true);
+const openMode = ref<"page" | "dialog">("page");
 
 const reasoningOptions: { label: string; value: ReasoningLevel }[] = [
 	{ label: "Low", value: "low" },
@@ -71,12 +74,15 @@ const supportsReasoning = computed(() => {
 const loadData = async () => {
 	isInitializing.value = true;
 	try {
-		const [projRes, modelRes] = await Promise.all([
+		const [projRes, modelRes, settingsRes] = await Promise.all([
 			orpc.listProjects({}),
 			orpc.listModelTemplates({}),
+            orpc.getApiSettings(),
 		]);
 		projects.value = projRes;
 		modelTemplates.value = modelRes;
+        openMode.value = settingsRes.newConversionOpenMode || "page";
+
 		if (!selectedModelId.value && modelTemplates.value.length > 0) {
 			const preferred = modelTemplates.value.find(
 				(model) => model.agentType !== "default",
@@ -142,7 +148,11 @@ const handleStart = async () => {
 		input.value = "";
 
 		// Navigate to the new conversion
-		router.push(`/conversions/${res.sessionId}`);
+        if (openMode.value === "dialog") {
+            openChatDialog(res.sessionId);
+        } else {
+		    router.push(`/conversions/${res.sessionId}`);
+        }
 	} catch (e) {
 		console.error("Failed to start conversation", e);
 	} finally {

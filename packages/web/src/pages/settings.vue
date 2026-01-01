@@ -43,6 +43,7 @@ const geminiApiKeyInput = ref("");
 const geminiBaseUrlInput = ref("");
 const selectedLanguage = ref("en");
 const notifyOnAgentComplete = ref(defaultNotifyOnAgentComplete);
+const newConversionOpenMode = ref<"page" | "dialog">("page");
 
 // Visibility toggles
 const showOpenaiKey = ref(false);
@@ -71,6 +72,7 @@ async function loadApiSettings() {
 
 		notifyOnAgentComplete.value =
 			settings.notifyOnAgentComplete ?? defaultNotifyOnAgentComplete;
+		newConversionOpenMode.value = settings.newConversionOpenMode || "page";
 	} catch (err) {
 		console.error("Failed to load API settings", err);
 	} finally {
@@ -106,6 +108,9 @@ async function saveApiSettings(isAutoSave = false) {
 			apiSettings.value.notifyOnAgentComplete ?? defaultNotifyOnAgentComplete;
 		if (notifyOnAgentComplete.value !== currentNotifySetting) {
 			updates.notifyOnAgentComplete = notifyOnAgentComplete.value;
+		}
+		if (newConversionOpenMode.value !== apiSettings.value.newConversionOpenMode) {
+			updates.newConversionOpenMode = newConversionOpenMode.value;
 		}
 
 		if (Object.keys(updates).length > 0) {
@@ -155,6 +160,7 @@ watchDebounced(
 		geminiBaseUrlInput,
 		selectedLanguage,
 		notifyOnAgentComplete,
+		newConversionOpenMode,
 	],
 	() => {
 		saveApiSettings(true);
@@ -247,6 +253,26 @@ onMounted(() => {
               >
                 {{ t('settings.notifications.onCompletion') }}
               </Label>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle class="text-base">{{ t('settings.newConversion.title') }}</CardTitle>
+            <CardDescription>
+              {{ t('settings.newConversion.desc') }}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div class="space-y-2">
+              <Label>{{ t('settings.newConversion.openMode') }}</Label>
+              <select
+                v-model="newConversionOpenMode"
+                class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="page">{{ t('settings.newConversion.page') }}</option>
+                <option value="dialog">{{ t('settings.newConversion.dialog') }}</option>
+              </select>
             </div>
           </CardContent>
         </Card>

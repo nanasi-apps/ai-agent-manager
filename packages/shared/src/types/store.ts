@@ -85,6 +85,7 @@ export interface ApiSettings {
 	geminiBaseUrl?: string;
 	language?: string;
 	notifyOnAgentComplete?: boolean;
+	newConversionOpenMode?: "page" | "dialog";
 }
 
 /**

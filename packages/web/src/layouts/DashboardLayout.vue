@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import NewConversionDialog from "@/components/dialogs/NewConversionDialog.vue";
+import { NewConversionDialog, ChatDialog } from "@/components/dialogs";
 import AppSidebar from "@/components/layout/AppSidebar.vue";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 </script>
@@ -13,5 +13,6 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
       </div>
     </SidebarInset>
     <NewConversionDialog />
+    <ChatDialog />
   </SidebarProvider>
 </template>
