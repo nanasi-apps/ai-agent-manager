@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { GitBranch, Loader2, Plus, Trash2 } from "lucide-vue-next";
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,10 +24,11 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { getRouteParamFrom } from "@/lib/route-params";
 import { orpc } from "@/services/orpc";
 
 const route = useRoute();
-const projectId = (route.params as any).id as string;
+const projectId = computed(() => getRouteParamFrom(route.params, "id"));
 
 interface Worktree {
 	id: string;
@@ -59,9 +60,11 @@ const newBranch = ref("");
 const newPath = ref("");
 
 const loadWorktrees = async () => {
+	const id = projectId.value;
+	if (!id) return;
 	isLoading.value = true;
 	try {
-		const res = await orpc.listWorktrees({ projectId });
+		const res = await orpc.listWorktrees({ projectId: id });
 		worktrees.value = res;
 		if (res.length > 0) {
 			const existing = selectedWorktree.value;
@@ -84,10 +87,12 @@ const loadWorktrees = async () => {
 };
 
 const loadWorktreeDetails = async (worktree: Worktree) => {
+	const id = projectId.value;
+	if (!id) return;
 	isDetailLoading.value = true;
 	try {
 		const commits = await orpc.listWorktreeCommits({
-			projectId,
+			projectId: id,
 			path: worktree.path,
 			limit: 15,
 		});
@@ -105,11 +110,13 @@ const selectWorktree = async (worktree: Worktree) => {
 };
 
 const createWorktree = async () => {
+	const id = projectId.value;
+	if (!id) return;
 	if (!newBranch.value) return;
 	isCreating.value = true;
 	try {
 		await orpc.createWorktree({
-			projectId,
+			projectId: id,
 			branch: newBranch.value,
 			relativePath: newPath.value || undefined,
 		});
@@ -125,6 +132,8 @@ const createWorktree = async () => {
 };
 
 const removeWorktree = async (path: string) => {
+	const id = projectId.value;
+	if (!id) return;
 	if (
 		!confirm(
 			"Are you sure you want to remove this worktree? Uncommitted changes may be lost.",
@@ -133,7 +142,7 @@ const removeWorktree = async (path: string) => {
 		return;
 	try {
 		await orpc.removeWorktree({
-			projectId,
+			projectId: id,
 			path,
 			force: true, // Allow force remove for now or make it an option
 		});

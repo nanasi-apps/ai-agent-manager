@@ -39,17 +39,21 @@ const loadProjects = async () => {
 const conversation = useConversation(props.sessionId);
 
 // Scroll handling
-const scrollAreaRef = ref<InstanceType<typeof ScrollArea> | null>(null);
+type ScrollAreaInstance = InstanceType<typeof ScrollArea> & {
+	$el?: HTMLElement;
+};
+const scrollAreaRef = ref<ScrollAreaInstance | null>(null);
 const messagesEndRef = ref<HTMLElement | null>(null);
 
 const getScrollViewport = () => {
 	if (!scrollAreaRef.value) return null;
-	const component = scrollAreaRef.value as any;
-	const el = (component.$el || component) as HTMLElement;
+	const el = scrollAreaRef.value.$el;
 
-	if (!el || typeof el.querySelector !== "function") return null;
+	if (!el) return null;
 
-	return el.querySelector("[data-radix-scroll-area-viewport]") as HTMLElement;
+	return (
+		el.querySelector<HTMLElement>("[data-radix-scroll-area-viewport]") ?? null
+	);
 };
 
 const saveScrollPosition = (id: string) => {

@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useNewConversionDialog } from "@/composables/useNewConversionDialog";
 import { MIN_LOAD_TIME } from "@/lib/constants";
+import { getRouteParamFrom } from "@/lib/route-params";
 import { orpc } from "@/services/orpc";
 
 const route = useRoute();
@@ -25,7 +26,7 @@ const router = useRouter();
 const { open } = useNewConversionDialog();
 
 // Safely access route param
-const projectId = computed(() => (route.params as any).id as string);
+const projectId = computed(() => getRouteParamFrom(route.params, "id"));
 const isSubRoute = computed(
 	() => route.path.endsWith("/settings") || route.path.endsWith("/worktrees"),
 );
@@ -63,11 +64,13 @@ const openConversation = (id: string) => {
 	router.push(`/conversions/${id}`);
 };
 
-const goSettings = (id: string) => {
+const goSettings = (id?: string) => {
+	if (!id) return;
 	router.push(`/projects/${id}/settings`);
 };
 
-const goWorktrees = (id: string) => {
+const goWorktrees = (id?: string) => {
+	if (!id) return;
 	router.push(`/projects/${id}/worktrees`);
 };
 

@@ -332,7 +332,7 @@ export class OneShotSession extends EventEmitter {
 				isGemini,
 				isCodex,
 				isClaude,
-				mode: (currentState.config as any).mode,
+				mode: currentState.config.mode,
 			});
 
 			const spawnEnv = envResult.env;

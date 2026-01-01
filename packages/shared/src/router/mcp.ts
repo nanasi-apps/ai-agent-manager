@@ -202,8 +202,8 @@ export async function getSessionMcpServersLogic(sessionId: string): Promise<{
 	const homes = agentManager.getSessionHomes?.(sessionId);
 
 	// Determine agent type from session config
-	const config = (agentManager as any).getSessionConfig?.(sessionId);
-	const agentType = config?.type as string | undefined;
+	const config = agentManager.getSessionConfig?.(sessionId);
+	const agentType = config?.type;
 
 	// Read session-specific MCP servers from config files (if session exists)
 	let sessionServers = await readSessionMcpServers(

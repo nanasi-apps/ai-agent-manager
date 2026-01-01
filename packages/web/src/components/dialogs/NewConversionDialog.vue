@@ -16,6 +16,7 @@ import type { ModelTemplate } from "@/composables/useConversation";
 
 import { useNewConversionDialog } from "@/composables/useNewConversionDialog";
 import { groupModelTemplates } from "@/lib/modelTemplateGroups";
+import { getRouteParamFrom } from "@/lib/route-params";
 import { orpc } from "@/services/orpc";
 
 interface Project {
@@ -89,8 +90,7 @@ const loadData = async () => {
 		}
 
 		// Auto-select project logic
-		const params = route.params as any;
-		const routeProjectId = params.id as string | undefined;
+		const routeProjectId = getRouteParamFrom(route.params, "id");
 
 		// Priority: 1. Composable state (Explicit open) 2. Route param 3. Default (first)
 		if (

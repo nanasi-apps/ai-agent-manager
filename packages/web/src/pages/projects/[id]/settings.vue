@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { MIN_LOAD_TIME } from "@/lib/constants";
+import { getRouteParamFrom } from "@/lib/route-params";
 import { orpc } from "@/services/orpc";
 
 interface ProjectRule {
@@ -18,7 +19,7 @@ interface ProjectRule {
 
 const route = useRoute();
 const router = useRouter();
-const projectId = computed(() => (route.params as any).id as string);
+const projectId = computed(() => getRouteParamFrom(route.params, "id"));
 const project = ref<{
 	id: string;
 	name: string;
@@ -77,14 +78,18 @@ const loadProject = async () => {
 			orpc.getProject({ projectId: id }),
 			orpc.listGlobalRules(),
 		]);
+		globalRules.value = rules;
+		if (!p) {
+			project.value = null;
+			return;
+		}
 		// Ensure projectRules is parsed correctly or initialized
 		const parsedProject = {
 			...p,
 			projectRules:
 				p?.projectRules && Array.isArray(p.projectRules) ? p.projectRules : [],
 		};
-		project.value = parsedProject as any;
-		globalRules.value = rules;
+		project.value = parsedProject;
 	} catch (e) {
 		console.error(e);
 	} finally {
@@ -129,7 +134,8 @@ const isSettingsDirty = computed(() => {
 });
 
 const saveProjectSettings = async () => {
-	if (!project.value) return;
+	const id = projectId.value;
+	if (!project.value || !id) return;
 	const trimmedName = nameDraft.value.trim();
 	if (!trimmedName) return;
 
@@ -138,7 +144,7 @@ const saveProjectSettings = async () => {
 	isSavingProject.value = true;
 	try {
 		const result = await orpc.updateProject({
-			projectId: projectId.value,
+			projectId: id,
 			name: trimmedName,
 			rootPath: trimmedRoot ? trimmedRoot : null,
 			activeGlobalRules: activeGlobalRulesDraft.value,

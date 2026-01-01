@@ -22,6 +22,33 @@ import {
 	type ToolRegistrar,
 } from "./tools";
 
+type ToolDescriptor = { name: string } & Record<string, unknown>;
+type ToolsListResult = { tools?: ToolDescriptor[] } & Record<string, unknown>;
+type InternalServer = {
+	_requestHandlers?: Map<string, unknown>;
+	setRequestHandler?: (
+		schema: unknown,
+		handler: (req: unknown, extra: unknown) => unknown | Promise<unknown>,
+	) => void;
+};
+
+const isToolDescriptor = (value: unknown): value is ToolDescriptor => {
+	if (!value || typeof value !== "object") return false;
+	return typeof (value as { name?: unknown }).name === "string";
+};
+
+const isToolsListResult = (value: unknown): value is ToolsListResult => {
+	if (!value || typeof value !== "object") return false;
+	const tools = (value as { tools?: unknown }).tools;
+	if (tools === undefined) return true;
+	return Array.isArray(tools) && tools.every(isToolDescriptor);
+};
+
+const isInternalServer = (value: unknown): value is InternalServer => {
+	if (!value || typeof value !== "object") return false;
+	return "setRequestHandler" in value;
+};
+
 export async function startMcpServer(port: number = 3001) {
 	const server = new McpServer({
 		name: "agent-manager",
@@ -87,25 +114,46 @@ export async function startMcpServer(port: number = 3001) {
 
 	// Wrap tools/list handler to filter disabled tools
 	setTimeout(() => {
-		const internalServer = (server as any).server;
+		const internalServer = (server as { server?: unknown }).server;
+		if (!isInternalServer(internalServer)) {
+			console.warn(
+				"[McpServer] Failed to wrap tools/list: internal server unavailable",
+			);
+			return;
+		}
+
 		const originalHandler = internalServer._requestHandlers?.get("tools/list");
 
-		if (originalHandler) {
+		if (typeof originalHandler === "function") {
+			if (typeof internalServer.setRequestHandler !== "function") {
+				console.warn(
+					"[McpServer] Failed to wrap tools/list: setRequestHandler unavailable",
+				);
+				return;
+			}
 			console.log("[McpServer] successfully wrapped tools/list handler");
 			internalServer.setRequestHandler(
 				ListToolsRequestSchema,
-				async (req: any, extra: any) => {
-					const result = await originalHandler(req, extra);
+				async (req, extra) => {
+					const result: unknown = await originalHandler(req, extra);
 					const context = getSessionContext();
 
-					if (context?.sessionId && !context.isSuperuser && result.tools) {
+					if (
+						context?.sessionId &&
+						!context.isSuperuser &&
+						isToolsListResult(result) &&
+						result.tools
+					) {
 						const conv = getStoreOrThrow().getConversation(context.sessionId);
 
 						// Filter out disabled tools
 						if (conv?.disabledMcpTools) {
 							result.tools = result.tools.filter(
-								(t: any) =>
-									!isToolDisabledForSession(t.name, conv.disabledMcpTools),
+								(tool) =>
+									!isToolDisabledForSession(
+										tool.name,
+										conv.disabledMcpTools,
+									),
 							);
 						}
 
@@ -129,15 +177,17 @@ export async function startMcpServer(port: number = 3001) {
 	app.all("/mcp/:sessionId/*", async (c) => {
 		const sessionId = c.req.param("sessionId");
 		const isSuperuser = c.req.query("superuser") === "true";
+		const context: Parameters<StreamableHTTPTransport["handleRequest"]>[0] = c;
 		return runWithSessionContext({ sessionId, isSuperuser }, () =>
-			transport.handleRequest(c as any),
+			transport.handleRequest(context),
 		);
 	});
 
 	// Default MCP endpoint (backward compatible)
 	app.all("/mcp/*", async (c) => {
 		console.log(`[McpServer] Handling MCP request: ${c.req.url}`);
-		return transport.handleRequest(c as any);
+		const context: Parameters<StreamableHTTPTransport["handleRequest"]>[0] = c;
+		return transport.handleRequest(context);
 	});
 
 	// Health check

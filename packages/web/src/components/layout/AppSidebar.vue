@@ -13,7 +13,7 @@ import {
 	Search,
 	Settings,
 } from "lucide-vue-next";
-import { onMounted, onUnmounted, ref, watch, computed } from "vue";
+import { onMounted, onUnmounted, ref, watch, computed, type Component } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import NewProjectDialog from "@/components/dialogs/NewProjectDialog.vue";
@@ -47,8 +47,16 @@ const { t } = useI18n();
 
 const projects = ref<ProjectWithConversations[]>([]);
 
+type SidebarItem = {
+  id: string;
+  title: string;
+  url: string;
+  icon: Component;
+  isRunning?: boolean;
+};
+
 // Main navigation items.
-const navItems = computed(() => [
+const navItems = computed<SidebarItem[]>(() => [
 	{
 		id: "dashboard",
 		title: t('sidebar.dashboard'),
@@ -176,7 +184,7 @@ watch(
 );
 
 // Bottom navigation items.
-const bottomItems = computed(() => [
+const bottomItems = computed<SidebarItem[]>(() => [
 	{
 		id: "agents-manager",
 		title: t('sidebar.agentsManager'),
@@ -407,7 +415,7 @@ function handleMouseUp() {
                 <router-link :to="item.url" class="flex items-center gap-2 !text-inherit grow overflow-hidden">
                 <component :is="item.icon" class="size-4 shrink-0" />
                 <span class="font-medium truncate">{{ item.title }}</span>
-                <div v-if="(item as any).isRunning" class="size-2 rounded-full bg-green-500 animate-pulse ml-auto mr-1 shrink-0 shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
+                <div v-if="item.isRunning" class="size-2 rounded-full bg-green-500 animate-pulse ml-auto mr-1 shrink-0 shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
               </router-link>
             </SidebarMenuButton>
           </SidebarMenuItem>
