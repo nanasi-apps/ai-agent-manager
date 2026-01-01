@@ -102,7 +102,9 @@ const getScrollViewport = () => {
 	if (!el) return null;
 
 	return (
-		el.querySelector<HTMLElement>("[data-radix-scroll-area-viewport]") ?? null
+		(el as HTMLElement).querySelector<HTMLElement>(
+			"[data-radix-scroll-area-viewport]",
+		) ?? null
 	);
 };
 

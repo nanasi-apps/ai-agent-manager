@@ -150,7 +150,7 @@ export const conversationsRouter = {
 				startAgentSession(agentManagerInstance, sessionId, sessionConfig);
 			}
 
-			agentManagerInstance.sendToSession(sessionId, input.initialMessage);
+			await agentManagerInstance.sendToSession(sessionId, input.initialMessage);
 
 			return { sessionId };
 		}),
