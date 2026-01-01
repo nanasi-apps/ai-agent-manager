@@ -274,74 +274,76 @@ onUnmounted(() => {
 				:default-size="conversation.isMcpSheetOpen.value ? 80 : 100"
 				:min-size="30"
 			>
-				<div class="flex flex-col h-full min-w-0">
-					<!-- Messages Area -->
-					<ScrollArea class="flex-1 min-h-0" ref="scrollAreaRef">
-                        <div v-if="conversation.sessionId.value === 'new'" class="h-full flex flex-col items-center justify-center text-muted-foreground p-8 text-center">
-                             <!-- New Session Setup UI -->
-                            <div class="max-w-md space-y-6">
-                                <h3 class="text-xl font-semibold text-foreground">Start a new conversation</h3>
-                                
-                                <div class="flex flex-col gap-4">
-                                     <!-- Project Selector injected via slot or handled here? Handled here since useConversation has projectId -->
-                                     <div class="flex items-center justify-between gap-4">
-                                         <label class="text-sm font-medium w-16 text-right">Project:</label>
-                                         <select 
-                                            :value="conversation.projectId.value || ''"
-                                            @change="conversation.projectId.value = ($event.target as HTMLSelectElement).value"
-                                            class="h-9 flex-1 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                         >
-                                            <option v-for="p in projects" :key="p.id" :value="p.id">
-                                                {{ p.name }}
-                                            </option>
-                                         </select>
-                                     </div>
+				<Transition name="viewer-fade" mode="out-in">
+					<div :key="props.sessionId" class="flex flex-col h-full min-w-0">
+						<!-- Messages Area -->
+						<ScrollArea class="flex-1 min-h-0" ref="scrollAreaRef">
+							<div v-if="conversation.sessionId.value === 'new'" class="h-full flex flex-col items-center justify-center text-muted-foreground p-8 text-center">
+								<!-- New Session Setup UI -->
+								<div class="max-w-md space-y-6">
+									<h3 class="text-xl font-semibold text-foreground">Start a new conversation</h3>
 
-                                     <!-- We rely on ChatInput for model selection usually, but here user wants it in the center too? 
-                                          The user request was 'Project around Model select pulldown'. 
-                                          ChatInput has model selector. Doing it here duplicatively might be weird, 
-                                          but 'Start a new conversation' screen usually implies setting up context.
-                                          Let's sync with useConversation state. -->
-                                </div>
-                                <p class="text-sm">Type your message below to begin.</p>
-                            </div>
-                        </div>
+									<div class="flex flex-col gap-4">
+										<!-- Project Selector injected via slot or handled here? Handled here since useConversation has projectId -->
+										<div class="flex items-center justify-between gap-4">
+											<label class="text-sm font-medium w-16 text-right">Project:</label>
+											<select
+												:value="conversation.projectId.value || ''"
+												@change="conversation.projectId.value = ($event.target as HTMLSelectElement).value"
+												class="h-9 flex-1 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+											>
+												<option v-for="p in projects" :key="p.id" :value="p.id">
+													{{ p.name }}
+												</option>
+											</select>
+										</div>
 
-						<ChatMessageList
-                            v-else
-							:messages="conversation.messages.value"
+										<!-- We rely on ChatInput for model selection usually, but here user wants it in the center too? 
+											  The user request was 'Project around Model select pulldown'. 
+											  ChatInput has model selector. Doing it here duplicatively might be weird, 
+											  but 'Start a new conversation' screen usually implies setting up context.
+											  Let's sync with useConversation state. -->
+									</div>
+									<p class="text-sm">Type your message below to begin.</p>
+								</div>
+							</div>
+
+							<ChatMessageList
+								v-else
+								:messages="conversation.messages.value"
+								:is-generating="conversation.isGenerating.value"
+								:copied-id="conversation.copiedId.value"
+								:expanded-message-ids="conversation.expandedMessageIds.value"
+								:current-model="conversation.selectedModelTemplate.value"
+								@copy="handleCopyMessage"
+								@toggle="handleToggleMessage"
+							/>
+							<div ref="messagesEndRef" class="h-px" />
+						</ScrollArea>
+
+						<!-- Input Area -->
+						<ChatInput
+							:input="conversation.input.value"
+							:is-loading="conversation.isLoading.value"
 							:is-generating="conversation.isGenerating.value"
-							:copied-id="conversation.copiedId.value"
-							:expanded-message-ids="conversation.expandedMessageIds.value"
-							:current-model="conversation.selectedModelTemplate.value"
-							@copy="handleCopyMessage"
-							@toggle="handleToggleMessage"
+							:is-updating-agent="conversation.isUpdatingAgent.value"
+							:model-templates="conversation.modelTemplates.value"
+							:model-id-draft="conversation.modelIdDraft.value"
+							:mode-draft="conversation.modeDraft.value"
+							:reasoning-draft="conversation.reasoningDraft.value"
+							:is-swapping-model="conversation.isSwappingModel.value"
+							:is-updating-mode="conversation.isUpdatingMode.value"
+							:is-updating-reasoning="conversation.isUpdatingReasoning.value"
+							:supports-reasoning="conversation.supportsReasoning.value"
+							@update:input="conversation.input.value = $event"
+							@update:model-id-draft="conversation.modelIdDraft.value = $event"
+							@update:mode-draft="conversation.modeDraft.value = $event"
+							@update:reasoning-draft="conversation.reasoningDraft.value = $event"
+							@send="handleSendMessage"
+							@stop="handleStopGeneration"
 						/>
-						<div ref="messagesEndRef" class="h-px" />
-					</ScrollArea>
-
-					<!-- Input Area -->
-					<ChatInput
-						:input="conversation.input.value"
-						:is-loading="conversation.isLoading.value"
-						:is-generating="conversation.isGenerating.value"
-						:is-updating-agent="conversation.isUpdatingAgent.value"
-						:model-templates="conversation.modelTemplates.value"
-						:model-id-draft="conversation.modelIdDraft.value"
-						:mode-draft="conversation.modeDraft.value"
-						:reasoning-draft="conversation.reasoningDraft.value"
-						:is-swapping-model="conversation.isSwappingModel.value"
-						:is-updating-mode="conversation.isUpdatingMode.value"
-						:is-updating-reasoning="conversation.isUpdatingReasoning.value"
-						:supports-reasoning="conversation.supportsReasoning.value"
-						@update:input="conversation.input.value = $event"
-						@update:model-id-draft="conversation.modelIdDraft.value = $event"
-						@update:mode-draft="conversation.modeDraft.value = $event"
-						@update:reasoning-draft="conversation.reasoningDraft.value = $event"
-						@send="handleSendMessage"
-						@stop="handleStopGeneration"
-					/>
-				</div>
+					</div>
+				</Transition>
 			</ResizablePanel>
 
 			<ResizableHandle v-if="conversation.isMcpSheetOpen.value || conversation.isPlanViewerOpen.value" />
@@ -408,5 +410,15 @@ onUnmounted(() => {
 	max-width: 0 !important;
 	opacity: 0;
 	transform: translateX(20px);
+}
+
+.viewer-fade-enter-active,
+.viewer-fade-leave-active {
+	transition: opacity 220ms ease;
+}
+
+.viewer-fade-enter-from,
+.viewer-fade-leave-to {
+	opacity: 0;
 }
 </style>
