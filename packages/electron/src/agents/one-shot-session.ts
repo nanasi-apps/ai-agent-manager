@@ -479,7 +479,10 @@ export class OneShotSession extends EventEmitter {
 			// Auto-retry with the last message
 			const lastMessage = this.state.lastUserMessage;
 			if (lastMessage) {
-				void this.processMessage(lastMessage);
+				// Yield to event loop to allow state updates (INVALIDATE_SESSION) to propagate
+				setTimeout(() => {
+					void this.processMessage(lastMessage);
+				}, 0);
 			}
 		}
 
