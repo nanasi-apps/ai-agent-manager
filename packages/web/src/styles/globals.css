@@ -237,7 +237,10 @@
         padding: 0;
         display: flex;
         flex-direction: column;
-        view-transition-name: app;
+    }
+
+    .conversation-view {
+        view-transition-name: conversation-view;
     }
 }
 
@@ -256,16 +259,22 @@
 }
 
 /* View Transition */
-::view-transition-group(app) {
+::view-transition-group(root),
+::view-transition-old(root),
+::view-transition-new(root) {
+    animation: none;
+}
+
+::view-transition-group(conversation-view) {
     animation-duration: 520ms;
     animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-::view-transition-old(app) {
+::view-transition-old(conversation-view) {
     animation: app-transition-exit 260ms ease-in both;
 }
 
-::view-transition-new(app) {
+::view-transition-new(conversation-view) {
     animation: app-transition-enter 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
@@ -296,9 +305,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-    ::view-transition-group(app),
-    ::view-transition-old(app),
-    ::view-transition-new(app) {
+    ::view-transition-group(conversation-view),
+    ::view-transition-old(conversation-view),
+    ::view-transition-new(conversation-view) {
         animation-duration: 1ms;
         animation-delay: 0ms;
     }

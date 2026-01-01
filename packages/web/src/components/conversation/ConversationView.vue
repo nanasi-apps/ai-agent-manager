@@ -311,7 +311,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-	<div class="flex flex-col h-full overflow-hidden bg-background">
+	<div class="conversation-view flex flex-col h-full overflow-hidden bg-background">
 		<!-- Header -->
 		<ConversationHeader
 			:title-draft="conversation.titleDraft.value"
