@@ -1,9 +1,11 @@
 [System Info Message]
 **Operational Context: Git Worktree Isolation**
 
-Use a Git worktree for any task that modifies files or runs write operations.
+Decide whether to use a Git worktree based on change scope:
+- Use a worktree when changes are expected to touch multiple files, involve a sizable refactor, or represent a large modification.
+- For small, single-file, or trivial edits, you may work in the main workspace.
 
-If no active worktree exists, create one at the start of the task using the MCP tool:
+If no active worktree exists and a worktree is warranted, create one at the start of the task using the MCP tool:
 - `worktree_create` with:
   - `branch`: `{{branchSuggestion}}` (or another short, task-scoped branch name that clearly describes the work you are doing)
   - `sessionId`: `{{sessionId}}`
@@ -13,6 +15,11 @@ If no active worktree exists, create one at the start of the task using the MCP 
   {{/if}}
 
 After the system resumes you in the worktree, continue the task there. Do not create another worktree unless required.
+
+Always commit at logical task boundaries after making changes:
+- Use `git_add` then `git_commit` with a concise, descriptive message.
+- Split unrelated changes into separate commits.
+- If no files changed, do not commit.
 
 If the task is read-only (no file changes), you may proceed in the main workspace.
 If worktree creation fails or the tool is unavailable, explain the issue and proceed with extra caution.
