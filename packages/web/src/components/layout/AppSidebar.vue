@@ -14,7 +14,7 @@ import {
 	Settings,
 } from "lucide-vue-next";
 import { onMounted, onUnmounted, ref, watch, computed } from "vue";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import NewProjectDialog from "@/components/dialogs/NewProjectDialog.vue";
 import {
@@ -80,11 +80,25 @@ interface ProjectWithConversations {
 	}[];
 }
 
+const router = useRouter();
 const route = useRoute();
 const activeItem = ref("dashboard");
 const isProjectDialogOpen = ref(false);
 
-const { open: openNewConversion } = useNewConversionDialog();
+const appSettingsRes = ref<any>({});
+
+const { open: openNewConversionDialog } = useNewConversionDialog();
+
+const openNewConversion = (projectId: string) => {
+  if (appSettingsRes.value.newConversionOpenMode === 'dialog'){
+    openNewConversionDialog(projectId);
+  } else if (appSettingsRes.value.newConversionOpenMode === 'page') {
+    router.push(`/conversions/new?projectId=${projectId}`);
+  } else {
+    openNewConversionDialog(projectId);
+  }
+  
+}
 
 const refreshData = async () => {
 	try {
@@ -113,7 +127,12 @@ const refreshData = async () => {
 let refreshInterval: any = null;
 let stateChangeUnsubscribe: (() => void) | null = null;
 
-onMounted(() => {
+onMounted(async () => {
+    try {
+        appSettingsRes.value = await orpc.getAppSettings();
+    } catch (e) {
+        console.error("Failed to fetch app settings", e);
+    }
 	refreshData();
 	window.addEventListener("agent-manager:data-change", refreshData);
 	refreshInterval = setInterval(refreshData, 3000);

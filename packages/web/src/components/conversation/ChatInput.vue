@@ -66,19 +66,15 @@ const handleKeydown = (e: KeyboardEvent) => {
 		<div class="max-w-3xl mx-auto p-4 flex flex-col gap-2">
 			<form @submit.prevent="emit('send')">
 				<div class="flex items-center gap-2">
-					<div
-						class="flex-1 bg-card rounded-2xl border shadow-sm focus-within:ring-2 focus-within:ring-ring focus-within:border-transparent transition-all"
-					>
 						<Textarea
 							:model-value="input"
 							@update:model-value="emit('update:input', $event as string)"
 							:placeholder="t('chat.placeholder')"
-							class="min-h-[56px] max-h-[200px] py-3 px-4 bg-transparent border-0 focus-visible:ring-0 resize-none shadow-none text-sm"
+							class="min-h-[24px] max-h-[200px] py-3 px-4 bg-transparent border focus-within:ring-2 focus-within:ring-ring focus-within:border-transparent transition-all focus-visible:ring-0 resize-none shadow-none text-sm"
 							:disabled="isLoading"
 							@keydown="handleKeydown"
 							autofocus
 						/>
-					</div>
 
 					<!-- Stop Button (shown when generating) -->
 					<Button

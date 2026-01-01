@@ -16,6 +16,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import PlanViewer from "@/components/plan/PlanViewer.vue";
 import { useConversation } from "@/composables/useConversation";
 import { onAgentStateChangedPort } from "@/services/agent-state-port";
+import { orpc } from "@/services/orpc";
 
 const props = defineProps<{
   sessionId: string;
@@ -24,6 +25,16 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'close'): void;
 }>();
+
+const projects = ref<{ id: string; name: string }[]>([]);
+
+const loadProjects = async () => {
+	try {
+		projects.value = await orpc.listProjects({});
+	} catch (e) {
+		console.error("Failed to list projects", e);
+	}
+};
 
 const conversation = useConversation(props.sessionId);
 
@@ -89,6 +100,10 @@ const scrollToBottom = async (smooth = true) => {
 
 // Session initialization
 async function initSession(id: string) {
+    if (conversation.sessionId.value === id && conversation.messages.value.length > 0) {
+        return;
+    }
+    
 	conversation.isLoading.value = true;
 	conversation.sessionId.value = id;
 	conversation.messages.value = [];
@@ -168,6 +183,7 @@ let removeLogListener: (() => void) | undefined;
 let removeStateListener: (() => void) | undefined;
 
 onMounted(async () => {
+    loadProjects();
 	await conversation.loadModelTemplates();
 	conversation.setupWatchers();
 	await initSession(props.sessionId);
@@ -257,7 +273,38 @@ onUnmounted(() => {
 				<div class="flex flex-col h-full min-w-0">
 					<!-- Messages Area -->
 					<ScrollArea class="flex-1 min-h-0" ref="scrollAreaRef">
+                        <div v-if="conversation.sessionId.value === 'new'" class="h-full flex flex-col items-center justify-center text-muted-foreground p-8 text-center">
+                             <!-- New Session Setup UI -->
+                            <div class="max-w-md space-y-6">
+                                <h3 class="text-xl font-semibold text-foreground">Start a new conversation</h3>
+                                
+                                <div class="flex flex-col gap-4">
+                                     <!-- Project Selector injected via slot or handled here? Handled here since useConversation has projectId -->
+                                     <div class="flex items-center justify-between gap-4">
+                                         <label class="text-sm font-medium w-16 text-right">Project:</label>
+                                         <select 
+                                            :value="conversation.projectId.value || ''"
+                                            @change="conversation.projectId.value = ($event.target as HTMLSelectElement).value"
+                                            class="h-9 flex-1 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                         >
+                                            <option v-for="p in projects" :key="p.id" :value="p.id">
+                                                {{ p.name }}
+                                            </option>
+                                         </select>
+                                     </div>
+
+                                     <!-- We rely on ChatInput for model selection usually, but here user wants it in the center too? 
+                                          The user request was 'Project around Model select pulldown'. 
+                                          ChatInput has model selector. Doing it here duplicatively might be weird, 
+                                          but 'Start a new conversation' screen usually implies setting up context.
+                                          Let's sync with useConversation state. -->
+                                </div>
+                                <p class="text-sm">Type your message below to begin.</p>
+                            </div>
+                        </div>
+
 						<ChatMessageList
+                            v-else
 							:messages="conversation.messages.value"
 							:is-generating="conversation.isGenerating.value"
 							:copied-id="conversation.copiedId.value"

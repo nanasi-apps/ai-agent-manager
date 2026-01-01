@@ -391,6 +391,7 @@ export function useConversation(initialSessionId: string) {
 	};
 
 	const loadConversation = async (id: string) => {
+		if (id === "new") return;
 		try {
 			await loadConversationMeta(id);
 			const running = await orpc.isAgentRunning({ sessionId: id });
@@ -654,6 +655,60 @@ export function useConversation(initialSessionId: string) {
 		if (!input.value.trim()) return;
 
 		isLoading.value = true;
+
+		// If creating a new session
+		if (sessionId.value === "new") {
+			if (!projectId.value || !modelIdDraft.value) {
+				console.error("Missing project or model for new conversation");
+				isLoading.value = false;
+				return;
+			}
+
+			const messageText = input.value;
+			input.value = "";
+
+			// Add user message optimistic
+			messages.value.push({
+				id: crypto.randomUUID(),
+				role: "user",
+				content: messageText,
+				timestamp: Date.now(),
+			});
+			scrollToBottom();
+			isGenerating.value = true;
+
+			try {
+				const res = await orpc.createConversation({
+					projectId: projectId.value,
+					initialMessage: messageText,
+					modelId: modelIdDraft.value,
+					reasoning: supportsReasoning.value ? reasoningDraft.value : undefined,
+					mode: modeDraft.value,
+				});
+
+				// Update session ID locally
+				sessionId.value = res.sessionId;
+				// IMPORTANT: Dispatch event is sufficient for sidebar, but the caller needs to update URL
+				window.dispatchEvent(new Event("agent-manager:data-change"));
+
+				// We do NOT call sendMessage because createConversation already started it.
+				// We just need to start listening to events for this new ID.
+				// The caller (ConversationView) needs to react to sessionId change but NOT clear state.
+			} catch (err) {
+				console.error("Failed to create conversation", err);
+				isGenerating.value = false;
+				messages.value.push({
+					id: crypto.randomUUID(),
+					role: "system",
+					content: `Failed to create conversation: ${err}`,
+					timestamp: Date.now(),
+					logType: "error",
+				});
+			} finally {
+				isLoading.value = false;
+			}
+			return;
+		}
 
 		if (modelIdDraft.value && modelIdDraft.value !== currentModelId.value) {
 			if (isSwappingModel.value) {
