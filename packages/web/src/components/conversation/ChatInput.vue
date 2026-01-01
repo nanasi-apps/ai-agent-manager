@@ -15,6 +15,7 @@ const props = defineProps<{
 	isLoading: boolean;
 	isGenerating: boolean;
 	isUpdatingAgent: boolean;
+  isSelectorDisabled?: boolean;
 	modelTemplates: ModelTemplate[];
 	modelIdDraft: string;
 	modeDraft: AgentMode;
@@ -101,7 +102,7 @@ const handleKeydown = (e: KeyboardEvent) => {
 					</Button>
 				</div>
 
-				<div class="flex items-center justify-between mt-2 px-1">
+				<div v-if="!isSelectorDisabled" class="flex items-center justify-between mt-2 px-1">
 					<!-- Selectors Group -->
 					<div class="flex items-center gap-2">
 						<!-- Model Selector -->

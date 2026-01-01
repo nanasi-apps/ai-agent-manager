@@ -158,7 +158,7 @@
     "ago": "{time}前"
   },
   "chat": {
-    "placeholder": "メッセージを送信...",
+    "placeholder": "実は、Enterで改行することができます...",
     "startConversation": "会話を開始",
     "startPrompt": "メッセージを送信して、エージェントとの作業を開始してください。",
     "agent": "エージェント",

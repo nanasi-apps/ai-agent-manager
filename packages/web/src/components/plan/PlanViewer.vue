@@ -125,7 +125,7 @@ const closeApproveDialog = () => {
 
     <!-- Model Selection Dialog -->
     <Dialog v-model:open="isApproveDialogOpen">
-      <DialogContent class="sm:max-w-md">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>{{ t('plan.approveDialog.title', 'Approve & Execute Plan') }}</DialogTitle>
           <DialogDescription>

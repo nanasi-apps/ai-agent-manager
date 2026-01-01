@@ -166,7 +166,7 @@ const handleKeydown = (e: KeyboardEvent) => {
 
 <template>
     <Dialog :open="isOpen" @update:open="(val) => !val && close()">
-        <DialogContent class="sm:max-w-md overflow-x-hidden">
+        <DialogContent class="overflow-x-hidden">
             <DialogHeader>
                 <DialogTitle>Start New Conversation</DialogTitle>
                 <DialogDescription>

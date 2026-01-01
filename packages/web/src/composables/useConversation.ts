@@ -308,6 +308,9 @@ export function useConversation(initialSessionId: string) {
 	const loadModelTemplates = async () => {
 		try {
 			modelTemplates.value = await orpc.listModelTemplates({});
+			if (!modelIdDraft.value) {
+				applyConversationModelSelection();
+			}
 		} catch (err) {
 			console.error("Failed to load model templates:", err);
 		}
@@ -391,7 +394,12 @@ export function useConversation(initialSessionId: string) {
 	};
 
 	const loadConversation = async (id: string) => {
-		if (id === "new") return;
+		if (id === "new") {
+			if (!modelIdDraft.value) {
+				applyConversationModelSelection();
+			}
+			return;
+		}
 		try {
 			await loadConversationMeta(id);
 			const running = await orpc.isAgentRunning({ sessionId: id });
@@ -447,6 +455,10 @@ export function useConversation(initialSessionId: string) {
 		const nextId = modelIdDraft.value;
 		if (!nextId || nextId === currentModelId.value || isSwappingModel.value)
 			return;
+		if (sessionId.value === "new") {
+			currentModelId.value = nextId;
+			return;
+		}
 
 		const previousId = currentModelId.value;
 		isSwappingModel.value = true;
@@ -508,6 +520,10 @@ export function useConversation(initialSessionId: string) {
 		const nextReasoning = reasoningDraft.value;
 		if (nextReasoning === currentReasoning.value || isUpdatingReasoning.value)
 			return;
+		if (sessionId.value === "new") {
+			currentReasoning.value = nextReasoning;
+			return;
+		}
 
 		isUpdatingReasoning.value = true;
 		messages.value.push({
@@ -557,6 +573,10 @@ export function useConversation(initialSessionId: string) {
 	const updateMode = async () => {
 		const nextMode = modeDraft.value;
 		if (nextMode === currentMode.value || isUpdatingMode.value) return;
+		if (sessionId.value === "new") {
+			currentMode.value = nextMode;
+			return;
+		}
 
 		isUpdatingMode.value = true;
 		messages.value.push({

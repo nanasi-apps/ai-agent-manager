@@ -66,7 +66,7 @@ const handleCreate = async () => {
 
 <template>
     <Dialog :open="open" @update:open="(val) => emit('update:open', val)">
-        <DialogContent class="sm:max-w-md">
+        <DialogContent>
             <DialogHeader>
                 <DialogTitle>Create New Project</DialogTitle>
                 <DialogDescription>

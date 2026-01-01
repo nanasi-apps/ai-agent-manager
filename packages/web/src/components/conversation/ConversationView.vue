@@ -1,6 +1,12 @@
 <script setup lang="ts">
-import type { AgentLogPayload, AgentStatePayload } from "@agent-manager/shared";
-import { nextTick, onMounted, onUnmounted, ref, watch } from "vue";
+import type {
+	AgentLogPayload,
+	AgentMode,
+	AgentStatePayload,
+	ReasoningLevel,
+} from "@agent-manager/shared";
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
+import { useRoute } from "vue-router";
 import {
 	ChatInput,
 	ChatMessageList,
@@ -15,6 +21,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import PlanViewer from "@/components/plan/PlanViewer.vue";
 import { useConversation } from "@/composables/useConversation";
+import { groupModelTemplates } from "@/lib/modelTemplateGroups";
 import { onAgentStateChangedPort } from "@/services/agent-state-port";
 import { orpc } from "@/services/orpc";
 
@@ -26,17 +33,60 @@ const emit = defineEmits<{
   (e: 'close'): void;
 }>();
 
+const route = useRoute();
 const projects = ref<{ id: string; name: string }[]>([]);
+
+const getQueryProjectId = () => {
+	const value = route.query.projectId;
+	if (Array.isArray(value)) return value[0];
+	if (typeof value === "string") return value;
+	return undefined;
+};
+
+const selectNewConversationProject = () => {
+	if (conversation.sessionId.value !== "new") return;
+
+	const requestedProjectId = getQueryProjectId();
+	const isValidProject = (value?: string | null) =>
+		!!value && projects.value.some((p) => p.id === value);
+
+	if (requestedProjectId && isValidProject(requestedProjectId)) {
+		conversation.projectId.value = requestedProjectId;
+		return;
+	}
+
+	if (!isValidProject(conversation.projectId.value)) {
+		conversation.projectId.value = projects.value[0]?.id ?? null;
+	}
+};
 
 const loadProjects = async () => {
 	try {
 		projects.value = await orpc.listProjects({});
+		selectNewConversationProject();
 	} catch (e) {
 		console.error("Failed to list projects", e);
 	}
 };
 
 const conversation = useConversation(props.sessionId);
+
+const groupedModelTemplates = computed(() =>
+	groupModelTemplates(conversation.modelTemplates.value),
+);
+
+const reasoningOptions: { label: string; value: ReasoningLevel }[] = [
+	{ label: "Low", value: "low" },
+	{ label: "Middle", value: "middle" },
+	{ label: "High", value: "high" },
+	{ label: "Extra High", value: "extraHigh" },
+];
+
+const modeOptions: { label: string; value: AgentMode }[] = [
+	{ label: "Ask", value: "ask" },
+	{ label: "Plan", value: "plan" },
+	{ label: "Agent", value: "regular" },
+];
 
 // Scroll handling
 type ScrollAreaInstance = InstanceType<typeof ScrollArea> & {
@@ -114,6 +164,10 @@ async function initSession(id: string) {
 	conversation.isMcpSheetOpen.value = false;
 	conversation.expandedMcpServer.value = null;
 	conversation.mcpServerTools.value = [];
+	if (id === "new") {
+		conversation.projectId.value = null;
+		selectNewConversationProject();
+	}
 
 	try {
 		await conversation.loadConversation(id);
@@ -137,6 +191,13 @@ watch(
 		}
 	},
     { immediate: true }
+);
+
+watch(
+	() => route.query.projectId,
+	() => {
+		selectNewConversationProject();
+	},
 );
 
 // Event handlers
@@ -279,29 +340,74 @@ onUnmounted(() => {
 					<ScrollArea class="flex-1 min-h-0" ref="scrollAreaRef">
                         <div v-if="conversation.sessionId.value === 'new'" class="h-full flex flex-col items-center justify-center text-muted-foreground p-8 text-center">
                              <!-- New Session Setup UI -->
-                            <div class="max-w-md space-y-6">
+                            <div class="space-y-6 w-full text-left max-w-3xl p-4">
                                 <h3 class="text-xl font-semibold text-foreground">Start a new conversation</h3>
                                 
                                 <div class="flex flex-col gap-4">
-                                     <!-- Project Selector injected via slot or handled here? Handled here since useConversation has projectId -->
+                                  <label class="text-sm font-medium w-16">Project :</label>
                                      <div class="flex items-center justify-between gap-4">
-                                         <label class="text-sm font-medium w-16 text-right">Project:</label>
                                          <select 
                                             :value="conversation.projectId.value || ''"
-                                            @change="conversation.projectId.value = ($event.target as HTMLSelectElement).value"
-                                            class="h-9 flex-1 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                         >
+										 @change="conversation.projectId.value = ($event.target as HTMLSelectElement).value"
+										 class="h-9 flex-1 rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+									  >
                                             <option v-for="p in projects" :key="p.id" :value="p.id">
                                                 {{ p.name }}
                                             </option>
                                          </select>
                                      </div>
+                                  <label class="text-sm font-medium w-16">Agents :</label>
+                                  <div class="flex items-center justify-between gap-4">
+                                    <select
+                                      :value="conversation.modelIdDraft.value"
+									 @change="
+									 	conversation.modelIdDraft.value = ($event.target as HTMLSelectElement).value
+									 "
+									 class="h-9 flex-1 rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+									 :disabled="conversation.isUpdatingAgent.value || conversation.isLoading.value || conversation.modelTemplates.value.length === 0"
+								 >
+                                      <optgroup
+                                        v-for="group in groupedModelTemplates"
+                                        :key="group.agentType + (group.isCustomApi ? '-custom' : '-default')"
+                                        :label="group.label"
+                                      >
+                                        <option v-for="m in group.models" :key="m.id" :value="m.id">
+                                          {{ m.name }}
+                                        </option>
+                                      </optgroup>
+                                    </select>
+                                  </div>
+                                  <template v-if="conversation.supportsReasoning.value">
+                                    <label class="text-sm font-medium w-16">Reasoning :</label>
+                                    <div class="flex items-center justify-between gap-4">
+                                      <select
+                                        :value="conversation.reasoningDraft.value"
+										 @change="
+										 	conversation.reasoningDraft.value = ($event.target as HTMLSelectElement).value as ReasoningLevel
+										 "
+										class="h-9 flex-1 rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+										:disabled="conversation.isUpdatingAgent.value || conversation.isLoading.value"
+									  >
+                                        <option v-for="option in reasoningOptions" :key="option.value" :value="option.value">
+                                          {{ option.label }}
+                                        </option>
+                                      </select>
+                                    </div>
+                                  </template>
+                                  <label class="text-sm font-medium w-16">Mode :</label>
+                                  <div class="flex items-center justify-between gap-4">
+                                    <select
+										 :value="conversation.modeDraft.value"
+										 @change="conversation.modeDraft.value = ($event.target as HTMLSelectElement).value as AgentMode"
+										class="h-9 flex-1 rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+										:disabled="conversation.isUpdatingAgent.value || conversation.isLoading.value"
+									>
+                                      <option v-for="option in modeOptions" :key="option.value" :value="option.value">
+                                        {{ option.label }}
+                                      </option>
+                                    </select>
+                                  </div>
 
-                                     <!-- We rely on ChatInput for model selection usually, but here user wants it in the center too? 
-                                          The user request was 'Project around Model select pulldown'. 
-                                          ChatInput has model selector. Doing it here duplicatively might be weird, 
-                                          but 'Start a new conversation' screen usually implies setting up context.
-                                          Let's sync with useConversation state. -->
                                 </div>
                                 <p class="text-sm">Type your message below to begin.</p>
                             </div>
@@ -334,6 +440,7 @@ onUnmounted(() => {
 						:is-updating-mode="conversation.isUpdatingMode.value"
 						:is-updating-reasoning="conversation.isUpdatingReasoning.value"
 						:supports-reasoning="conversation.supportsReasoning.value"
+            :isSelectorDisabled="conversation.sessionId.value === 'new' || conversation.isGenerating.value || conversation.isLoading.value"
 						@update:input="conversation.input.value = $event"
 						@update:model-id-draft="conversation.modelIdDraft.value = $event"
 						@update:mode-draft="conversation.modeDraft.value = $event"
