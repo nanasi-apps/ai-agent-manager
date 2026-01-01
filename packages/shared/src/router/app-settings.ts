@@ -13,6 +13,7 @@ export const appSettingsRouter = {
 				language: z.string().optional(),
 				notifyOnAgentComplete: z.boolean().optional(),
 				approvalNotificationChannels: z.array(approvalChannelSchema).optional(),
+				newConversionOpenMode: z.enum(["page", "dialog"]).optional(),
 			}),
 		)
 		.handler(async () => {
@@ -21,6 +22,7 @@ export const appSettingsRouter = {
 				language: settings.language,
 				notifyOnAgentComplete: settings.notifyOnAgentComplete,
 				approvalNotificationChannels: settings.approvalNotificationChannels,
+				newConversionOpenMode: settings.newConversionOpenMode,
 			};
 		}),
 
@@ -30,6 +32,7 @@ export const appSettingsRouter = {
 				language: z.string().optional(),
 				notifyOnAgentComplete: z.boolean().optional(),
 				approvalNotificationChannels: z.array(approvalChannelSchema).optional(),
+				newConversionOpenMode: z.enum(["page", "dialog"]).optional(),
 			}),
 		)
 		.output(z.object({ success: z.boolean() }))
@@ -44,6 +47,9 @@ export const appSettingsRouter = {
 			if (input.approvalNotificationChannels !== undefined) {
 				updates.approvalNotificationChannels =
 					input.approvalNotificationChannels;
+			}
+			if (input.newConversionOpenMode !== undefined) {
+				updates.newConversionOpenMode = input.newConversionOpenMode;
 			}
 			getStoreOrThrow().updateAppSettings(updates);
 			return { success: true };

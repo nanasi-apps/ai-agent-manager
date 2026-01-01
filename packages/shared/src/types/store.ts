@@ -86,6 +86,7 @@ export interface AppSettings {
 	language?: string;
 	notifyOnAgentComplete?: boolean;
 	approvalNotificationChannels?: ApprovalChannel[];
+	newConversionOpenMode?: "page" | "dialog";
 }
 
 export interface ApiSettings {

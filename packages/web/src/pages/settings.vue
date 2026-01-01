@@ -32,6 +32,7 @@ interface AppSettings {
 	language?: string;
 	notifyOnAgentComplete?: boolean;
 	approvalNotificationChannels?: ApprovalChannel[];
+	newConversionOpenMode?: "page" | "dialog";
 }
 
 const defaultNotifyOnAgentComplete = true;
@@ -51,6 +52,7 @@ const geminiBaseUrlInput = ref("");
 const selectedLanguage = ref("en");
 const notifyOnAgentComplete = ref(defaultNotifyOnAgentComplete);
 const approvalNotificationChannels = ref<ApprovalChannel[]>([]);
+const newConversionOpenMode = ref<"page" | "dialog">("page");
 
 // Visibility toggles
 const showOpenaiKey = ref(false);
@@ -103,9 +105,11 @@ async function loadSettings() {
 		}
 
 		notifyOnAgentComplete.value =
+		notifyOnAgentComplete.value =
 			appData.notifyOnAgentComplete ?? defaultNotifyOnAgentComplete;
 		approvalNotificationChannels.value =
 			appData.approvalNotificationChannels ?? [];
+		newConversionOpenMode.value = appData.newConversionOpenMode || "page";
 	} catch (err) {
 		console.error("Failed to load settings", err);
 	} finally {
@@ -152,6 +156,12 @@ async function saveSettings(isAutoSave = false) {
 		if (!areChannelsEqual(currentApprovalChannels, nextApprovalChannels)) {
 			appUpdates.approvalNotificationChannels = nextApprovalChannels;
 		}
+		if (
+			newConversionOpenMode.value !== (appSettings.value.newConversionOpenMode || "page")
+		) {
+			appUpdates.newConversionOpenMode = newConversionOpenMode.value;
+		}
+
 
 		if (
 			Object.keys(apiUpdates).length > 0 ||
@@ -190,6 +200,10 @@ async function saveSettings(isAutoSave = false) {
 					appSettings.value.approvalNotificationChannels =
 						appUpdates.approvalNotificationChannels;
 				}
+				if (appUpdates.newConversionOpenMode) {
+					appSettings.value.newConversionOpenMode =
+						appUpdates.newConversionOpenMode;
+				}
 			} else {
 				// Clear key inputs after manual save
 				openaiApiKeyInput.value = "";
@@ -220,6 +234,7 @@ watchDebounced(
 		selectedLanguage,
 		notifyOnAgentComplete,
 		approvalNotificationChannels,
+		newConversionOpenMode,
 	],
 	() => {
 		saveSettings(true);
@@ -355,6 +370,26 @@ onMounted(() => {
                   {{ t('settings.notifications.approvalsHint') }}
                 </p>
               </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle class="text-base">{{ t('settings.newConversion.title') }}</CardTitle>
+            <CardDescription>
+              {{ t('settings.newConversion.desc') }}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div class="space-y-2">
+              <Label>{{ t('settings.newConversion.openMode') }}</Label>
+              <select
+                v-model="newConversionOpenMode"
+                class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="page">{{ t('settings.newConversion.page') }}</option>
+                <option value="dialog">{{ t('settings.newConversion.dialog') }}</option>
+              </select>
             </div>
           </CardContent>
         </Card>
