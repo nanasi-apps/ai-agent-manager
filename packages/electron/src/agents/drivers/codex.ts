@@ -19,10 +19,8 @@ export class CodexDriver implements AgentDriver {
 	): AgentDriverCommand {
 		const base = splitCommand(config.command || "codex");
 
-		// Combine system prompt and message
+		// Combine system prompt and message, then escape for shell
 		const fullMessage = buildFullMessage(message, systemPrompt);
-
-		// Escape message for shell - handles newlines, special characters, brackets, etc.
 		const escapedMessage = shellEscape(fullMessage);
 
 		// Check if --json mode was requested (only supported for initial exec)

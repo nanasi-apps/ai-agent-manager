@@ -16,10 +16,8 @@ export class ClaudeDriver implements AgentDriver {
 		const base = splitCommand(config.command || "claude");
 		const modelArgs = config.model ? ["--model", config.model] : [];
 
-		// Combine system prompt and message
+		// Combine system prompt and message, then escape for shell
 		const fullMessage = buildFullMessage(message, systemPrompt);
-
-		// Escape message for shell - handles newlines, special characters, brackets, etc.
 		const escapedMessage = shellEscape(fullMessage);
 
 		return {
@@ -28,3 +26,4 @@ export class ClaudeDriver implements AgentDriver {
 		};
 	}
 }
+

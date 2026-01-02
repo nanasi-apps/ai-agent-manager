@@ -236,6 +236,7 @@ export const approvalsRouter = {
 
 ${approval.planContent}
 
+The plan above was approved for execution. Please proceed now.
 ${input.message ? `Additional instructions: ${input.message}` : "Execute the plan as specified."}`;
 
             // Build session config
@@ -263,26 +264,17 @@ ${input.message ? `Additional instructions: ${input.message}` : "Execute the pla
                 logType: "system",
             });
 
-            // Start or reset the agent session
+            // Stop any existing session and start fresh
+            // This ensures that old session IDs (e.g., geminiSessionId) are cleared,
+            // preventing the CLI from attempting to --resume an invalid session.
             if (agentManagerInstance.isRunning(approval.sessionId)) {
-                agentManagerInstance.resetSession(
-                    approval.sessionId,
-                    sessionConfig.agentTemplate.agent.command,
-                    {
-                        ...sessionConfig.agentTemplate.agent,
-                        model: parsedModel.model,
-                        mode: "regular",
-                        cwd: sessionConfig.cwd,
-                        rulesContent: sessionConfig.rulesContent,
-                    },
-                );
-            } else {
-                startAgentSession(
-                    agentManagerInstance,
-                    approval.sessionId,
-                    sessionConfig,
-                );
+                agentManagerInstance.stopSession(approval.sessionId);
             }
+            startAgentSession(
+                agentManagerInstance,
+                approval.sessionId,
+                sessionConfig,
+            );
 
             // Send the execution prompt
             agentManagerInstance.sendToSession(approval.sessionId, executionPrompt);

@@ -7,7 +7,7 @@ import type {
 import { shellEscape, splitCommand } from "./interface";
 
 export class CustomDriver implements AgentDriver {
-	constructor(private config: AgentConfig) {}
+	constructor(private config: AgentConfig) { }
 
 	getCommand(
 		context: AgentDriverContext,
@@ -17,7 +17,7 @@ export class CustomDriver implements AgentDriver {
 		const base = splitCommand(config.command || this.config.command);
 		const command = base.command;
 
-		// Escape message for shell - handles newlines, special characters, brackets, etc.
+		// Escape message for shell
 		const escapedMessage = shellEscape(message);
 		const args = [...base.args, escapedMessage];
 
@@ -27,3 +27,4 @@ export class CustomDriver implements AgentDriver {
 		};
 	}
 }
+

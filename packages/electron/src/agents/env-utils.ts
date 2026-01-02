@@ -31,6 +31,11 @@ export async function prepareGeminiEnv(
 	try {
 		const { tmpdir } = await import("os");
 		if (existingHome) {
+			// Even when reusing existingHome, ensure OAuth auth files exist if needed
+			// This handles the case where we switch from Custom API to OAuth
+			if (!apiKey) {
+				await ensureOAuthFilesExist(existingHome);
+			}
 			await ensureGeminiSettings(
 				existingHome,
 				mcpServerUrl,
@@ -110,6 +115,39 @@ export function prepareCodexEnv(options: CodexEnvOptions): NodeJS.ProcessEnv {
 	return env;
 }
 
+/**
+ * Ensure OAuth auth files exist in the temp Gemini directory.
+ * This is needed when switching from Custom API to OAuth authentication.
+ */
+async function ensureOAuthFilesExist(homeDir: string): Promise<void> {
+	const settingsDir = path.join(homeDir, ".gemini");
+	const userHome = homedir();
+	const userGeminiDir = path.join(userHome, ".gemini");
+
+	// Critical OAuth files that must exist for OAuth authentication
+	const authFiles = ["oauth_creds.json", "google_accounts.json"];
+
+	await fs.mkdir(settingsDir, { recursive: true });
+
+	for (const file of authFiles) {
+		const targetFile = path.join(settingsDir, file);
+		const sourceFile = path.join(userGeminiDir, file);
+
+		try {
+			// Check if file already exists in temp dir
+			await fs.access(targetFile);
+		} catch {
+			// File doesn't exist, try to copy from user's home
+			try {
+				await fs.copyFile(sourceFile, targetFile);
+				console.log(`[EnvUtils] Copied missing OAuth file: ${file}`);
+			} catch (e) {
+				console.log(`[EnvUtils] Could not copy OAuth file ${file} (may not exist in user home)`);
+			}
+		}
+	}
+}
+
 async function ensureGeminiSettings(
 	homeDir: string,
 	mcpServerUrl: string,
@@ -140,9 +178,19 @@ async function ensureGeminiSettings(
 					path.join(userGeminiDir, file),
 					path.join(settingsDir, file),
 				);
+				console.log(`[EnvUtils] Copied ${file} to temp Gemini dir`);
 			} catch (e) {
 				// File might not exist, ignore
+				console.log(`[EnvUtils] Could not copy ${file} (may not exist)`);
 			}
+		}
+
+		// Log directory contents after copy
+		try {
+			const files = await fs.readdir(settingsDir);
+			console.log(`[EnvUtils] Files in temp Gemini dir (${settingsDir}):`, files);
+		} catch (e) {
+			console.log(`[EnvUtils] Could not list temp Gemini dir`);
 		}
 	}
 
@@ -180,6 +228,17 @@ async function ensureGeminiSettings(
 		console.log(
 			"[EnvUtils] Configured Gemini security.auth.selectedType = gemini-api-key",
 		);
+	} else {
+		// For standard models, ensure we use OAuth authentication
+		// Must explicitly set oauth-personal, Gemini CLI won't work without an auth type
+		if (!settings.security) settings.security = {};
+		if (!settings.security.auth) settings.security.auth = {};
+		if (settings.security.auth.selectedType !== "oauth-personal") {
+			settings.security.auth.selectedType = "oauth-personal";
+			console.log(
+				"[EnvUtils] Set auth type to oauth-personal for standard model",
+			);
+		}
 	}
 
 	// Plan or Ask mode: exclude prohibited tools (cognitive control)

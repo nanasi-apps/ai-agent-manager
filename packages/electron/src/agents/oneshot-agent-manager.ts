@@ -112,6 +112,8 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
 		const session = this.sessions.get(sessionId);
 		if (session) {
 			session.stop();
+			// Remove the session from the map so a new session can be created
+			this.sessions.delete(sessionId);
 			return true;
 		}
 		return false;
