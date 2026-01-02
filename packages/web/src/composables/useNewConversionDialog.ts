@@ -7,7 +7,7 @@ export const useNewConversionDialog = createGlobalState(() => {
 
 	const open = (id?: string) => {
 		isOpen.value = true;
-		if (id) projectId.value = id;
+		if (id && typeof id === "string") projectId.value = id;
 	};
 	const close = () => {
 		isOpen.value = false;

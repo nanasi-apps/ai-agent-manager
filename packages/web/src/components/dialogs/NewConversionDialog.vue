@@ -278,7 +278,7 @@ const handleKeydown = (e: KeyboardEvent) => {
                 <Button 
                     type="submit" 
                     @click="handleStart" 
-                    :disabled="isLoading || !input.trim() || !selectedProjectId" 
+                    :disabled="isLoading || !input.trim() || !selectedProjectId || !selectedModelId" 
                     class="bg-blue-600 hover:bg-blue-500 text-white"
                 >
                     <span v-if="isLoading">Starting...</span>
