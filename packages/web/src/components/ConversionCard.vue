@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ExternalLink, MessageSquare } from "lucide-vue-next";
+import { ExternalLink, MessageSquare, Loader2 } from "lucide-vue-next";
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { Card, CardContent } from "@/components/ui/card";
