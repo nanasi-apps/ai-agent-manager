@@ -137,7 +137,7 @@ export class WorktreeManager {
 			await execAsync(`git rev-parse --verify ${branch}`, { cwd: projectRoot });
 			// Branch exists, checkout it
 			createBranchFlag = "";
-		} catch (e) {
+		} catch (_e) {
 			// Branch does not exist, create it (-b)
 			createBranchFlag = `-b ${branch}`;
 		}

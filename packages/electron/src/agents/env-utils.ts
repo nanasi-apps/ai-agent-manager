@@ -29,7 +29,7 @@ export async function prepareGeminiEnv(
 	}
 
 	try {
-		const { tmpdir } = await import("os");
+		const { tmpdir } = await import("node:os");
 		if (existingHome) {
 			// Even when reusing existingHome, ensure OAuth auth files exist if needed
 			// This handles the case where we switch from Custom API to OAuth
@@ -68,7 +68,7 @@ export async function prepareClaudeEnv(
 	existingConfigDir?: string,
 ): Promise<NodeJS.ProcessEnv> {
 	try {
-		const { tmpdir } = await import("os");
+		const { tmpdir } = await import("node:os");
 		if (existingConfigDir) {
 			await ensureClaudeSettings(existingConfigDir, mcpServerUrl, false);
 			return { CLAUDE_CONFIG_DIR: existingConfigDir };
@@ -141,7 +141,7 @@ async function ensureOAuthFilesExist(homeDir: string): Promise<void> {
 			try {
 				await fs.copyFile(sourceFile, targetFile);
 				console.log(`[EnvUtils] Copied missing OAuth file: ${file}`);
-			} catch (e) {
+			} catch (_e) {
 				console.log(`[EnvUtils] Could not copy OAuth file ${file} (may not exist in user home)`);
 			}
 		}
@@ -179,7 +179,7 @@ async function ensureGeminiSettings(
 					path.join(settingsDir, file),
 				);
 				console.log(`[EnvUtils] Copied ${file} to temp Gemini dir`);
-			} catch (e) {
+			} catch (_e) {
 				// File might not exist, ignore
 				console.log(`[EnvUtils] Could not copy ${file} (may not exist)`);
 			}
@@ -189,7 +189,7 @@ async function ensureGeminiSettings(
 		try {
 			const files = await fs.readdir(settingsDir);
 			console.log(`[EnvUtils] Files in temp Gemini dir (${settingsDir}):`, files);
-		} catch (e) {
+		} catch (_e) {
 			console.log(`[EnvUtils] Could not list temp Gemini dir`);
 		}
 	}
@@ -210,7 +210,7 @@ async function ensureGeminiSettings(
 	try {
 		const content = await fs.readFile(settingsFile, "utf-8");
 		settings = JSON.parse(content) as GeminiSettings;
-	} catch (e) {
+	} catch (_e) {
 		// If it wasn't there or invalid, we start with empty settings
 	}
 
@@ -242,15 +242,28 @@ async function ensureGeminiSettings(
 	}
 
 	// Plan or Ask mode: exclude prohibited tools (cognitive control)
+	// Plan or Ask mode: exclude prohibited tools (cognitive control)
 	if (mode === "plan" || mode === "ask") {
 		if (!settings.tools) settings.tools = {};
-		settings.tools.exclude = [
-			...(settings.tools.exclude || []),
-			"googleSearch",
+
+		const toolsToExclude = [
 			"codeExecution",
+			"EditFile",
+			"edit_file",
+			"replace_file_content",
+			"write_to_file",
+			"WriteToFile",
+			"RunCommand",
+			"run_command",
 		];
+
+		const currentExcludes = settings.tools.exclude || [];
+		settings.tools.exclude = Array.from(
+			new Set([...currentExcludes, ...toolsToExclude]),
+		);
+
 		console.log(
-			`[EnvUtils] ${mode} Mode: excluding googleSearch, codeExecution in settings.json`,
+			`[EnvUtils] ${mode} Mode: excluding tools in settings.json: ${toolsToExclude.join(", ")}`,
 		);
 	}
 
@@ -289,7 +302,7 @@ async function ensureClaudeSettings(
 					path.join(sourceDir, file),
 					path.join(configDir, file),
 				);
-			} catch (e) {
+			} catch (_e) {
 				// File might not exist, ignore
 			}
 		}
@@ -303,7 +316,7 @@ async function ensureClaudeSettings(
 	try {
 		const content = await fs.readFile(settingsFile, "utf-8");
 		settings = JSON.parse(content) as ClaudeSettings;
-	} catch (e) {
+	} catch (_e) {
 		// If it wasn't there or invalid, we start with empty settings
 	}
 

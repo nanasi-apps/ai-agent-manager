@@ -5,7 +5,7 @@ import { createActor, type SnapshotFrom } from "xstate";
 import type { WorktreeResumeRequest } from "./agent-manager";
 import { isAgentType } from "./agent-type-utils";
 import { DriverResolver } from "./driver-resolver";
-import type { AgentDriver, AgentDriverContext } from "./drivers/interface";
+import type { AgentDriverContext } from "./drivers/interface";
 import { EnvBuilder } from "./env-builder";
 import { type AgentContext, agentMachine } from "./machines/agent-machine";
 import { AgentOutputParser } from "./output-parser";
@@ -272,7 +272,7 @@ export class OneShotSession extends EventEmitter {
 		return undefined;
 	}
 
-	async processMessage(message: string) {
+	async processMessage(message: string, options?: { forceFresh?: boolean }) {
 		if (this.isProcessing) {
 			console.warn(`[OneShotSession] Session ${this.sessionId} is busy`);
 			this.emitLog("[Waiting for previous response...]\n", "system");
@@ -309,9 +309,15 @@ export class OneShotSession extends EventEmitter {
 
 			const context: AgentDriverContext = {
 				sessionId: this.sessionId,
-				geminiSessionId: currentState.geminiSessionId,
-				codexSessionId: currentState.codexSessionId,
-				codexThreadId: currentState.codexThreadId,
+				geminiSessionId: options?.forceFresh
+					? undefined
+					: currentState.geminiSessionId,
+				codexSessionId: options?.forceFresh
+					? undefined
+					: currentState.codexSessionId,
+				codexThreadId: options?.forceFresh
+					? undefined
+					: currentState.codexThreadId,
 				messageCount: currentState.messageCount,
 				mcpServerUrl:
 					isCodex || isGemini || isClaude ? mcpServerUrl : undefined,
@@ -393,16 +399,15 @@ export class OneShotSession extends EventEmitter {
 					`[OneShotSession ${this.sessionId}] Failed to start subprocess.`,
 					err,
 				);
-				this.emitLog(`Failed to start subprocess: ${err.message}`, "error");
-			});
-		} catch (error: any) {
-			this.actor.send({ type: "STOP" });
-			console.error(`[OneShotSession] Error running command:`, error);
-			this.emitLog(`Error: ${error.message}`, "error");
-		}
-	}
-
-	private handleProcessOutput(child: ChildProcess) {
+							this.emitLog(`Failed to start subprocess: ${err.message}`, "error");
+						});
+					} catch (error: unknown) {
+						this.actor.send({ type: "STOP" });
+						console.error(`[OneShotSession] Error running command:`, error);
+						this.emitLog(`Error: ${error instanceof Error ? error.message : String(error)}`, "error");
+					}
+				}
+					private handleProcessOutput(child: ChildProcess) {
 		if (child.stdout) {
 			child.stdout.on("data", (data) => {
 				const str = data.toString();
@@ -482,7 +487,7 @@ export class OneShotSession extends EventEmitter {
 			if (lastMessage) {
 				// Yield to event loop to allow state updates (INVALIDATE_SESSION) to propagate
 				setTimeout(() => {
-					void this.processMessage(lastMessage);
+					void this.processMessage(lastMessage, { forceFresh: true });
 				}, 0);
 			}
 		}

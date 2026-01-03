@@ -10,7 +10,7 @@ export class CustomDriver implements AgentDriver {
 	constructor(private config: AgentConfig) { }
 
 	getCommand(
-		context: AgentDriverContext,
+		_context: AgentDriverContext,
 		message: string,
 		config: AgentConfig,
 	): AgentDriverCommand {

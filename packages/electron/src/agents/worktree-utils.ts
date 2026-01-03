@@ -1,5 +1,5 @@
 import { statSync } from "node:fs";
-import * as fs from "fs/promises";
+import * as fs from "node:fs/promises";
 import type { WorktreeResumeRequest } from "./agent-manager";
 import {
 	buildWorktreeInstructions,

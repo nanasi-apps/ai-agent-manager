@@ -7,11 +7,11 @@ import type { SessionState } from "./types";
 /**
  * Builds the environment variables for agent processes.
  */
-export class EnvBuilder {
+export const EnvBuilder = {
 	/**
 	 * Prepare environment variables for the agent process.
 	 */
-	static async build(
+	async build(
 		state: SessionState,
 		mcpServerUrl: string,
 		options: {
@@ -112,5 +112,5 @@ export class EnvBuilder {
 		}
 
 		return { env, geminiHome, claudeHome };
-	}
-}
+	},
+};

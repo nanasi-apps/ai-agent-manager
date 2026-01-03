@@ -61,12 +61,13 @@ function on(
 		| ((payload: AgentStatePayload) => void),
 ): void {
 	if (event === "log") {
-		return getAgentManager().on(
+		getAgentManager().on(
 			"log",
 			listener as (payload: AgentLogPayload) => void,
 		);
+		return;
 	}
-	return getAgentManager().on(
+	getAgentManager().on(
 		"state-changed",
 		listener as (payload: AgentStatePayload) => void,
 	);

@@ -3,7 +3,6 @@ import { getCurrentBranch, runGit } from "../utils";
 import {
 	createSafeHandler,
 	errorResponse,
-	successResponse,
 } from "./safe-tool-wrapper";
 import type { ToolRegistrar } from "./types";
 

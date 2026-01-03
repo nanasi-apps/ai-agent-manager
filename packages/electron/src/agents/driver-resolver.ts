@@ -17,7 +17,6 @@ export class DriverResolver {
 				return new CodexDriver();
 			case "claude":
 				return new ClaudeDriver();
-			case "gemini":
 			default:
 				return new GeminiDriver();
 		}

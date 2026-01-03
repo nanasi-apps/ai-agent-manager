@@ -6,7 +6,7 @@ import {
 	setWorktreeManager,
 } from "@agent-manager/shared";
 import { app, BrowserWindow, dialog } from "electron";
-import path from "path";
+import path from "node:path";
 import {
 	setAgentManager as setElectronAgentManager,
 	unifiedAgentManager,

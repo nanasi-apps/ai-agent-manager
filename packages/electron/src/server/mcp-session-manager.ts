@@ -145,7 +145,7 @@ export class McpSessionManager {
 		}
 
 		// If disabledTools is specified, check if tool is in it
-		if (config.disabledTools && config.disabledTools.includes(toolName)) {
+		if (config.disabledTools?.includes(toolName)) {
 			return false;
 		}
 

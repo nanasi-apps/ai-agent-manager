@@ -50,7 +50,11 @@ function getTemplate(name: string): string {
 	if (!templateCache.has(name)) {
 		templateCache.set(name, loadTemplate(name));
 	}
-	return templateCache.get(name)!;
+	const template = templateCache.get(name);
+	if (!template) {
+		throw new Error(`Internal error: Template ${name} not found in cache after loading`);
+	}
+	return template;
 }
 
 // --- Public API ---
