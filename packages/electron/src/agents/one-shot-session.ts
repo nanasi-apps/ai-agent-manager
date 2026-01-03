@@ -272,71 +272,76 @@ export class OneShotSession extends EventEmitter {
 		return undefined;
 	}
 
-		async processMessage(
-			message: string,
-			options?: { forceFresh?: boolean; resetSessionId?: boolean },
-		) {
-			if (this.isProcessing) {
-				console.warn(`[OneShotSession] Session ${this.sessionId} is busy`);
-				this.emitLog("[Waiting for previous response...]\n", "system");
-				return;
-			}
-	
-			await this.validateActiveWorktree();
-	
-			const currentState = this.state;
-	
-			let systemPrompt = "";
-			if (currentState.messageCount === 0) {
-				// this.stateManager.resetInvalidGeminiSession();
-				// Handled by machine logic or needs event?
-	
-				const baseRules = currentState.config.rulesContent ?? "";
-				const worktreeInstructions = this.getWorktreeInstructions();
-				const parts = [baseRules, worktreeInstructions].filter(Boolean);
-				systemPrompt = parts.join("\n\n");
-				if (baseRules) {
-					console.log(
-						`[OneShotSession] Injecting rules for session ${this.sessionId}`,
-					);
-				}
-			}
-	
-			const mcpServerUrl = `http://localhost:3001/mcp/${this.sessionId}/sse`;
-	
-			try {
-				const driver = DriverResolver.getDriver(currentState.config);
-				const isGemini = isAgentType(currentState.config, "gemini");
-				const isCodex = isAgentType(currentState.config, "codex");
-				const isClaude = isAgentType(currentState.config, "claude");
-	
-				const context: AgentDriverContext = {
-					sessionId: this.sessionId,
-					geminiSessionId:
-						options?.forceFresh || options?.resetSessionId
-							? undefined
-							: currentState.geminiSessionId,
-					codexSessionId:
-						options?.forceFresh || options?.resetSessionId
-							? undefined
-							: currentState.codexSessionId,
-					codexThreadId: options?.forceFresh
-						? undefined
-						: currentState.codexThreadId,
-					messageCount: currentState.messageCount,
-					mcpServerUrl:
-						isCodex || isGemini || isClaude ? mcpServerUrl : undefined,
-				};
-	
-				const cmd = driver.getCommand(
-					context,
-					message,
-					currentState.config,
-					systemPrompt,
+	async processMessage(
+		message: string,
+		options?: { forceFresh?: boolean; resetSessionId?: boolean },
+	) {
+		if (this.isProcessing) {
+			console.warn(`[OneShotSession] Session ${this.sessionId} is busy`);
+			this.emitLog("[Waiting for previous response...]\n", "system");
+			return;
+		}
+
+		await this.validateActiveWorktree();
+
+		const currentState = this.state;
+
+		let systemPrompt = "";
+		if (currentState.messageCount === 0) {
+			// this.stateManager.resetInvalidGeminiSession();
+			// Handled by machine logic or needs event?
+
+			const baseRules = currentState.config.rulesContent ?? "";
+			const worktreeInstructions = this.getWorktreeInstructions();
+			const parts = [baseRules, worktreeInstructions].filter(Boolean);
+			systemPrompt = parts.join("\n\n");
+			if (baseRules) {
+				console.log(
+					`[OneShotSession] Injecting rules for session ${this.sessionId}`,
 				);
+			}
+		}
+
+		const mcpServerUrl = `http://localhost:3001/mcp/${this.sessionId}/sse`;
+
+		try {
+			const driver = DriverResolver.getDriver(currentState.config);
+			const isGemini = isAgentType(currentState.config, "gemini");
+			const isCodex = isAgentType(currentState.config, "codex");
+			const isClaude = isAgentType(currentState.config, "claude");
+
+			const context: AgentDriverContext = {
+				sessionId: this.sessionId,
+				geminiSessionId:
+					options?.forceFresh || options?.resetSessionId
+						? undefined
+						: currentState.geminiSessionId,
+				codexSessionId:
+					options?.forceFresh || options?.resetSessionId
+						? undefined
+						: currentState.codexSessionId,
+				codexThreadId: options?.forceFresh
+					? undefined
+					: currentState.codexThreadId,
+				messageCount: currentState.messageCount,
+				mcpServerUrl:
+					isCodex || isGemini || isClaude ? mcpServerUrl : undefined,
+			};
+
+			const cmd = driver.getCommand(
+				context,
+				message,
+				currentState.config,
+				systemPrompt,
+			);
 			console.log(
 				`[OneShotSession] Running: ${cmd.command} ${cmd.args.join(" ")}`,
 			);
+			if (isCodex) {
+				console.log(
+					`[OneShotSession] Codex context: messageCount=${context.messageCount}, codexThreadId=${context.codexThreadId ?? "undefined"}, codexSessionId=${context.codexSessionId ?? "undefined"}`,
+				);
+			}
 
 			const envResult = await EnvBuilder.build(currentState, mcpServerUrl, {
 				isGemini,
@@ -402,15 +407,15 @@ export class OneShotSession extends EventEmitter {
 					`[OneShotSession ${this.sessionId}] Failed to start subprocess.`,
 					err,
 				);
-							this.emitLog(`Failed to start subprocess: ${err.message}`, "error");
-						});
-					} catch (error: unknown) {
-						this.actor.send({ type: "STOP" });
-						console.error(`[OneShotSession] Error running command:`, error);
-						this.emitLog(`Error: ${error instanceof Error ? error.message : String(error)}`, "error");
-					}
-				}
-					private handleProcessOutput(child: ChildProcess) {
+				this.emitLog(`Failed to start subprocess: ${err.message}`, "error");
+			});
+		} catch (error: unknown) {
+			this.actor.send({ type: "STOP" });
+			console.error(`[OneShotSession] Error running command:`, error);
+			this.emitLog(`Error: ${error instanceof Error ? error.message : String(error)}`, "error");
+		}
+	}
+	private handleProcessOutput(child: ChildProcess) {
 		if (child.stdout) {
 			child.stdout.on("data", (data) => {
 				const str = data.toString();
@@ -551,6 +556,29 @@ export class OneShotSession extends EventEmitter {
 								id: log.metadata.codexSessionId,
 							});
 						}
+						// Handle session invalidation from JSON errors (e.g. Codex turn.failed)
+						if (log.metadata?.sessionInvalid) {
+							console.warn(
+								`[OneShotSession ${this.sessionId}] Session invalid detected via JSON output`,
+							);
+							this.actor.send({ type: "INVALIDATE_SESSION" });
+							this.actor.send({ type: "STOP" });
+							this.currentProcess = undefined;
+
+							this.emitLog(
+								"\n[Session Error] Previous session was invalid. Restarting fresh...\n",
+								"system",
+							);
+
+							// Auto-retry with the last message
+							const lastMessage = this.state.lastUserMessage;
+							if (lastMessage) {
+								setTimeout(() => {
+									void this.processMessage(lastMessage, { forceFresh: true });
+								}, 0);
+							}
+							return; // Stop processing further logs from this dying process
+						}
 					}
 					this.emitLog(log.data, log.type, log.raw);
 				}
@@ -559,6 +587,7 @@ export class OneShotSession extends EventEmitter {
 			}
 		}
 	}
+
 
 	private handlePendingWorktreeResume() {
 		const pending = this.state.pendingWorktreeResume;
@@ -590,7 +619,7 @@ export class OneShotSession extends EventEmitter {
 			context: {
 				cwd: pending.request.cwd,
 				branch: pending.request.branch,
-			repoPath: pending.request.repoPath,
+				repoPath: pending.request.repoPath,
 			},
 		});
 

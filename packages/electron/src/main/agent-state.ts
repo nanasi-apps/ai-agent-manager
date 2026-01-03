@@ -66,17 +66,6 @@ function getLatestPlanMessage(
 		}
 	}
 
-	for (let i = messages.length - 1; i >= 0; i--) {
-		const msg = messages[i];
-		if (
-			msg?.role === "agent" &&
-			(!msg.logType || msg.logType === "text") &&
-			msg.content?.trim()
-		) {
-			return { content: msg.content, timestamp: msg.timestamp };
-		}
-	}
-
 	return null;
 }
 

@@ -1,4 +1,5 @@
 import type { AgentType } from "@agent-manager/shared";
+import { SESSION_INVALID_PATTERNS } from "./process-utils";
 
 /**
  * Parsed log entry from agent output
@@ -17,6 +18,8 @@ export interface ParsedLogMetadata {
 	geminiSessionId?: string;
 	codexSessionId?: string;
 	codexThreadId?: string;
+	/** Indicates the session is invalid and should be restarted fresh */
+	sessionInvalid?: boolean;
 }
 
 /**
@@ -369,7 +372,16 @@ export class AgentOutputParser {
 			}
 			case "turn.failed": {
 				const error = json.error || "Unknown error";
-				results.push({ data: `[Error] ${error}\n`, type: "error", raw: json });
+				const errorStr = String(error);
+				const isInvalid = SESSION_INVALID_PATTERNS.some((p) =>
+					errorStr.includes(p),
+				);
+				results.push({
+					data: `[Error] ${error}\n`,
+					type: "error",
+					raw: json,
+					...(isInvalid ? { metadata: { sessionInvalid: true } } : {}),
+				});
 				break;
 			}
 			case "item.started": {
@@ -513,10 +525,15 @@ export class AgentOutputParser {
 			}
 			case "error": {
 				const message = json.message || json.error || "Unknown error";
+				const messageStr = String(message);
+				const isInvalid = SESSION_INVALID_PATTERNS.some((p) =>
+					messageStr.includes(p),
+				);
 				results.push({
 					data: `[Error] ${message}\n`,
 					type: "error",
 					raw: json,
+					...(isInvalid ? { metadata: { sessionInvalid: true } } : {}),
 				});
 				break;
 			}

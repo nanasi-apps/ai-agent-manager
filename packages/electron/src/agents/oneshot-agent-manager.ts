@@ -39,6 +39,12 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
 		};
 
 		const persistedState = store.getConversation(sessionId)?.agentState;
+		if (persistedState) {
+			const ctx = (persistedState as { context?: { codexThreadId?: string; messageCount?: number } })?.context;
+			console.log(
+				`[OneShotAgentManager] Restoring session ${sessionId} with persisted state: codexThreadId=${ctx?.codexThreadId ?? "undefined"}, messageCount=${ctx?.messageCount ?? 0}`,
+			);
+		}
 		const session = new OneShotSession(sessionId, agentConfig, persistedState);
 
 		// Forward logs from session
