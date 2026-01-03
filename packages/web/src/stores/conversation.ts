@@ -699,6 +699,10 @@ export const useConversationStore = defineStore("conversation", () => {
 
                 // Update session ID locally
                 sessionId.value = res.sessionId;
+
+                // Load metadata (title, etc) for the newly created session
+                await loadConversationMeta(res.sessionId);
+
                 // IMPORTANT: Dispatch event is sufficient for sidebar, but the caller needs to update URL
                 window.dispatchEvent(new Event("agent-manager:data-change"));
 

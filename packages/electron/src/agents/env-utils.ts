@@ -246,15 +246,28 @@ async function ensureGeminiSettings(
 	if (mode === "plan" || mode === "ask") {
 		if (!settings.tools) settings.tools = {};
 
+		// Gemini CLI built-in tool names (from official docs):
+		// - write_file: creates/overwrites files
+		// - replace: edits files by replacing text
+		// - run_shell_command: executes shell commands
+		// Also include MCP tool variants for compatibility
 		const toolsToExclude = [
+			// Gemini CLI built-in tools (correct names)
+			"write_file",
+			"replace",
+			"run_shell_command",
 			"codeExecution",
-			"EditFile",
-			"edit_file",
+			// MCP server tool names (for our agents-manager-mcp)
 			"replace_file_content",
-			"write_to_file",
-			"WriteToFile",
-			"RunCommand",
-			"run_command",
+			"pre_file_edit",
+			"post_file_edit",
+			"git_add",
+			"git_commit",
+			"git_checkout",
+			"worktree_create",
+			"worktree_remove",
+			"worktree_complete",
+			"worktree_run",
 		];
 
 		const currentExcludes = settings.tools.exclude || [];

@@ -6,7 +6,7 @@ import type {
 	ReasoningLevel,
 } from "@agent-manager/shared";
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import ChatInput from "@/components/conversation/ChatInput.vue";
 import ChatMessageList from "@/components/conversation/ChatMessageList.vue";
 import ConversationHeader from "@/components/conversation/ConversationHeader.vue";
@@ -32,6 +32,7 @@ const emit = defineEmits<{
 }>();
 
 const route = useRoute();
+const router = useRouter();
 const projectsStore = useProjectsStore();
 const conversation = useConversationStore();
 
@@ -190,8 +191,13 @@ watch(
 
 // Event handlers
 const handleSendMessage = async () => {
+	const isNew = props.sessionId === "new";
 	await conversation.sendMessage(scrollToBottom);
 	scrollToBottom();
+
+	if (isNew && conversation.sessionId !== "new") {
+		router.replace(`/conversions/${conversation.sessionId}`);
+	}
 };
 
 const handleStopGeneration = async () => {
