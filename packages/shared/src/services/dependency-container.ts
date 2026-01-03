@@ -67,11 +67,17 @@ export interface INativeDialog {
 
 // ... types
 import type { SummaryOptions } from "../types/agent";
+import type { GtrConfig } from "../types/gtr-config";
 
 // ... previous interfaces ...
 
 export interface IHandoverService {
 	generateAgentSummary(options: SummaryOptions): Promise<string | null>;
+}
+
+export interface IGtrConfigService {
+	getGtrConfig(rootPath: string): Promise<GtrConfig>;
+	updateGtrConfig(rootPath: string, config: GtrConfig): Promise<void>;
 }
 
 // Dependencies to be injected
@@ -80,6 +86,7 @@ let store: IStore | null = null;
 let nativeDialog: INativeDialog | null = null;
 let worktreeManager: IWorktreeManager | null = null;
 let handoverService: IHandoverService | null = null;
+let gtrConfigService: IGtrConfigService | null = null;
 
 /**
  * Set the agent manager implementation
@@ -110,6 +117,11 @@ export function setWorktreeManager(manager: IWorktreeManager): void {
 export function setHandoverService(service: IHandoverService): void {
 	handoverService = service;
 	console.log("[DependencyContainer] Handover service set");
+}
+
+export function setGtrConfigService(service: IGtrConfigService): void {
+	gtrConfigService = service;
+	console.log("[DependencyContainer] GtrConfig service set");
 }
 
 export function getAgentManagerOrThrow(): IAgentManager {
@@ -148,4 +160,13 @@ export function getHandoverServiceOrThrow(): IHandoverService {
 		);
 	}
 	return handoverService;
+}
+
+export function getGtrConfigServiceOrThrow(): IGtrConfigService {
+	if (!gtrConfigService) {
+		throw new Error(
+			"GtrConfig service not initialized. Call setGtrConfigService first.",
+		);
+	}
+	return gtrConfigService;
 }

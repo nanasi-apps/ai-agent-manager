@@ -25,3 +25,4 @@ export * from "./store";
 export * from "./worktree";
 // Approval types
 export * from "./approval";
+export * from "./gtr-config";

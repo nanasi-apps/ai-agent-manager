@@ -2,12 +2,65 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { os } from "@orpc/server";
 import { z } from "zod";
-import { getStoreOrThrow } from "../services/dependency-container";
+import {
+	getGtrConfigServiceOrThrow,
+	getStoreOrThrow,
+} from "../services/dependency-container";
 import { RULES_DIR } from "../services/rules-resolver";
 import type { Project } from "../types/store";
 import { generateUUID } from "../utils";
 
+const GtrConfigSchema = z.object({
+	copy: z.object({
+		include: z.array(z.string()),
+		exclude: z.array(z.string()),
+		includeDirs: z.array(z.string()),
+		excludeDirs: z.array(z.string()),
+	}),
+	hooks: z.object({
+		postCreate: z.array(z.string()),
+	}),
+});
+
 export const projectsRouter = {
+	getGtrConfig: os
+		.input(z.object({ projectId: z.string() }))
+		.output(GtrConfigSchema)
+		.handler(async ({ input }) => {
+			const project = getStoreOrThrow().getProject(input.projectId);
+			if (!project || !project.rootPath) {
+				return {
+					copy: {
+						include: [],
+						exclude: [],
+						includeDirs: [],
+						excludeDirs: [],
+					},
+					hooks: { postCreate: [] },
+				};
+			}
+			return getGtrConfigServiceOrThrow().getGtrConfig(project.rootPath);
+		}),
+
+	updateGtrConfig: os
+		.input(
+			z.object({
+				projectId: z.string(),
+				config: GtrConfigSchema,
+			}),
+		)
+		.output(z.object({ success: z.boolean() }))
+		.handler(async ({ input }) => {
+			const project = getStoreOrThrow().getProject(input.projectId);
+			if (!project || !project.rootPath) return { success: false };
+
+			await getGtrConfigServiceOrThrow().updateGtrConfig(
+				project.rootPath,
+				input.config,
+			);
+			return { success: true };
+		}),
+
 	listProjects: os
 		.output(
 			z.array(

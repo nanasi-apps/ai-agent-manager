@@ -7,10 +7,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
+import StringListInput from "@/components/ui/StringListInput.vue";
 import { MIN_LOAD_TIME } from "@/lib/constants";
 import { getRouteParamFrom } from "@/lib/route-params";
 import { orpc } from "@/services/orpc";
-import type { ProjectRule } from "@agent-manager/shared";
+import type { ProjectRule, GtrConfig } from "@agent-manager/shared";
 
 
 const route = useRoute();
@@ -33,6 +34,11 @@ const hasNativePicker = computed(() => {
 const globalRules = ref<{ id: string; name: string }[]>([]);
 const activeGlobalRulesDraft = ref<string[]>([]);
 const projectRulesDraft = ref<ProjectRule[]>([]);
+const gtrConfigDraft = ref<GtrConfig>({
+	copy: { include: [], exclude: [], includeDirs: [], excludeDirs: [] },
+	hooks: { postCreate: [] },
+});
+const gtrConfigOriginal = ref<GtrConfig | null>(null);
 
 // Project Rules Logic
 const selectedProjectRuleId = ref<string | null>(null);
@@ -70,11 +76,15 @@ const loadProject = async () => {
 	);
 
 	try {
-		const [p, rules] = await Promise.all([
+		const [p, rules, gtrConfig] = await Promise.all([
 			orpc.getProject({ projectId: id }),
 			orpc.listGlobalRules(),
+			orpc.getGtrConfig({ projectId: id }),
 		]);
 		globalRules.value = rules;
+		gtrConfigOriginal.value = gtrConfig;
+		gtrConfigDraft.value = JSON.parse(JSON.stringify(gtrConfig));
+
 		if (!p) {
 			project.value = null;
 			return;
@@ -105,6 +115,10 @@ const resetSettings = () => {
 		? JSON.parse(JSON.stringify(project.value.projectRules))
 		: [];
 	selectedProjectRuleId.value = null;
+
+	if (gtrConfigOriginal.value) {
+		gtrConfigDraft.value = JSON.parse(JSON.stringify(gtrConfigOriginal.value));
+	}
 };
 
 const isSettingsDirty = computed(() => {
@@ -125,7 +139,9 @@ const isSettingsDirty = computed(() => {
 				(project.value.projectRules || [])
 					.map((r) => ({ name: r.name, content: r.content }))
 					.sort((a, b) => a.name.localeCompare(b.name)),
-			)
+			) ||
+		JSON.stringify(gtrConfigDraft.value) !==
+			JSON.stringify(gtrConfigOriginal.value)
 	);
 });
 
@@ -139,14 +155,21 @@ const saveProjectSettings = async () => {
 
 	isSavingProject.value = true;
 	try {
-		const result = await orpc.updateProject({
-			projectId: id,
-			name: trimmedName,
-			rootPath: trimmedRoot ? trimmedRoot : null,
-			activeGlobalRules: activeGlobalRulesDraft.value,
-			projectRules: projectRulesDraft.value,
-		});
-		if (result.success) {
+		const [updateResult] = await Promise.all([
+			orpc.updateProject({
+				projectId: id,
+				name: trimmedName,
+				rootPath: trimmedRoot ? trimmedRoot : null,
+				activeGlobalRules: activeGlobalRulesDraft.value,
+				projectRules: projectRulesDraft.value,
+			}),
+			orpc.updateGtrConfig({
+				projectId: id,
+				config: gtrConfigDraft.value,
+			}),
+		]);
+
+		if (updateResult.success) {
 			project.value = {
 				...project.value,
 				name: trimmedName,
@@ -154,6 +177,7 @@ const saveProjectSettings = async () => {
 				activeGlobalRules: activeGlobalRulesDraft.value,
 				projectRules: JSON.parse(JSON.stringify(projectRulesDraft.value)),
 			};
+			gtrConfigOriginal.value = JSON.parse(JSON.stringify(gtrConfigDraft.value));
 			window.dispatchEvent(new Event("agent-manager:data-change"));
 		}
 	} catch (e) {
@@ -314,6 +338,52 @@ watch(projectId, loadProject, { immediate: true });
                      </div>
                  </div>
              </div>
+        </div>
+
+        <div class="mt-6 border rounded-lg p-4 bg-card/60">
+            <h2 class="text-lg font-semibold mb-4">Git Worktree Configuration</h2>
+            <p class="text-sm text-muted-foreground mb-4">
+              Configure how new worktrees are initialized. These settings are stored in <code>.gtrconfig</code> in your project root.
+            </p>
+
+            <div class="space-y-6">
+               <div>
+                  <h3 class="text-sm font-medium mb-3">Copy Settings</h3>
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <StringListInput 
+                          v-model="gtrConfigDraft.copy.include" 
+                          label="Include Files (Glob)" 
+                          placeholder="e.g. **/.env.example" 
+                      />
+                      <StringListInput 
+                          v-model="gtrConfigDraft.copy.exclude" 
+                          label="Exclude Files (Glob)" 
+                          placeholder="e.g. **/.env" 
+                      />
+                      <StringListInput 
+                          v-model="gtrConfigDraft.copy.includeDirs" 
+                          label="Include Directories" 
+                          placeholder="e.g. node_modules" 
+                      />
+                      <StringListInput 
+                          v-model="gtrConfigDraft.copy.excludeDirs" 
+                          label="Exclude Directories" 
+                          placeholder="e.g. node_modules/.cache" 
+                      />
+                  </div>
+               </div>
+
+               <div>
+                  <h3 class="text-sm font-medium mb-3">Hooks</h3>
+                  <div class="space-y-4">
+                      <StringListInput 
+                          v-model="gtrConfigDraft.hooks.postCreate" 
+                          label="Post Create Commands" 
+                          placeholder="e.g. npm install" 
+                      />
+                  </div>
+               </div>
+            </div>
         </div>
       </div>
     </Transition>
