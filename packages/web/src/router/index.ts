@@ -9,7 +9,7 @@ const router = createRouter({
 
 let isFirstNavigation = true;
 
-router.beforeEach((to, from, next) => {
+router.beforeEach((_to, _from, next) => {
 	if (isFirstNavigation) {
 		isFirstNavigation = false;
 		next();

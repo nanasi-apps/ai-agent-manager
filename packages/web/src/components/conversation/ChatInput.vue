@@ -5,32 +5,13 @@ import { useI18n } from "vue-i18n";
 import { ChevronDown, Loader2, Send, Square } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import type { ModelTemplate } from "@/composables/useConversation";
+import { useConversationStore } from "@/stores/conversation";
 import { groupModelTemplates } from "@/lib/modelTemplateGroups";
 
 const { t } = useI18n();
-
-const props = defineProps<{
-	input: string;
-	isLoading: boolean;
-	isGenerating: boolean;
-	isUpdatingAgent: boolean;
-  isSelectorDisabled?: boolean;
-	modelTemplates: ModelTemplate[];
-	modelIdDraft: string;
-	modeDraft: AgentMode;
-	reasoningDraft: ReasoningLevel;
-	isSwappingModel: boolean;
-	isUpdatingMode: boolean;
-	isUpdatingReasoning: boolean;
-	supportsReasoning: boolean;
-}>();
+const conversation = useConversationStore();
 
 const emit = defineEmits<{
-	(e: "update:input", value: string): void;
-	(e: "update:modelIdDraft", value: string): void;
-	(e: "update:modeDraft", value: AgentMode): void;
-	(e: "update:reasoningDraft", value: ReasoningLevel): void;
 	(e: "send"): void;
 	(e: "stop"): void;
 }>();
@@ -49,7 +30,11 @@ const modeOptions: { label: string; value: AgentMode }[] = [
 ];
 
 const groupedModelTemplates = computed(() =>
-	groupModelTemplates(props.modelTemplates),
+	groupModelTemplates(conversation.modelTemplates),
+);
+
+const isSelectorDisabled = computed(() =>
+	conversation.sessionId === "new" || conversation.isGenerating || conversation.isLoading
 );
 
 const handleKeydown = (e: KeyboardEvent) => {
@@ -68,18 +53,17 @@ const handleKeydown = (e: KeyboardEvent) => {
 			<form @submit.prevent="emit('send')">
 				<div class="flex items-center gap-2">
 						<Textarea
-							:model-value="input"
-							@update:model-value="emit('update:input', $event as string)"
+							v-model="conversation.input"
 							:placeholder="t('chat.placeholder')"
 							class="min-h-[24px] max-h-[200px] py-3 px-4 bg-transparent border focus-within:ring-2 focus-within:ring-ring focus-within:border-transparent transition-all focus-visible:ring-0 resize-none shadow-none text-sm"
-							:disabled="isLoading"
+							:disabled="conversation.isLoading"
 							@keydown="handleKeydown"
 							autofocus
 						/>
 
 					<!-- Stop Button (shown when generating) -->
 					<Button
-						v-if="isGenerating"
+						v-if="conversation.isGenerating"
 						type="button"
 						size="icon"
 						@click="emit('stop')"
@@ -94,10 +78,10 @@ const handleKeydown = (e: KeyboardEvent) => {
 						type="submit"
 						size="icon"
 						class="h-11 w-11 shrink-0 rounded-xl bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-600/20 transition-all text-white border-0"
-						:class="{ 'opacity-50 cursor-not-allowed': !input.trim() || isLoading }"
-						:disabled="!input.trim() || isLoading"
+						:class="{ 'opacity-50 cursor-not-allowed': !conversation.input.trim() || conversation.isLoading }"
+						:disabled="!conversation.input.trim() || conversation.isLoading"
 					>
-						<Loader2 v-if="isLoading" class="size-5 animate-spin" />
+						<Loader2 v-if="conversation.isLoading" class="size-5 animate-spin" />
 						<Send v-else class="size-5" />
 					</Button>
 				</div>
@@ -108,15 +92,9 @@ const handleKeydown = (e: KeyboardEvent) => {
 						<!-- Model Selector -->
 						<div class="relative min-w-[120px]">
 							<select
-								:value="modelIdDraft"
-								@change="
-									emit(
-										'update:modelIdDraft',
-										($event.target as HTMLSelectElement).value,
-									)
-								"
+								v-model="conversation.modelIdDraft"
 								class="h-6 w-auto min-w-[140px] rounded-md border border-input bg-transparent px-2 text-[10px] shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 appearance-none pr-6 cursor-pointer hover:bg-accent/50"
-								:disabled="isUpdatingAgent || isLoading || modelTemplates.length === 0"
+								:disabled="conversation.isUpdatingAgent || conversation.isLoading || conversation.modelTemplates.length === 0"
 							>
 								<optgroup
 									v-for="group in groupedModelTemplates"
@@ -131,7 +109,7 @@ const handleKeydown = (e: KeyboardEvent) => {
 							<div
 								class="pointer-events-none absolute inset-y-0 right-0 gap-1 px-2 flex items-center text-muted-foreground"
 							>
-								<Loader2 v-if="isSwappingModel" class="size-2.5 animate-spin" />
+								<Loader2 v-if="conversation.isSwappingModel" class="size-2.5 animate-spin" />
 								<ChevronDown class="size-3" />
 							</div>
 						</div>
@@ -139,15 +117,9 @@ const handleKeydown = (e: KeyboardEvent) => {
 						<!-- Mode Selector (Planning) -->
 						<div class="relative min-w-[80px]">
 							<select
-								:value="modeDraft"
-								@change="
-									emit(
-										'update:modeDraft',
-										($event.target as HTMLSelectElement).value as AgentMode,
-									)
-								"
+								v-model="conversation.modeDraft"
 								class="h-6 w-auto min-w-[80px] rounded-md border border-input bg-transparent px-2 text-[10px] shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 appearance-none pr-6 cursor-pointer hover:bg-accent/50"
-								:disabled="isUpdatingAgent || isLoading"
+								:disabled="conversation.isUpdatingAgent || conversation.isLoading"
 							>
 								<option v-for="option in modeOptions" :key="option.value" :value="option.value">
 									{{ option.label }}
@@ -156,23 +128,17 @@ const handleKeydown = (e: KeyboardEvent) => {
 							<div
 								class="pointer-events-none absolute inset-y-0 right-0 gap-1 px-2 flex items-center text-muted-foreground"
 							>
-								<Loader2 v-if="isUpdatingMode" class="size-2.5 animate-spin" />
+								<Loader2 v-if="conversation.isUpdatingMode" class="size-2.5 animate-spin" />
 								<ChevronDown class="size-3" />
 							</div>
 						</div>
 
 						<!-- Reasoning Selector -->
-						<div v-if="supportsReasoning" class="relative min-w-[110px]">
+						<div v-if="conversation.supportsReasoning" class="relative min-w-[110px]">
 							<select
-								:value="reasoningDraft"
-								@change="
-									emit(
-										'update:reasoningDraft',
-										($event.target as HTMLSelectElement).value as ReasoningLevel,
-									)
-								"
+								v-model="conversation.reasoningDraft"
 								class="h-6 w-auto min-w-[110px] rounded-md border border-input bg-transparent px-2 text-[10px] shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 appearance-none pr-6 cursor-pointer hover:bg-accent/50"
-								:disabled="isUpdatingAgent || isLoading"
+								:disabled="conversation.isUpdatingAgent || conversation.isLoading"
 							>
 								<option
 									v-for="option in reasoningOptions"
@@ -185,7 +151,7 @@ const handleKeydown = (e: KeyboardEvent) => {
 							<div
 								class="pointer-events-none absolute inset-y-0 right-0 gap-1 px-2 flex items-center text-muted-foreground"
 							>
-								<Loader2 v-if="isUpdatingReasoning" class="size-2.5 animate-spin" />
+								<Loader2 v-if="conversation.isUpdatingReasoning" class="size-2.5 animate-spin" />
 								<ChevronDown class="size-3" />
 							</div>
 						</div>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { ModelTemplate } from "@agent-manager/shared";
 import { CheckCircle2, FileText, Loader2, X } from "lucide-vue-next";
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
@@ -12,40 +13,21 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useMarkdown } from "@/composables/useMarkdown";
-
-export interface ModelTemplate {
-	id: string;
-	name: string;
-	agentType: string;
-	agentName: string;
-	model?: string;
-}
-
-const props = defineProps<{
-	content: string;
-	isOpen: boolean;
-	modelTemplates: ModelTemplate[];
-	isApproving?: boolean;
-}>();
-
-const emit = defineEmits<{
-	(e: "close"): void;
-	(e: "approve", modelId: string): void;
-}>();
+import { renderMarkdown } from "@/lib/markdown";
+import { useConversationStore } from "@/stores/conversation";
 
 const { t } = useI18n();
-const { renderMarkdown } = useMarkdown();
+const conversation = useConversationStore();
 
 // Approve dialog state
 const isApproveDialogOpen = ref(false);
 const selectedModelId = ref("");
 
-const hasContent = computed(() => !!props.content?.trim());
+const hasContent = computed(() => !!conversation.latestPlanContent?.trim());
 
 // Filter to only agent mode compatible models
 const availableModels = computed(() => {
-	return props.modelTemplates.filter(
+	return conversation.modelTemplates.filter(
 		(m) => m.agentType !== "default",
 	);
 });
@@ -65,14 +47,18 @@ const openApproveDialog = () => {
 	isApproveDialogOpen.value = true;
 };
 
-const handleApprove = () => {
+const handleApprove = async () => {
 	if (!selectedModelId.value) return;
-	emit("approve", selectedModelId.value);
+	await conversation.approvePlan(selectedModelId.value);
 	isApproveDialogOpen.value = false;
 };
 
 const closeApproveDialog = () => {
 	isApproveDialogOpen.value = false;
+};
+
+const handleClose = () => {
+	conversation.togglePlanViewer();
 };
 </script>
 
@@ -91,17 +77,17 @@ const closeApproveDialog = () => {
           size="sm"
           variant="default"
           class="gap-1.5"
-          :disabled="isApproving"
+          :disabled="conversation.isApproving"
           @click="openApproveDialog"
         >
-          <Loader2 v-if="isApproving" class="size-4 animate-spin" />
+          <Loader2 v-if="conversation.isApproving" class="size-4 animate-spin" />
           <CheckCircle2 v-else class="size-4" />
           {{ t('plan.approve', 'Approve') }}
         </Button>
         <!-- Close Button -->
         <button
           class="text-muted-foreground hover:text-foreground p-1 rounded-md hover:bg-muted"
-          @click="$emit('close')"
+          @click="handleClose"
         >
           <X class="size-4" />
         </button>
@@ -111,14 +97,14 @@ const closeApproveDialog = () => {
     <!-- Content with ScrollArea -->
     <ScrollArea class="flex-1 min-h-0">
       <div class="p-6">
-        <div v-if="!content" class="text-center text-muted-foreground py-10">
+        <div v-if="!conversation.latestPlanContent" class="text-center text-muted-foreground py-10">
           <FileText class="size-12 mx-auto mb-4 opacity-20" />
           <p>{{ t('plan.empty', 'No plan generated yet.') }}</p>
         </div>
         <div
           v-else
           class="markdown-content prose dark:prose-invert max-w-none"
-          v-html="renderMarkdown(content)"
+          v-html="renderMarkdown(conversation.latestPlanContent)"
         />
       </div>
     </ScrollArea>
@@ -156,10 +142,10 @@ const closeApproveDialog = () => {
             {{ t('common.cancel', 'Cancel') }}
           </Button>
           <Button
-            :disabled="!selectedModelId || isApproving"
+            :disabled="!selectedModelId || conversation.isApproving"
             @click="handleApprove"
           >
-            <Loader2 v-if="isApproving" class="size-4 mr-2 animate-spin" />
+            <Loader2 v-if="conversation.isApproving" class="size-4 mr-2 animate-spin" />
             {{ t('plan.approveDialog.confirm', 'Execute Plan') }}
           </Button>
         </DialogFooter>

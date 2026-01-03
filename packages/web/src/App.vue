@@ -1,23 +1,32 @@
 <script setup lang="ts">
-import { onMounted } from "vue";
+import { onMounted, watch } from "vue";
 import { useI18n } from "vue-i18n";
+import { storeToRefs } from "pinia";
 import NewProjectDialog from "@/components/dialogs/NewProjectDialog.vue";
-import { useNewProjectDialog } from "@/composables/useNewProjectDialog";
+import { useNewProjectDialogStore } from "@/stores/newProjectDialog";
+import { useSettingsStore } from "@/stores/settings";
 import DashboardLayout from "@/layouts/DashboardLayout.vue";
-import { orpc } from "@/services/orpc";
 
-const { isOpen } = useNewProjectDialog();
+const projectStore = useNewProjectDialogStore();
+const { isOpen } = storeToRefs(projectStore);
+const settingsStore = useSettingsStore();
 const { locale } = useI18n();
 
-onMounted(async () => {
-	// Load language
-	try {
-		const settings = await orpc.getAppSettings();
-		if (settings.language) {
-			locale.value = settings.language;
+// Watch for language changes from settings store
+watch(
+	() => settingsStore.language,
+	(newLanguage) => {
+		if (newLanguage) {
+			locale.value = newLanguage;
 		}
-	} catch (err) {
-		console.error("Failed to load language setting", err);
+	},
+);
+
+onMounted(async () => {
+	// Load settings (language will be set via watcher)
+	await settingsStore.loadSettings();
+	if (settingsStore.language) {
+		locale.value = settingsStore.language;
 	}
 
 	const electronAPI = window.electronAPI;

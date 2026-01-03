@@ -45,6 +45,11 @@ export interface ApprovalRequest {
 }
 
 /**
+ * Approval list item (without plan content for list display)
+ */
+export type ApprovalListItem = Omit<ApprovalRequest, "planContent">;
+
+/**
  * Data required to create a new approval request
  */
 export interface CreateApprovalRequest {

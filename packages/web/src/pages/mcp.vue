@@ -30,20 +30,10 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { orpc } from "@/services/orpc";
+import type { McpServerEntry } from "@agent-manager/shared";
 
 const { t } = useI18n();
 
-interface McpServerEntry {
-	name: string;
-	source: "gemini" | "claude-desktop" | "claude-code" | "agent-manager";
-	enabled: boolean;
-	config: {
-		url?: string;
-		command?: string;
-		args?: string[];
-		type?: string;
-	};
-}
 
 interface McpServersBySource {
 	gemini: McpServerEntry[];

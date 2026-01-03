@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Check, Eye, EyeOff, Key, Loader2, Globe } from "lucide-vue-next";
-import { computed, onMounted, ref } from "vue";
+import { onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { watchDebounced } from "@vueuse/core";
 import { Badge } from "@/components/ui/badge";
@@ -15,42 +15,18 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { orpc } from "@/services/orpc";
+import { useSettingsStore, type ApprovalChannel } from "@/stores/settings";
 
 const { t, locale } = useI18n();
+const settingsStore = useSettingsStore();
 
-interface ApiSettings {
-	openaiApiKey?: string;
-	openaiBaseUrl?: string;
-	geminiApiKey?: string;
-	geminiBaseUrl?: string;
-}
-
-type ApprovalChannel = "inbox" | "slack" | "discord";
-
-interface AppSettings {
-	language?: string;
-	notifyOnAgentComplete?: boolean;
-	approvalNotificationChannels?: ApprovalChannel[];
-	newConversionOpenMode?: "page" | "dialog";
-}
-
-const defaultNotifyOnAgentComplete = true;
-
-// API Settings state
-const apiSettings = ref<ApiSettings>({});
-const appSettings = ref<AppSettings>({});
-const apiLoading = ref(false);
-const apiSaving = ref(false);
-const apiSaveSuccess = ref(false);
-
-// Form values for editing
+// Form values for editing (local inputs that get synced to store)
 const openaiApiKeyInput = ref("");
 const openaiBaseUrlInput = ref("");
 const geminiApiKeyInput = ref("");
 const geminiBaseUrlInput = ref("");
 const selectedLanguage = ref("en");
-const notifyOnAgentComplete = ref(defaultNotifyOnAgentComplete);
+const notifyOnAgentComplete = ref(true);
 const approvalNotificationChannels = ref<ApprovalChannel[]>([]);
 const newConversionOpenMode = ref<"page" | "dialog">("page");
 
@@ -58,18 +34,7 @@ const newConversionOpenMode = ref<"page" | "dialog">("page");
 const showOpenaiKey = ref(false);
 const showGeminiKey = ref(false);
 
-// Check if keys are configured
-const hasOpenaiKey = computed(() => apiSettings.value.openaiApiKey === "***");
-const hasGeminiKey = computed(() => apiSettings.value.geminiApiKey === "***");
-
-const normalizeChannels = (channels: ApprovalChannel[] | undefined) =>
-	Array.from(new Set(channels ?? [])).sort();
-
-const areChannelsEqual = (
-	a: ApprovalChannel[],
-	b: ApprovalChannel[],
-): boolean => a.length === b.length && a.every((value, index) => value === b[index]);
-
+// Local helpers
 const isApprovalChannelEnabled = (channel: ApprovalChannel) =>
 	approvalNotificationChannels.value.includes(channel);
 
@@ -83,144 +48,83 @@ const toggleApprovalChannel = (channel: ApprovalChannel, enabled: boolean) => {
 	approvalNotificationChannels.value = Array.from(next);
 };
 
-async function loadSettings() {
-	apiLoading.value = true;
-	try {
-		const [apiData, appData] = await Promise.all([
-			orpc.getApiSettings(),
-			orpc.getAppSettings(),
-		]);
-		apiSettings.value = apiData;
-		appSettings.value = appData;
-		// Initialize inputs with base URLs (keys are masked)
-		openaiBaseUrlInput.value = apiData.openaiBaseUrl || "";
-		geminiBaseUrlInput.value = apiData.geminiBaseUrl || "";
-		
-		// Initialize language
-		if (appData.language) {
-			selectedLanguage.value = appData.language;
-			locale.value = appData.language;
-		} else {
-			selectedLanguage.value = locale.value;
-		}
+// Sync local state from store
+function syncFromStore() {
+	openaiBaseUrlInput.value = settingsStore.apiSettings.openaiBaseUrl || "";
+	geminiBaseUrlInput.value = settingsStore.apiSettings.geminiBaseUrl || "";
+	
+	selectedLanguage.value = settingsStore.language;
+	locale.value = settingsStore.language;
+	
+	notifyOnAgentComplete.value = settingsStore.notifyOnAgentComplete;
+	approvalNotificationChannels.value = [...settingsStore.approvalNotificationChannels];
+	newConversionOpenMode.value = settingsStore.newConversionOpenMode;
+}
 
-		notifyOnAgentComplete.value =
-		notifyOnAgentComplete.value =
-			appData.notifyOnAgentComplete ?? defaultNotifyOnAgentComplete;
-		approvalNotificationChannels.value =
-			appData.approvalNotificationChannels ?? [];
-		newConversionOpenMode.value = appData.newConversionOpenMode || "page";
-	} catch (err) {
-		console.error("Failed to load settings", err);
-	} finally {
-		apiLoading.value = false;
-	}
+async function loadSettings() {
+	await settingsStore.loadSettings();
+	syncFromStore();
 }
 
 async function saveSettings(isAutoSave = false) {
-	apiSaving.value = true;
-	apiSaveSuccess.value = false;
+	const apiUpdates: Record<string, string | undefined> = {};
+	const appUpdates: Record<string, unknown> = {};
+
+	// Only include fields that have been explicitly set
+	if (openaiApiKeyInput.value) {
+		apiUpdates.openaiApiKey = openaiApiKeyInput.value;
+	}
+	if (openaiBaseUrlInput.value !== (settingsStore.apiSettings.openaiBaseUrl || "")) {
+		apiUpdates.openaiBaseUrl = openaiBaseUrlInput.value || undefined;
+	}
+	if (geminiApiKeyInput.value) {
+		apiUpdates.geminiApiKey = geminiApiKeyInput.value;
+	}
+	if (geminiBaseUrlInput.value !== (settingsStore.apiSettings.geminiBaseUrl || "")) {
+		apiUpdates.geminiBaseUrl = geminiBaseUrlInput.value || undefined;
+	}
+	
+	// Update language if changed
+	if (selectedLanguage.value !== settingsStore.appSettings.language) {
+		appUpdates.language = selectedLanguage.value;
+	}
+	if (notifyOnAgentComplete.value !== settingsStore.notifyOnAgentComplete) {
+		appUpdates.notifyOnAgentComplete = notifyOnAgentComplete.value;
+	}
+	
+	const currentChannels = settingsStore.normalizeChannels(
+		settingsStore.appSettings.approvalNotificationChannels,
+	);
+	const nextChannels = settingsStore.normalizeChannels(
+		approvalNotificationChannels.value,
+	);
+	if (!settingsStore.areChannelsEqual(currentChannels, nextChannels)) {
+		appUpdates.approvalNotificationChannels = nextChannels;
+	}
+	if (newConversionOpenMode.value !== settingsStore.newConversionOpenMode) {
+		appUpdates.newConversionOpenMode = newConversionOpenMode.value;
+	}
+
 	try {
-		const apiUpdates: Partial<ApiSettings> = {};
-		const appUpdates: Partial<AppSettings> = {};
-
-		// Only include fields that have been explicitly set
-		if (openaiApiKeyInput.value) {
-			apiUpdates.openaiApiKey = openaiApiKeyInput.value;
+		if (Object.keys(apiUpdates).length > 0) {
+			await settingsStore.updateApiSettings(apiUpdates);
 		}
-		if (openaiBaseUrlInput.value !== (apiSettings.value.openaiBaseUrl || "")) {
-			apiUpdates.openaiBaseUrl = openaiBaseUrlInput.value || undefined;
-		}
-		if (geminiApiKeyInput.value) {
-			apiUpdates.geminiApiKey = geminiApiKeyInput.value;
-		}
-		if (geminiBaseUrlInput.value !== (apiSettings.value.geminiBaseUrl || "")) {
-			apiUpdates.geminiBaseUrl = geminiBaseUrlInput.value || undefined;
-		}
-		
-		// Update language if changed
-		if (selectedLanguage.value !== appSettings.value.language) {
-			appUpdates.language = selectedLanguage.value;
-		}
-		const currentNotifySetting =
-			appSettings.value.notifyOnAgentComplete ?? defaultNotifyOnAgentComplete;
-		if (notifyOnAgentComplete.value !== currentNotifySetting) {
-			appUpdates.notifyOnAgentComplete = notifyOnAgentComplete.value;
-		}
-		const currentApprovalChannels = normalizeChannels(
-			appSettings.value.approvalNotificationChannels,
-		);
-		const nextApprovalChannels = normalizeChannels(
-			approvalNotificationChannels.value,
-		);
-		if (!areChannelsEqual(currentApprovalChannels, nextApprovalChannels)) {
-			appUpdates.approvalNotificationChannels = nextApprovalChannels;
-		}
-		if (
-			newConversionOpenMode.value !== (appSettings.value.newConversionOpenMode || "page")
-		) {
-			appUpdates.newConversionOpenMode = newConversionOpenMode.value;
+		if (Object.keys(appUpdates).length > 0) {
+			await settingsStore.updateAppSettings(appUpdates);
 		}
 
+		// Update locale immediately
+		if (appUpdates.language) {
+			locale.value = appUpdates.language as string;
+		}
 
-		if (
-			Object.keys(apiUpdates).length > 0 ||
-			Object.keys(appUpdates).length > 0
-		) {
-			if (Object.keys(apiUpdates).length > 0) {
-				await orpc.updateApiSettings(apiUpdates);
-			}
-			if (Object.keys(appUpdates).length > 0) {
-				await orpc.updateAppSettings(appUpdates);
-			}
-
-			// Update locale immediately
-			if (appUpdates.language) {
-				locale.value = appUpdates.language;
-			}
-
-			if (isAutoSave) {
-				// Update local state to reflect changes without reloading/clearing inputs
-				if (apiUpdates.openaiApiKey) apiSettings.value.openaiApiKey = "***";
-				if (apiUpdates.geminiApiKey) apiSettings.value.geminiApiKey = "***";
-				if (apiUpdates.openaiBaseUrl !== undefined) {
-					apiSettings.value.openaiBaseUrl = apiUpdates.openaiBaseUrl;
-				}
-				if (apiUpdates.geminiBaseUrl !== undefined) {
-					apiSettings.value.geminiBaseUrl = apiUpdates.geminiBaseUrl;
-				}
-				if (appUpdates.language) {
-					appSettings.value.language = appUpdates.language;
-				}
-				if (appUpdates.notifyOnAgentComplete !== undefined) {
-					appSettings.value.notifyOnAgentComplete =
-						appUpdates.notifyOnAgentComplete;
-				}
-				if (appUpdates.approvalNotificationChannels !== undefined) {
-					appSettings.value.approvalNotificationChannels =
-						appUpdates.approvalNotificationChannels;
-				}
-				if (appUpdates.newConversionOpenMode) {
-					appSettings.value.newConversionOpenMode =
-						appUpdates.newConversionOpenMode;
-				}
-			} else {
-				// Clear key inputs after manual save
-				openaiApiKeyInput.value = "";
-				geminiApiKeyInput.value = "";
-				// Reload to get updated state
-				await loadSettings();
-			}
-			
-			apiSaveSuccess.value = true;
-			setTimeout(() => {
-				apiSaveSuccess.value = false;
-			}, 2000);
+		if (!isAutoSave) {
+			// Clear key inputs after manual save
+			openaiApiKeyInput.value = "";
+			geminiApiKeyInput.value = "";
 		}
 	} catch (err) {
 		console.error("Failed to save settings", err);
-	} finally {
-		apiSaving.value = false;
 	}
 }
 
@@ -243,28 +147,30 @@ watchDebounced(
 );
 
 async function clearOpenaiKey() {
-	apiSaving.value = true;
-	try {
-		await orpc.updateApiSettings({ openaiApiKey: "" });
-		await loadSettings();
-	} finally {
-		apiSaving.value = false;
-	}
+	await settingsStore.clearApiKey("openai");
 }
 
 async function clearGeminiKey() {
-	apiSaving.value = true;
-	try {
-		await orpc.updateApiSettings({ geminiApiKey: "" });
-		await loadSettings();
-	} finally {
-		apiSaving.value = false;
-	}
+	await settingsStore.clearApiKey("gemini");
 }
 
 onMounted(() => {
-	loadSettings();
+	if (settingsStore.isLoaded) {
+		syncFromStore();
+	} else {
+		loadSettings();
+	}
 });
+
+// Watch for external store changes
+watch(
+	() => settingsStore.isLoaded,
+	(isLoaded) => {
+		if (isLoaded) {
+			syncFromStore();
+		}
+	},
+);
 </script>
 
 <template>
@@ -407,7 +313,7 @@ onMounted(() => {
         {{ t('settings.apiSettingsDesc') }}
       </p>
 
-      <div v-if="apiLoading" class="flex items-center gap-2 text-muted-foreground">
+      <div v-if="settingsStore.isLoading" class="flex items-center gap-2 text-muted-foreground">
         <Loader2 class="size-4 animate-spin" />
         {{ t('settings.loading') }}
       </div>
@@ -418,7 +324,7 @@ onMounted(() => {
           <CardHeader>
             <div class="flex items-center justify-between">
               <CardTitle class="text-base">{{ t('settings.openai.title') }}</CardTitle>
-              <Badge v-if="hasOpenaiKey" variant="secondary" class="text-green-600">
+              <Badge v-if="settingsStore.hasOpenaiKey" variant="secondary" class="text-green-600">
                 <Check class="size-3 mr-1" />
                 {{ t('settings.openai.configured') }}
               </Badge>
@@ -436,7 +342,7 @@ onMounted(() => {
                   <Input
                     v-model="openaiApiKeyInput"
                     :type="showOpenaiKey ? 'text' : 'password'"
-                    :placeholder="hasOpenaiKey ? '••••••••••••••••' : 'sk-...'"
+                    :placeholder="settingsStore.hasOpenaiKey ? '••••••••••••••••' : 'sk-...'"
                   />
                   <button
                     type="button"
@@ -448,11 +354,11 @@ onMounted(() => {
                   </button>
                 </div>
                 <Button
-                  v-if="hasOpenaiKey"
+                  v-if="settingsStore.hasOpenaiKey"
                   variant="destructive"
                   size="sm"
                   @click="clearOpenaiKey"
-                  :disabled="apiSaving"
+                  :disabled="settingsStore.isSaving"
                 >
                   {{ t('general.clear') }}
                 </Button>
@@ -477,7 +383,7 @@ onMounted(() => {
           <CardHeader>
             <div class="flex items-center justify-between">
               <CardTitle class="text-base">{{ t('settings.gemini.title') }}</CardTitle>
-              <Badge v-if="hasGeminiKey" variant="secondary" class="text-green-600">
+              <Badge v-if="settingsStore.hasGeminiKey" variant="secondary" class="text-green-600">
                 <Check class="size-3 mr-1" />
                 {{ t('settings.gemini.configured') }}
               </Badge>
@@ -495,7 +401,7 @@ onMounted(() => {
                   <Input
                     v-model="geminiApiKeyInput"
                     :type="showGeminiKey ? 'text' : 'password'"
-                    :placeholder="hasGeminiKey ? '••••••••••••••••' : 'AIza...'"
+                    :placeholder="settingsStore.hasGeminiKey ? '••••••••••••••••' : 'AIza...'"
                   />
                   <button
                     type="button"
@@ -507,11 +413,11 @@ onMounted(() => {
                   </button>
                 </div>
                 <Button
-                  v-if="hasGeminiKey"
+                  v-if="settingsStore.hasGeminiKey"
                   variant="destructive"
                   size="sm"
                   @click="clearGeminiKey"
-                  :disabled="apiSaving"
+                  :disabled="settingsStore.isSaving"
                 >
                   {{ t('general.clear') }}
                 </Button>
@@ -533,10 +439,10 @@ onMounted(() => {
       </div>
 
       <div class="flex items-center gap-4">
-        <Button @click="saveSettings" :disabled="apiSaving || apiLoading">
-          <Loader2 v-if="apiSaving" class="size-4 mr-2 animate-spin" />
-          <Check v-else-if="apiSaveSuccess" class="size-4 mr-2" />
-          {{ apiSaveSuccess ? t('general.saved') : t('settings.saveButton') }}
+        <Button @click="saveSettings(false)" :disabled="settingsStore.isSaving || settingsStore.isLoading">
+          <Loader2 v-if="settingsStore.isSaving" class="size-4 mr-2 animate-spin" />
+          <Check v-else-if="settingsStore.saveSuccess" class="size-4 mr-2" />
+          {{ settingsStore.saveSuccess ? t('general.saved') : t('settings.saveButton') }}
         </Button>
       </div>
     </div>

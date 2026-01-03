@@ -1,7 +1,7 @@
 import type { AgentStatePayload, AgentStateValue } from "@agent-manager/shared";
 import { BrowserWindow, Notification } from "electron";
 import { unifiedAgentManager } from "../agents";
-import { store } from "../store";
+import { store } from "../store/file-store";
 import { publishAgentState } from "./agent-state-port";
 
 const lastStateBySession = new Map<string, AgentStateValue>();

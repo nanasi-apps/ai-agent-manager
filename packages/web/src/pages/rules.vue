@@ -15,14 +15,10 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { orpc } from "@/services/orpc";
+import type { GlobalRule } from "@agent-manager/shared";
 
 const { t } = useI18n();
 
-interface GlobalRule {
-	id: string;
-	name: string;
-	content?: string;
-}
 
 const rules = ref<GlobalRule[]>([]);
 const selectedRule = ref<GlobalRule | null>(null);

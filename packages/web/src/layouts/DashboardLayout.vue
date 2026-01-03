@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { NewConversionDialog, ChatDialog } from "@/components/dialogs";
+import NewConversionDialog from "@/components/dialogs/NewConversionDialog.vue";
+import ChatDialog from "@/components/dialogs/ChatDialog.vue";
 import AppSidebar from "@/components/layout/AppSidebar.vue";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 </script>

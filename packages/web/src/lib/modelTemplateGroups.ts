@@ -1,4 +1,4 @@
-import type { ModelTemplate } from "@/composables/useConversation";
+import type { ModelTemplate } from "@/stores/conversation";
 
 export interface ModelTemplateGroup {
 	agentType: string;

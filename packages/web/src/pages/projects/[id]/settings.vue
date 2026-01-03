@@ -10,12 +10,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { MIN_LOAD_TIME } from "@/lib/constants";
 import { getRouteParamFrom } from "@/lib/route-params";
 import { orpc } from "@/services/orpc";
+import type { ProjectRule } from "@agent-manager/shared";
 
-interface ProjectRule {
-	id: string;
-	name: string;
-	content: string;
-}
 
 const route = useRoute();
 const router = useRouter();

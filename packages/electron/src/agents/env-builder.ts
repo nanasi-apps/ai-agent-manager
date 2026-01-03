@@ -1,5 +1,5 @@
 import { getSessionMcpServersLogic, HARDCODED_MODELS } from "@agent-manager/shared";
-import { store } from "../store";
+import { store } from "../store/file-store";
 import { getEnhancedEnv } from "../utils/path-enhancer";
 import { prepareClaudeEnv, prepareGeminiEnv } from "./env-utils";
 import type { SessionState } from "./types";

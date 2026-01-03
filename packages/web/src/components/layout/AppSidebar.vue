@@ -39,13 +39,33 @@ import {
 	SidebarMenuSubItem,
 	useSidebar,
 } from "@/components/ui/sidebar";
-import { useNewConversionDialog } from "@/composables/useNewConversionDialog";
-import { orpc } from "@/services/orpc";
+import { useNewConversionDialogStore } from "@/stores/newConversionDialog";
+import { useSettingsStore } from "@/stores/settings";
+import { useProjectsStore } from "@/stores/projects";
 import { onAgentStateChangedPort } from "@/services/agent-state-port";
 
 const { t } = useI18n();
 
-const projects = ref<ProjectWithConversations[]>([]);
+const router = useRouter();
+const route = useRoute();
+const activeItem = ref("dashboard");
+const isProjectDialogOpen = ref(false);
+
+const settingsStore = useSettingsStore();
+const projectsStore = useProjectsStore();
+
+const newConversionDialogStore = useNewConversionDialogStore();
+const { open: openNewConversionDialog } = newConversionDialogStore;
+
+const openNewConversion = (projectId: string) => {
+  if (settingsStore.newConversionOpenMode === 'dialog'){
+    openNewConversionDialog(projectId);
+  } else if (settingsStore.newConversionOpenMode === 'page') {
+    router.push(`/conversions/new?projectId=${projectId}`);
+  } else {
+    openNewConversionDialog(projectId);
+  }
+}
 
 type SidebarItem = {
   id: string;
@@ -77,81 +97,34 @@ const navItems = computed<SidebarItem[]>(() => [
 	},
 ]);
 
-// Projects data
-interface ProjectWithConversations {
-	id: string;
-	name: string;
-	conversations: {
-		id: string;
-		title: string;
-		isRunning?: boolean;
-	}[];
-}
+// Sidebar projects computed from store
+const sidebarProjects = computed(() => 
+	projectsStore.projectsWithConversations.map((p) => ({
+		id: p.id,
+		name: p.name,
+		conversations: p.conversations.map((c) => ({
+			id: c.id,
+			title: c.title,
+			isRunning: c.isProcessing ?? false,
+		})),
+	}))
+);
 
-const router = useRouter();
-const route = useRoute();
-const activeItem = ref("dashboard");
-const isProjectDialogOpen = ref(false);
-
-const appSettingsRes = ref<any>({});
-
-const { open: openNewConversionDialog } = useNewConversionDialog();
-
-const openNewConversion = (projectId: string) => {
-  if (appSettingsRes.value.newConversionOpenMode === 'dialog'){
-    openNewConversionDialog(projectId);
-  } else if (appSettingsRes.value.newConversionOpenMode === 'page') {
-    router.push(`/conversions/new?projectId=${projectId}`);
-  } else {
-    openNewConversionDialog(projectId);
-  }
-  
-}
-
-const refreshData = async () => {
-	try {
-		const [fetchedProjects, fetchedConversations] = await Promise.all([
-			orpc.listProjects(),
-			orpc.listConversations({}),
-		]);
-
-		projects.value = fetchedProjects.map((p: { id: string; name: string }) => ({
-			id: p.id,
-			name: p.name,
-			conversations: fetchedConversations
-				.filter((c: { projectId: string }) => c.projectId === p.id)
-				.sort((a: any, b: any) => (b.updatedAt || 0) - (a.updatedAt || 0))
-				.map((c: { id: string; title: string; isProcessing?: boolean }) => ({
-					id: c.id,
-					title: c.title,
-					isRunning: c.isProcessing ?? false,
-				})),
-		}));
-	} catch (e) {
-		console.error("Failed to fetch sidebar data", e);
-	}
-};
-
-let refreshInterval: any = null;
+let refreshInterval: ReturnType<typeof setInterval> | null = null;
 let stateChangeUnsubscribe: (() => void) | null = null;
 
 onMounted(async () => {
-    try {
-        appSettingsRes.value = await orpc.getAppSettings();
-    } catch (e) {
-        console.error("Failed to fetch app settings", e);
-    }
-	refreshData();
-	window.addEventListener("agent-manager:data-change", refreshData);
-	refreshInterval = setInterval(refreshData, 3000);
+	projectsStore.loadAll();
+	window.addEventListener("agent-manager:data-change", () => projectsStore.loadAll(true));
+	refreshInterval = setInterval(() => projectsStore.loadAll(true), 3000);
 	
 	stateChangeUnsubscribe = onAgentStateChangedPort(() => {
-		refreshData();
+		projectsStore.loadAll(true);
 	});
 });
 
 onUnmounted(() => {
-	window.removeEventListener("agent-manager:data-change", refreshData);
+	window.removeEventListener("agent-manager:data-change", () => projectsStore.loadAll(true));
 	if (refreshInterval) clearInterval(refreshInterval);
 	if (stateChangeUnsubscribe) stateChangeUnsubscribe();
 });
@@ -293,7 +266,7 @@ function handleMouseUp() {
         <SidebarGroupContent>
           <SidebarMenu>
              <Collapsible 
-               v-for="project in projects" 
+               v-for="project in sidebarProjects" 
                :key="project.id" 
                as-child 
                :default-open="true" 
@@ -439,7 +412,7 @@ function handleMouseUp() {
   <NewProjectDialog 
     :open="isProjectDialogOpen" 
     @update:open="isProjectDialogOpen = $event"
-    @created="refreshData"
+    @created="() => projectsStore.loadAll(true)"
   />
 </template>
 

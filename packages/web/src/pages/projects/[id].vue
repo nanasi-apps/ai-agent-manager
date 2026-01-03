@@ -16,14 +16,15 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { useNewConversionDialog } from "@/composables/useNewConversionDialog";
+import { useNewConversionDialogStore } from "@/stores/newConversionDialog";
 import { MIN_LOAD_TIME } from "@/lib/constants";
 import { getRouteParamFrom } from "@/lib/route-params";
 import { orpc } from "@/services/orpc";
 
 const route = useRoute();
 const router = useRouter();
-const { open } = useNewConversionDialog();
+const newConversionDialogStore = useNewConversionDialogStore();
+const { open } = newConversionDialogStore;
 
 // Safely access route param
 const projectId = computed(() => getRouteParamFrom(route.params, "id"));

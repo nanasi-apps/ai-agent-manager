@@ -66,6 +66,12 @@ export interface ProjectRule {
 	content: string;
 }
 
+export interface GlobalRule {
+	id: string;
+	name: string;
+	content?: string;
+}
+
 /**
  * Resource Lock
  * Used to coordinate access to files or logical resources between agents

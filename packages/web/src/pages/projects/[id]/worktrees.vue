@@ -26,26 +26,11 @@ import {
 } from "@/components/ui/table";
 import { getRouteParamFrom } from "@/lib/route-params";
 import { orpc } from "@/services/orpc";
+import type { Worktree, WorktreeCommit } from "@agent-manager/shared";
 
 const route = useRoute();
 const projectId = computed(() => getRouteParamFrom(route.params, "id"));
 
-interface Worktree {
-	id: string;
-	path: string;
-	branch: string;
-	isMain: boolean;
-	isLocked: boolean;
-	prunable: string | null;
-}
-
-interface WorktreeCommit {
-	hash: string;
-	shortHash: string;
-	author: string;
-	date: string;
-	subject: string;
-}
 
 const worktrees = ref<Worktree[]>([]);
 const isLoading = ref(false);

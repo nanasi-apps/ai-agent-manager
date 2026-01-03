@@ -11,26 +11,9 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import type { McpServerEntry, McpTool } from "@/composables/useConversation";
+import { useConversationStore, type McpServerEntry, type McpTool } from "@/stores/conversation";
 
-const props = defineProps<{
-	isOpen: boolean;
-	isLoading: boolean;
-	sessionServers: McpServerEntry[];
-	globalServers: McpServerEntry[];
-	agentType?: string;
-	expandedServer: string | null;
-	serverTools: McpTool[];
-	isLoadingTools: boolean;
-	toolsError: string | null;
-	disabledTools: Set<string>;
-}>();
-
-const emit = defineEmits<{
-	(e: "close"): void;
-	(e: "toggleServer", server: McpServerEntry): void;
-	(e: "toggleTool", server: McpServerEntry, tool: McpTool): void;
-}>();
+const conversation = useConversationStore();
 
 const getMcpConnectionInfo = (server: McpServerEntry) => {
 	if (server.config.url) {
@@ -44,14 +27,26 @@ const getMcpConnectionInfo = (server: McpServerEntry) => {
 };
 
 const isToolDisabled = (server: McpServerEntry, tool: McpTool) => {
-	return props.disabledTools.has(`${server.name}-${tool.name}`);
+	return conversation.disabledMcpTools.has(`${server.name}-${tool.name}`);
 };
 
 const getServerKey = (server: McpServerEntry) =>
 	`${server.source}-${server.name}`;
 
 const isServerExpanded = (server: McpServerEntry) => {
-	return props.expandedServer === getServerKey(server);
+	return conversation.expandedMcpServer === getServerKey(server);
+};
+
+const handleClose = () => {
+	conversation.isMcpSheetOpen = false;
+};
+
+const handleToggleServer = (server: McpServerEntry) => {
+	conversation.toggleMcpServer(server);
+};
+
+const handleToggleTool = async (server: McpServerEntry, tool: McpTool) => {
+	await conversation.handleToolClick(server, tool);
 };
 </script>
 
@@ -60,18 +55,18 @@ const isServerExpanded = (server: McpServerEntry) => {
 		<div class="flex items-center gap-2 font-semibold text-sm">
 			<Plug class="size-4" />
 			MCP Servers
-			<Badge v-if="agentType" variant="outline" class="text-[10px] h-5 ml-1">
-				{{ agentType }}
+			<Badge v-if="conversation.mcpAgentType" variant="outline" class="text-[10px] h-5 ml-1">
+				{{ conversation.mcpAgentType }}
 			</Badge>
 		</div>
-		<Button variant="ghost" size="icon" class="size-7" @click="emit('close')">
+		<Button variant="ghost" size="icon" class="size-7" @click="handleClose">
 			<X class="size-4" />
 		</Button>
 	</div>
 
 	<ScrollArea class="flex-1 min-h-0 h-full">
 		<div class="p-4 space-y-6">
-			<div v-if="isLoading" class="flex items-center justify-center py-8">
+			<div v-if="conversation.isLoadingMcp" class="flex items-center justify-center py-8">
 				<Loader2 class="size-6 animate-spin text-muted-foreground" />
 			</div>
 
@@ -83,17 +78,17 @@ const isServerExpanded = (server: McpServerEntry) => {
 						Injected Servers
 					</h3>
 					<div
-						v-if="sessionServers.length === 0"
+						v-if="conversation.sessionMcpServers.length === 0"
 						class="text-sm text-muted-foreground italic pl-6"
 					>
 						No injected servers for this session.
 					</div>
 					<div v-else class="space-y-2">
 						<div
-							v-for="server in sessionServers"
+							v-for="server in conversation.sessionMcpServers"
 							:key="`session-${server.name}`"
 							class="p-3 rounded-lg border bg-card cursor-pointer hover:border-primary/50 transition-colors"
-							@click="emit('toggleServer', server)"
+							@click="handleToggleServer(server)"
 						>
 							<div class="flex items-center justify-between">
 								<div class="flex items-center gap-2">
@@ -118,26 +113,26 @@ const isServerExpanded = (server: McpServerEntry) => {
 									class="mt-3 border-primary/20 space-y-2 py-1"
 									@click.stop
 								>
-									<div v-if="isLoadingTools" class="flex items-center gap-2 py-2">
+									<div v-if="conversation.isLoadingMcpTools" class="flex items-center gap-2 py-2">
 										<Loader2 class="size-3 animate-spin text-muted-foreground" />
 										<span class="text-xs text-muted-foreground">Loading tools...</span>
 									</div>
-									<div v-else-if="toolsError" class="text-xs text-red-500 py-2">
-										{{ toolsError }}
+									<div v-else-if="conversation.mcpToolsError" class="text-xs text-red-500 py-2">
+										{{ conversation.mcpToolsError }}
 									</div>
 									<div
-										v-else-if="serverTools.length === 0"
+										v-else-if="conversation.mcpServerTools.length === 0"
 										class="text-xs text-muted-foreground py-2 italic"
 									>
 										No tools found.
 									</div>
 									<div v-else class="grid gap-2">
 										<div
-											v-for="tool in serverTools"
+											v-for="tool in conversation.mcpServerTools"
 											:key="tool.name"
 											class="group/tool bg-muted/20 rounded p-2 border border-transparent hover:border-border transition-colors cursor-pointer select-none"
 											:class="{ 'opacity-50 grayscale': isToolDisabled(server, tool) }"
-											@click="emit('toggleTool', server, tool)"
+											@click="handleToggleTool(server, tool)"
 										>
 											<div class="flex items-center justify-between gap-2 overflow-hidden">
 												<span
@@ -167,17 +162,17 @@ const isServerExpanded = (server: McpServerEntry) => {
 						Global Servers
 					</h3>
 					<div
-						v-if="globalServers.length === 0"
+						v-if="conversation.globalMcpServers.length === 0"
 						class="text-sm text-muted-foreground italic pl-6"
 					>
 						No global servers configured.
 					</div>
 					<div v-else class="space-y-2">
 						<div
-							v-for="server in globalServers"
+							v-for="server in conversation.globalMcpServers"
 							:key="`global-${server.name}`"
 							class="p-3 rounded-lg border bg-muted/30 cursor-pointer hover:border-primary/50 transition-colors"
-							@click="emit('toggleServer', server)"
+							@click="handleToggleServer(server)"
 						>
 							<div class="flex items-center justify-between">
 								<div class="flex items-center gap-2">
@@ -202,22 +197,22 @@ const isServerExpanded = (server: McpServerEntry) => {
 									class="mt-3 space-y-2 py-1"
 									@click.stop
 								>
-									<div v-if="isLoadingTools" class="flex items-center gap-2 py-2">
+									<div v-if="conversation.isLoadingMcpTools" class="flex items-center gap-2 py-2">
 										<Loader2 class="size-3 animate-spin text-muted-foreground" />
 										<span class="text-xs text-muted-foreground">Loading tools...</span>
 									</div>
-									<div v-else-if="toolsError" class="text-xs text-red-500 py-2">
-										{{ toolsError }}
+									<div v-else-if="conversation.mcpToolsError" class="text-xs text-red-500 py-2">
+										{{ conversation.mcpToolsError }}
 									</div>
 									<div
-										v-else-if="serverTools.length === 0"
+										v-else-if="conversation.mcpServerTools.length === 0"
 										class="text-xs text-muted-foreground py-2 italic"
 									>
 										No tools found.
 									</div>
 									<div v-else class="grid gap-2">
 										<div
-											v-for="tool in serverTools"
+											v-for="tool in conversation.mcpServerTools"
 											:key="tool.name"
 											class="group/tool bg-muted/20 rounded p-2 border border-transparent hover:border-border transition-colors"
 										>

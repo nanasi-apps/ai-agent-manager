@@ -5,7 +5,7 @@ import { createActor, type SnapshotFrom } from "xstate";
 import type { WorktreeResumeRequest } from "./agent-manager";
 import { isAgentType } from "./agent-type-utils";
 import { DriverResolver } from "./driver-resolver";
-import type { AgentDriver, AgentDriverContext } from "./drivers";
+import type { AgentDriver, AgentDriverContext } from "./drivers/interface";
 import { EnvBuilder } from "./env-builder";
 import { type AgentContext, agentMachine } from "./machines/agent-machine";
 import { AgentOutputParser } from "./output-parser";

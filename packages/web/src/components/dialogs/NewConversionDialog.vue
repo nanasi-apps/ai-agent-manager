@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { AgentMode, ReasoningLevel } from "@agent-manager/shared";
+import type { AgentMode, Project, ReasoningLevel } from "@agent-manager/shared";
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { Button } from "@/components/ui/button";
@@ -12,23 +12,20 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import type { ModelTemplate } from "@/composables/useConversation";
-
-import { useNewConversionDialog } from "@/composables/useNewConversionDialog";
+import { storeToRefs } from "pinia";
+import { useNewConversionDialogStore } from "@/stores/newConversionDialog";
+import type { ModelTemplate } from "@/stores/conversation";
 import { groupModelTemplates } from "@/lib/modelTemplateGroups";
 import { getRouteParamFrom } from "@/lib/route-params";
 import { orpc } from "@/services/orpc";
 
-interface Project {
-	id: string;
-	name: string;
-}
 
+const newConversionDialogStore = useNewConversionDialogStore();
 const {
 	isOpen,
-	close,
 	projectId: preselectedProjectId,
-} = useNewConversionDialog();
+} = storeToRefs(newConversionDialogStore);
+const { close } = newConversionDialogStore;
 
 const router = useRouter();
 const route = useRoute();

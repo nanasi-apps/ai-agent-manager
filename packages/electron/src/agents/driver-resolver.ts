@@ -1,10 +1,8 @@
 import type { AgentConfig } from "@agent-manager/shared";
-import {
-	type AgentDriver,
-	ClaudeDriver,
-	CodexDriver,
-	GeminiDriver,
-} from "./drivers";
+import type { AgentDriver } from "./drivers/interface";
+import { ClaudeDriver } from "./drivers/claude";
+import { CodexDriver } from "./drivers/codex";
+import { GeminiDriver } from "./drivers/gemini";
 
 /**
  * Resolves the appropriate agent driver based on configuration.

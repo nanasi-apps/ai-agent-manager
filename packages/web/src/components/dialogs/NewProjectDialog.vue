@@ -10,6 +10,7 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { useProjectsStore } from "@/stores/projects";
 import { orpc } from "@/services/orpc";
 
 const props = defineProps<{
@@ -20,6 +21,8 @@ const emit = defineEmits<{
 	(e: "update:open", value: boolean): void;
 	(e: "created"): void;
 }>();
+
+const projectsStore = useProjectsStore();
 
 const name = ref("");
 const rootPath = ref("");
@@ -47,10 +50,7 @@ const handleCreate = async () => {
 
 	isLoading.value = true;
 	try {
-		await orpc.createProject({
-			name: trimmedName,
-			rootPath: trimmedRoot,
-		});
+		await projectsStore.createProject(trimmedName, trimmedRoot);
 		window.dispatchEvent(new Event("agent-manager:data-change"));
 		emit("created");
 		emit("update:open", false);

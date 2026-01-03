@@ -24,46 +24,22 @@ import {
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useMarkdown } from "@/composables/useMarkdown";
+import { renderMarkdown } from "@/lib/markdown";
+import type { ApprovalListItem, ApprovalRequest, ApprovalStatus, ModelTemplate } from "@agent-manager/shared";
 import { orpc } from "@/services/orpc";
 
-interface ModelTemplate {
-	id: string;
-	name: string;
-	agentType: string;
-	agentName: string;
-	model?: string;
-}
-
-interface ApprovalItem {
-	id: string;
-	sessionId: string;
-	projectId: string;
-	planSummary: string;
-	status: "pending" | "approved" | "rejected" | "expired";
-	channel: "inbox" | "slack" | "discord";
-	createdAt: number;
-	updatedAt: number;
-}
-
-interface ApprovalDetail {
-	id: string;
-	planContent: string;
-	planSummary: string;
-	status: "pending" | "approved" | "rejected" | "expired";
-}
 
 const { t } = useI18n();
 const router = useRouter();
-const { renderMarkdown } = useMarkdown();
+
 
 // State
 const isLoading = ref(true);
-const approvals = ref<ApprovalItem[]>([]);
+const approvals = ref<ApprovalListItem[]>([]);
 const modelTemplates = ref<ModelTemplate[]>([]);
 
 // Dialog state
-const selectedApproval = ref<ApprovalDetail | null>(null);
+const selectedApproval = ref<ApprovalRequest | null>(null);
 const isDialogOpen = ref(false);
 const isLoadingDetail = ref(false);
 const isProcessing = ref(false);
@@ -99,7 +75,7 @@ const formatDate = (timestamp: number) => {
 	});
 };
 
-const getStatusBadge = (status: ApprovalItem["status"]) => {
+const getStatusBadge = (status: ApprovalStatus) => {
 	switch (status) {
 		case "pending":
 			return { variant: "secondary" as const, label: t("inbox.status.pending", "Pending") };
@@ -135,7 +111,7 @@ const loadModelTemplates = async () => {
 	}
 };
 
-const openApprovalDetail = async (item: ApprovalItem) => {
+const openApprovalDetail = async (item: ApprovalListItem) => {
 	isDialogOpen.value = true;
 	isLoadingDetail.value = true;
 	selectedApproval.value = null;

@@ -1,70 +1,24 @@
 <script setup lang="ts">
 import { Loader2, MessageSquare } from "lucide-vue-next";
-import { onMounted, ref } from "vue";
+import { onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import ConversionCard from "@/components/ConversionCard.vue";
-import { MIN_LOAD_TIME } from "@/lib/constants";
-import { orpc } from "@/services/orpc";
+import { useProjectsStore } from "@/stores/projects";
 
 const { t } = useI18n();
-// Project from API - user-created projects
-interface UserProject {
-	id: string;
-	name: string;
-	description?: string;
-	createdAt: number;
-	updatedAt: number;
-}
-
-interface Conversation {
-	id: string;
-	projectId: string;
-	title: string;
-	createdAt: number;
-	updatedAt: number;
-	isProcessing?: boolean;
-}
-
 const router = useRouter();
-
-const userProjects = ref<UserProject[]>([]);
-const recentConversations = ref<Conversation[]>([]);
-const isLoading = ref(true);
-
-const loadData = async () => {
-	isLoading.value = true;
-	const minLoadTime = new Promise((resolve) =>
-		setTimeout(resolve, MIN_LOAD_TIME),
-	);
-	try {
-		const [projectsData, conversationsData] = await Promise.all([
-			orpc.listProjects({}),
-			orpc.listConversations({}),
-		]);
-		userProjects.value = projectsData;
-		// Get most recent 5 conversations
-		recentConversations.value = conversationsData
-			.sort((a: Conversation, b: Conversation) => b.updatedAt - a.updatedAt)
-			.slice(0, 10); // Show more recent conversions if it's the main focus
-	} catch (err) {
-		console.error("Failed to load data:", err);
-	} finally {
-		await minLoadTime;
-		isLoading.value = false;
-	}
-};
+const projectsStore = useProjectsStore();
 
 const openConversation = (id: string) => {
 	router.push(`/conversions/${id}`);
 };
 
-const getProjectName = (projectId: string) => {
-	return userProjects.value.find((p) => p.id === projectId)?.name || projectId;
-};
-
 onMounted(() => {
-	loadData();
+	// Only load if not already loaded or if data is stale
+	if (!projectsStore.isLoaded) {
+		projectsStore.loadAll();
+	}
 });
 </script>
 
@@ -79,21 +33,21 @@ onMounted(() => {
     <!-- Loading State -->
     <Transition name="fade" mode="out-in">
       <!-- Loading State -->
-      <div v-if="isLoading" class="flex items-center justify-center py-20">
+      <div v-if="projectsStore.isLoading && !projectsStore.isLoaded" class="flex items-center justify-center py-20">
         <Loader2 class="size-8 animate-spin text-muted-foreground" />
       </div>
 
       <div v-else>
         <!-- Recent Conversations -->
-        <section v-if="recentConversations.length > 0" class="space-y-4">
+        <section v-if="projectsStore.recentConversations.length > 0" class="space-y-4">
           <h2 class="text-xl font-semibold">{{ t('dashboard.recentConversations') }}</h2>
           
           <div class="space-y-2">
             <ConversionCard
-              v-for="conv in recentConversations"
+              v-for="conv in projectsStore.recentConversations"
               :key="conv.id"
               :title="conv.title"
-              :project-name="getProjectName(conv.projectId)"
+              :project-name="projectsStore.getProjectName(conv.projectId)"
               :updated-at="conv.updatedAt"
               :is-running="conv.isProcessing"
               @click="openConversation(conv.id)"

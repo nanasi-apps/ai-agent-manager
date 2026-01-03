@@ -1,6 +1,7 @@
 // Types
 
 export type { AppRouter, IAgentManager } from "./router";
+export type { McpServerEntry } from "./router/mcp";
 
 // Router
 export {

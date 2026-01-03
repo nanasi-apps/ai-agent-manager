@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 import type { AgentConfig, AgentLogPayload } from "@agent-manager/shared";
-import { store } from "../store";
+import { store } from "../store/file-store";
 import type { IAgentManager, WorktreeResumeRequest } from "./agent-manager";
 import { OneShotSession } from "./one-shot-session";
 import type { AgentStateChangePayload } from "./types";

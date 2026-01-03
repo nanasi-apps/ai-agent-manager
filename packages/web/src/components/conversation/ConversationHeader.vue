@@ -1,22 +1,13 @@
 <script setup lang="ts">
 import { FileText, GitBranch, Plug } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
+import { useConversationStore } from "@/stores/conversation";
 
-const props = defineProps<{
-	titleDraft: string;
-	isSavingTitle: boolean;
-	isConnected: boolean;
-	currentBranch: string | null;
-	isMcpSheetOpen: boolean;
-	isPlanViewerOpen: boolean;
-}>();
+const conversation = useConversationStore();
 
-const emit = defineEmits<{
-	(e: "update:titleDraft", value: string): void;
-	(e: "saveTitle"): void;
-	(e: "toggleMcp"): void;
-	(e: "togglePlanViewer"): void;
-}>();
+const handleSaveTitle = async () => {
+	await conversation.saveTitle();
+};
 </script>
 
 <template>
@@ -26,31 +17,30 @@ const emit = defineEmits<{
 		<div class="flex items-center gap-3">
 			<div>
 				<input
-					:value="titleDraft"
-					@input="emit('update:titleDraft', ($event.target as HTMLInputElement).value)"
+					v-model="conversation.titleDraft"
 					class="text-base font-semibold bg-transparent border border-transparent hover:border-input focus:border-input rounded-md px-2 -ml-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring focus:bg-accent/50 transition-all max-w-[320px] truncate"
 					placeholder="Session name"
-					:disabled="isSavingTitle"
-					@blur="emit('saveTitle')"
-					@keydown.enter.prevent="emit('saveTitle')"
+					:disabled="conversation.isSavingTitle"
+					@blur="handleSaveTitle"
+					@keydown.enter.prevent="handleSaveTitle"
 				/>
 				<div class="flex items-center gap-2">
 					<div class="flex items-center gap-1.5">
 						<span
 							class="size-1.5 rounded-full"
-							:class="isConnected ? 'bg-green-500' : 'bg-red-500'"
+							:class="conversation.isConnected ? 'bg-green-500' : 'bg-red-500'"
 						/>
 						<span class="text-xs text-muted-foreground">{{
-							isConnected ? "Connected" : "Disconnected"
+							conversation.isConnected ? "Connected" : "Disconnected"
 						}}</span>
 					</div>
 
 					<div
-						v-if="currentBranch"
+						v-if="conversation.currentBranch"
 						class="flex items-center gap-1 px-2 py-0.5 rounded-full bg-accent/50 text-[10px] text-muted-foreground border"
 					>
 						<GitBranch class="size-3" />
-						<span class="font-mono max-w-[150px] truncate">{{ currentBranch }}</span>
+						<span class="font-mono max-w-[150px] truncate">{{ conversation.currentBranch }}</span>
 					</div>
 				</div>
 			</div>
@@ -61,8 +51,8 @@ const emit = defineEmits<{
 				variant="ghost"
 				size="icon"
 				class="h-8 w-8 text-muted-foreground"
-				:class="{ 'bg-accent text-accent-foreground': isPlanViewerOpen }"
-				@click="emit('togglePlanViewer')"
+				:class="{ 'bg-accent text-accent-foreground': conversation.isPlanViewerOpen }"
+				@click="conversation.togglePlanViewer"
 				title="View Plan"
 			>
 				<FileText class="size-4" />
@@ -71,8 +61,8 @@ const emit = defineEmits<{
 				variant="ghost"
 				size="icon"
 				class="h-8 w-8 text-muted-foreground"
-				:class="{ 'bg-accent text-accent-foreground': isMcpSheetOpen }"
-				@click="emit('toggleMcp')"
+				:class="{ 'bg-accent text-accent-foreground': conversation.isMcpSheetOpen }"
+				@click="conversation.toggleMcpSheet"
 				title="View MCP Servers"
 			>
 				<Plug class="size-4" />

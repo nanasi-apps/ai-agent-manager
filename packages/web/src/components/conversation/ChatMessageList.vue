@@ -12,25 +12,11 @@ import {
 } from "lucide-vue-next";
 import { useI18n } from "vue-i18n";
 import { Avatar } from "@/components/ui/avatar";
-import type { LogType, Message, ModelTemplate } from "@/composables/useConversation";
-import { useMarkdown } from "@/composables/useMarkdown";
+import { useConversationStore, type LogType, type Message } from "@/stores/conversation";
+import { renderMarkdown } from "@/lib/markdown";
 
 const { t } = useI18n();
-
-const props = defineProps<{
-	messages: Message[];
-	isGenerating: boolean;
-	copiedId: string | null;
-	expandedMessageIds: Set<string>;
-	currentModel?: ModelTemplate;
-}>();
-
-const emit = defineEmits<{
-	(e: "copy", content: string, id: string): void;
-	(e: "toggle", id: string): void;
-}>();
-
-const { renderMarkdown } = useMarkdown();
+const conversation = useConversationStore();
 
 type LogGroup = {
 	id: string;
@@ -55,10 +41,11 @@ const codexLogTypes = new Set<LogType>([
 ]);
 
 const getAgentLabel = () => {
-	if (!props.currentModel) return t('chat.agent');
+	const currentModel = conversation.selectedModelTemplate;
+	if (!currentModel) return t('chat.agent');
 	
-	const modelName = props.currentModel.model || props.currentModel.name;
-	const agentName = props.currentModel.agentName;
+	const modelName = currentModel.model || currentModel.name;
+	const agentName = currentModel.agentName;
 	
 	if (modelName && agentName) {
 		return `${modelName} - ${agentName}`;
@@ -161,6 +148,8 @@ const isGroupLogAlwaysOpen = (msg: Message) => {
 	return msg.logType === "system" || msg.logType === "error";
 };
 
+const isThinkingLog = (logType?: LogType) => logType === "thinking";
+
 const getGroupTitleDetails = (group: LogGroup): GroupTitleDetails => {
 	const thinkingLog = group.logs.find((log) => log.logType === "thinking");
 	if (thinkingLog) {
@@ -210,10 +199,11 @@ const shouldGroupLogs = true;
 
 const displayItems = computed<DisplayItem[]>(() => {
 	const items: DisplayItem[] = [];
-	const messages = props.messages;
+	const messages = conversation.messages;
 
 	for (let i = 0; i < messages.length; i++) {
 		const msg = messages[i];
+		if (!msg) continue;
 		const logType = msg.logType;
 
 		if (
@@ -227,6 +217,7 @@ const displayItems = computed<DisplayItem[]>(() => {
 
 			while (cursor < messages.length) {
 				const current = messages[cursor];
+				if (!current) break;
 				const currentType = current.logType;
 				if (
 					current.role !== "agent" ||
@@ -259,12 +250,20 @@ const displayItems = computed<DisplayItem[]>(() => {
 
 	return items;
 });
+
+const handleCopy = async (content: string, id: string) => {
+	await conversation.copyMessage(content, id);
+};
+
+const handleToggle = (id: string) => {
+	conversation.toggleMessage(id);
+};
 </script>
 
 <template>
 	<div class="flex flex-col gap-2 p-4 max-w-3xl mx-auto">
 		<div
-			v-if="messages.length === 0"
+			v-if="conversation.messages.length === 0"
 			class="flex flex-col items-center justify-center py-20 text-center"
 		>
 			<div
@@ -344,11 +343,11 @@ const displayItems = computed<DisplayItem[]>(() => {
 
 							<!-- Copy Button -->
 							<button
-								@click.stop="emit('copy', item.message.content, item.message.id)"
+								@click.stop="handleCopy(item.message.content, item.message.id)"
 								class="absolute top-2 right-2 size-7 rounded-lg bg-background/80 border opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center hover:bg-muted"
 							>
 								<Check
-									v-if="copiedId === item.message.id"
+									v-if="conversation.copiedId === item.message.id"
 									class="size-3.5 text-green-500"
 								/>
 								<Copy v-else class="size-3.5 text-muted-foreground" />
@@ -364,7 +363,7 @@ const displayItems = computed<DisplayItem[]>(() => {
 						@click="
 							!isAlwaysOpen(item.message) &&
 							hasContent(item.message) &&
-							emit('toggle', item.message.id)
+							handleToggle(item.message.id)
 						"
 						class="flex items-center gap-2 select-none px-2 py-1.5 rounded-md transition-colors opacity-80 hover:opacity-100"
 						:class="
@@ -381,7 +380,7 @@ const displayItems = computed<DisplayItem[]>(() => {
 						<component
 							v-else
 							:is="
-								expandedMessageIds.has(item.message.id)
+								conversation.expandedMessageIds.has(item.message.id)
 									? ChevronDown
 									: ChevronRight
 							"
@@ -426,7 +425,7 @@ const displayItems = computed<DisplayItem[]>(() => {
 					<div
 						v-show="
 							isAlwaysOpen(item.message) ||
-							expandedMessageIds.has(item.message.id)
+							conversation.expandedMessageIds.has(item.message.id)
 						"
 						class="pl-8 pr-2 pb-2"
 					>
@@ -444,8 +443,7 @@ const displayItems = computed<DisplayItem[]>(() => {
 							<!-- Copy Button (Small) -->
 							<button
 								@click.stop="
-									emit(
-										'copy',
+									handleCopy(
 										sanitizeLogContent(
 											item.message.content,
 											item.message.logType,
@@ -456,7 +454,7 @@ const displayItems = computed<DisplayItem[]>(() => {
 								class="absolute top-2 right-2 size-6 rounded bg-background/50 border opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center hover:bg-background"
 							>
 								<Check
-									v-if="copiedId === item.message.id"
+									v-if="conversation.copiedId === item.message.id"
 									class="size-3 text-green-500"
 								/>
 								<Copy v-else class="size-3 text-muted-foreground" />
@@ -488,12 +486,12 @@ const displayItems = computed<DisplayItem[]>(() => {
 
 					<div class="bg-card border rounded-2xl px-4 py-3 shadow-sm">
 						<div
-							@click="emit('toggle', item.group.id)"
+							@click="handleToggle(item.group.id)"
 							class="flex items-center gap-2 text-xs font-medium text-muted-foreground select-none cursor-pointer hover:text-foreground min-w-0"
 						>
 							<component
 								:is="
-									expandedMessageIds.has(item.group.id)
+									conversation.expandedMessageIds.has(item.group.id)
 										? ChevronDown
 										: ChevronRight
 								"
@@ -510,7 +508,7 @@ const displayItems = computed<DisplayItem[]>(() => {
 							<span class="truncate">{{ getGroupSummary(item.group) }}</span>
 						</div>
 
-						<div v-show="expandedMessageIds.has(item.group.id)" class="mt-3">
+						<div v-show="conversation.expandedMessageIds.has(item.group.id)" class="mt-3">
 							<div
 								v-for="log in item.group.logs"
 								:key="log.id"
@@ -524,7 +522,7 @@ const displayItems = computed<DisplayItem[]>(() => {
 									@click="
 										!isGroupLogAlwaysOpen(log) &&
 										hasContent(log) &&
-										emit('toggle', log.id)
+										handleToggle(log.id)
 									"
 									class="flex items-center gap-2 text-xs font-medium text-muted-foreground select-none"
 									:class="
@@ -540,8 +538,8 @@ const displayItems = computed<DisplayItem[]>(() => {
 									<component
 										v-else
 										:is="
-											expandedMessageIds.has(log.id) ||
-											(expandedMessageIds.has(item.group.id) &&
+											conversation.expandedMessageIds.has(log.id) ||
+											(conversation.expandedMessageIds.has(item.group.id) &&
 												shouldHideGroupLogTitle(log, item.group))
 												? ChevronDown
 												: ChevronRight
@@ -554,7 +552,7 @@ const displayItems = computed<DisplayItem[]>(() => {
 										class="size-3.5 text-red-500 shrink-0"
 									/>
 									<Sparkles
-										v-else-if="log.logType === 'thinking'"
+										v-else-if="isThinkingLog(log.logType)"
 										class="size-3.5 text-purple-500 shrink-0"
 									/>
 									<Cpu
@@ -572,16 +570,16 @@ const displayItems = computed<DisplayItem[]>(() => {
 
 								<div
 									v-show="
-										log.logType === 'thinking'
+										isThinkingLog(log.logType)
 											? hasContent(log)
 											: isGroupLogAlwaysOpen(log) ||
-												expandedMessageIds.has(log.id) ||
-												(expandedMessageIds.has(item.group.id) &&
+												conversation.expandedMessageIds.has(log.id) ||
+												(conversation.expandedMessageIds.has(item.group.id) &&
 													shouldHideGroupLogTitle(log, item.group))
 									"
 									:class="[
 										'relative',
-										log.logType === 'thinking' ||
+										isThinkingLog(log.logType) ||
 										shouldHideGroupLogTitle(log, item.group)
 											? ''
 											: 'mt-2',
@@ -598,8 +596,7 @@ const displayItems = computed<DisplayItem[]>(() => {
 
 									<button
 										@click.stop="
-											emit(
-												'copy',
+											handleCopy(
 												sanitizeLogContent(log.content, log.logType),
 												log.id,
 											)
@@ -607,7 +604,7 @@ const displayItems = computed<DisplayItem[]>(() => {
 										class="absolute top-2 right-2 size-6 rounded bg-background/60 border opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center hover:bg-background"
 									>
 										<Check
-											v-if="copiedId === log.id"
+											v-if="conversation.copiedId === log.id"
 											class="size-3 text-green-500"
 										/>
 										<Copy v-else class="size-3 text-muted-foreground" />
@@ -621,7 +618,7 @@ const displayItems = computed<DisplayItem[]>(() => {
 		</div>
 
 		<!-- Typing Indicator (shown when waiting for response) -->
-		<div v-if="isGenerating" class="flex gap-4">
+		<div v-if="conversation.isGenerating" class="flex gap-4">
 			<Avatar class="size-8 shrink-0 border bg-primary/10">
 				<div
 					class="flex items-center justify-center size-full text-primary font-semibold text-xs"

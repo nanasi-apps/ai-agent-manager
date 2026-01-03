@@ -1,7 +1,7 @@
 import * as crypto from "node:crypto";
 import { BrowserWindow } from "electron";
 import { unifiedAgentManager } from "../agents";
-import { store } from "../store";
+import { store } from "../store/file-store";
 
 export function setupAgentLogs() {
 	// Agent Log Setup - forward logs to renderer
