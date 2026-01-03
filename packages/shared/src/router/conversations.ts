@@ -304,6 +304,7 @@ export const conversationsRouter = {
 							"thinking",
 							"error",
 							"system",
+							"plan",
 						])
 						.optional(),
 				}),
@@ -327,6 +328,7 @@ export const conversationsRouter = {
 						"thinking",
 						"error",
 						"system",
+						"plan",
 					])
 					.optional(),
 			}),

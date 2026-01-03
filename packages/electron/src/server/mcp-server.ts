@@ -1,5 +1,7 @@
-import type { AgentMode } from "@agent-manager/shared";
+import type { AgentLogPayload, AgentMode } from "@agent-manager/shared";
 import { getStoreOrThrow } from "@agent-manager/shared";
+import { randomUUID } from "node:crypto";
+import { BrowserWindow } from "electron";
 import { StreamableHTTPTransport } from "@hono/mcp";
 import { serve } from "@hono/node-server";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -21,6 +23,7 @@ import {
 	registerWorktreeTools,
 	type ToolRegistrar,
 } from "./tools";
+import type { ToolResult } from "./tools/types";
 
 type ToolDescriptor = { name: string } & Record<string, unknown>;
 type ToolsListResult = { tools?: ToolDescriptor[] } & Record<string, unknown>;
@@ -49,6 +52,74 @@ const isInternalServer = (value: unknown): value is InternalServer => {
 	return "setRequestHandler" in value;
 };
 
+const planToolNames = new Set(["planning_create", "propose_implementation_plan"]);
+
+function generateFallbackUUID(): string {
+	return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+		const r = (Math.random() * 16) | 0;
+		const v = c === "x" ? r : (r & 0x3) | 0x8;
+		return v.toString(16);
+	});
+}
+
+function generateId(): string {
+	try {
+		return randomUUID();
+	} catch {
+		return generateFallbackUUID();
+	}
+}
+
+function emitAgentLog(payload: AgentLogPayload, persist: boolean = true) {
+	if (persist) {
+		const store = getStoreOrThrow();
+		const role = payload.type === "system" ? "system" : "agent";
+		store.addMessage(payload.sessionId, {
+			id: generateId(),
+			role,
+			content: payload.data,
+			timestamp: Date.now(),
+			logType: payload.type,
+		});
+	}
+
+	BrowserWindow.getAllWindows().forEach((win) => {
+		win.webContents.send("agent-log", payload);
+	});
+}
+
+function formatToolCall(name: string, args: unknown): string {
+	const params = args ?? {};
+	return `\n[Tool: ${name}]\n${JSON.stringify(params, null, 2)}\n`;
+}
+
+function formatToolResult(result: ToolResult): string {
+	const text = result.content?.map((item) => item.text).join("\n") ?? "";
+	if (!text.trim()) return "[Result]\n";
+	return `[Result]\n${text}\n`;
+}
+
+function extractPlanContent(args: unknown): string | null {
+	if (!args || typeof args !== "object") return null;
+	const planContent = (args as { planContent?: unknown }).planContent;
+	if (typeof planContent !== "string") return null;
+	return planContent.trim() ? planContent : null;
+}
+
+function hasPlanContent(
+	sessionId: string,
+	planContent: string,
+): boolean {
+	const messages = getStoreOrThrow().getMessages(sessionId);
+	for (let i = messages.length - 1; i >= 0; i--) {
+		const msg = messages[i];
+		if (msg?.logType === "plan" && msg.content?.trim()) {
+			return msg.content.trim() === planContent.trim();
+		}
+	}
+	return false;
+}
+
 export async function startMcpServer(port: number = 3001) {
 	const server = new McpServer({
 		name: "agent-manager",
@@ -59,6 +130,7 @@ export async function startMcpServer(port: number = 3001) {
 	const registerTool: ToolRegistrar = (name, schema, handler) => {
 		server.registerTool(name, schema, async (args: any, extra: any) => {
 			const context = getSessionContext();
+			const sessionId = context?.sessionId;
 
 			if (context?.sessionId) {
 				const conv = getStoreOrThrow().getConversation(context.sessionId);
@@ -89,7 +161,52 @@ export async function startMcpServer(port: number = 3001) {
 					);
 				}
 			}
-			return handler(args, extra);
+
+			if (sessionId) {
+				emitAgentLog({
+					sessionId,
+					data: formatToolCall(name, args),
+					type: "tool_call",
+				});
+			}
+
+			try {
+				const result = await handler(args, extra);
+
+				if (sessionId) {
+					if (planToolNames.has(name)) {
+						const planContent = extractPlanContent(args);
+						if (planContent) {
+							const persist = !hasPlanContent(sessionId, planContent);
+							emitAgentLog(
+								{
+									sessionId,
+									data: planContent,
+									type: "plan",
+								},
+								persist,
+							);
+						}
+					}
+
+					emitAgentLog({
+						sessionId,
+						data: formatToolResult(result),
+						type: result.isError ? "error" : "tool_result",
+					});
+				}
+
+				return result;
+			} catch (error: unknown) {
+				if (sessionId) {
+					emitAgentLog({
+						sessionId,
+						data: `[Error] ${error instanceof Error ? error.message : String(error)}\n`,
+						type: "error",
+					});
+				}
+				throw error;
+			}
 		});
 	};
 

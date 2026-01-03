@@ -93,6 +93,12 @@ Structure your output using the sections below.
 For **minor directives**, sections may be condensed.
 For **major or architectural changes**, all sections should be present.
 
+### Tool-based Plan Delivery (Required when available)
+- Always produce the plan in Markdown
+- If the MCP tool \`planning_create\` is available, call it with the full Markdown plan as \`planContent\`
+- If \`planning_create\` is not available but \`propose_implementation_plan\` is, call that tool with the Markdown plan
+- If neither tool is available, output the Markdown plan in the response
+
 ### 1. Interpreted Directive & Design Goal
 - Restate the instruction as a system rule
 - Define what correct behavior means

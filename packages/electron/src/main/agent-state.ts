@@ -1,10 +1,100 @@
-import type { AgentStatePayload, AgentStateValue } from "@agent-manager/shared";
+import type {
+	AgentStatePayload,
+	AgentStateValue,
+	ApprovalChannel,
+} from "@agent-manager/shared";
+import { randomUUID } from "node:crypto";
 import { BrowserWindow, Notification } from "electron";
 import { unifiedAgentManager } from "../agents";
 import { store } from "../store/file-store";
 import { publishAgentState } from "./agent-state-port";
 
 const lastStateBySession = new Map<string, AgentStateValue>();
+const approvalChannelSet = new Set<ApprovalChannel>([
+	"inbox",
+	"slack",
+	"discord",
+]);
+
+function generateFallbackUUID(): string {
+	return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+		const r = (Math.random() * 16) | 0;
+		const v = c === "x" ? r : (r & 0x3) | 0x8;
+		return v.toString(16);
+	});
+}
+
+function generateId(): string {
+	try {
+		return randomUUID();
+	} catch {
+		return generateFallbackUUID();
+	}
+}
+
+function generatePlanSummary(planContent: string): string {
+	const clean = planContent.replace(/^#+\s*/gm, "").replace(/\n+/g, " ").trim();
+	if (clean.length <= 200) return clean;
+	return `${clean.slice(0, 200)}...`;
+}
+
+function resolveNotificationChannels(
+	configuredChannels: ApprovalChannel[] | undefined,
+): ApprovalChannel[] {
+	const unique = new Set<ApprovalChannel>(["inbox"]);
+	for (const channel of configuredChannels ?? []) {
+		if (approvalChannelSet.has(channel)) {
+			unique.add(channel);
+		}
+	}
+	return Array.from(unique);
+}
+
+function getLatestPlanMessage(
+	sessionId: string,
+): { content: string; timestamp: number } | null {
+	const messages = store.getMessages(sessionId);
+
+	for (let i = messages.length - 1; i >= 0; i--) {
+		const msg = messages[i];
+		if (
+			msg?.role === "agent" &&
+			msg.logType === "plan" &&
+			msg.content?.trim()
+		) {
+			return { content: msg.content, timestamp: msg.timestamp };
+		}
+	}
+
+	for (let i = messages.length - 1; i >= 0; i--) {
+		const msg = messages[i];
+		if (
+			msg?.role === "agent" &&
+			(!msg.logType || msg.logType === "text") &&
+			msg.content?.trim()
+		) {
+			return { content: msg.content, timestamp: msg.timestamp };
+		}
+	}
+
+	return null;
+}
+
+function hasMatchingApproval(
+	sessionId: string,
+	planMessage: { content: string; timestamp: number },
+): boolean {
+	const trimmed = planMessage.content.trim();
+	if (!trimmed) return false;
+	return store
+		.listApprovals()
+		.some(
+			(approval) =>
+				approval.sessionId === sessionId &&
+				approval.planContent.trim() === trimmed &&
+				approval.createdAt >= planMessage.timestamp,
+		);
+}
 
 function matchesState(value: AgentStateValue | undefined, state: string): boolean {
 	if (!value) return false;
@@ -68,6 +158,49 @@ export function setupAgentState() {
 				value: payload.value,
 				context: payload.context,
 			};
+
+			const didComplete =
+				matchesState(previousValue, "processing") &&
+				matchesState(payload.value, "idle");
+
+			if (didComplete) {
+				const conversation = store.getConversation(payload.sessionId);
+				if (conversation?.agentMode === "plan") {
+					const planMessage = getLatestPlanMessage(payload.sessionId);
+
+					if (
+						planMessage &&
+						!hasMatchingApproval(payload.sessionId, planMessage)
+					) {
+						const now = Date.now();
+						const summary = generatePlanSummary(planMessage.content);
+						const notificationChannels = resolveNotificationChannels(
+							store.getAppSettings().approvalNotificationChannels,
+						);
+
+						store.addApproval({
+							id: generateId(),
+							sessionId: payload.sessionId,
+							projectId: conversation.projectId || "",
+							planContent: planMessage.content,
+							planSummary: summary,
+							status: "pending",
+							channel: "inbox",
+							notificationChannels,
+							createdAt: now,
+							updatedAt: now,
+						});
+
+						store.addMessage(payload.sessionId, {
+							id: generateId(),
+							role: "system",
+							content: "Plan sent to Inbox for approval.",
+							timestamp: now,
+							logType: "system",
+						});
+					}
+				}
+			}
 
 			if (shouldNotifyOnComplete(payload.value, previousValue, payload.context)) {
 				console.log(`[AgentState] Sending completion notification for ${payload.sessionId}`);

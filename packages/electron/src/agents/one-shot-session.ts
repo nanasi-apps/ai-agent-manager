@@ -377,11 +377,10 @@ export class OneShotSession extends EventEmitter {
 			const finalCwd = resolvedCwd || currentState.config.cwd;
 
 			const child = spawn(cmd.command, cmd.args, {
-				autoClose: true,
 				cwd: finalCwd,
-			env: spawnEnv,
-			shell: true,
-			detached: true,
+				env: spawnEnv,
+				shell: true,
+				detached: true,
 			});
 
 			this.currentProcess = child;
@@ -673,10 +672,12 @@ export class OneShotSession extends EventEmitter {
 		type: AgentLogPayload["type"] = "text",
 		raw?: unknown,
 	) {
+		const resolvedType =
+			type === "text" && this.state.config.mode === "plan" ? "plan" : type;
 		const payload: AgentLogPayload = {
 			sessionId: this.sessionId,
 			data,
-			type,
+			type: resolvedType,
 			raw,
 		};
 		this.emit("log", payload);

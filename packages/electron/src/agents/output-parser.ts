@@ -5,7 +5,7 @@ import type { AgentType } from "@agent-manager/shared";
  */
 export interface ParsedLog {
 	data: string;
-	type: "text" | "tool_call" | "tool_result" | "thinking" | "error" | "system";
+	type: "text" | "tool_call" | "tool_result" | "thinking" | "error" | "system" | "plan";
 	raw?: unknown;
 	metadata?: ParsedLogMetadata;
 }
@@ -24,6 +24,33 @@ export interface ParsedLogMetadata {
  * Handles Gemini, Claude, and Codex output formats
  */
 export class AgentOutputParser {
+	private static readonly planToolNames = new Set([
+		"planning_create",
+		"propose_implementation_plan",
+	]);
+
+	private getPlanContent(
+		toolName: unknown,
+		rawParams: unknown,
+	): string | null {
+		if (typeof toolName !== "string") return null;
+		if (!AgentOutputParser.planToolNames.has(toolName)) return null;
+
+		let params: unknown = rawParams;
+		if (typeof rawParams === "string") {
+			try {
+				params = JSON.parse(rawParams) as unknown;
+			} catch {
+				return null;
+			}
+		}
+		if (!params || typeof params !== "object") return null;
+
+		const planContent = (params as Record<string, unknown>).planContent;
+		if (typeof planContent !== "string") return null;
+		return planContent.trim() ? planContent : null;
+	}
+
 	processJsonEvent(json: unknown, agentType: AgentType): ParsedLog[] {
 		if (typeof json !== "object" || json === null) {
 			return [];
@@ -115,6 +142,14 @@ export class AgentOutputParser {
 					type: "tool_call",
 					raw: json,
 				});
+				const planContent = this.getPlanContent(toolName, params);
+				if (planContent) {
+					results.push({
+						data: planContent,
+						type: "plan",
+						raw: json,
+					});
+				}
 				break;
 			}
 			case "tool_result": {
@@ -194,6 +229,17 @@ export class AgentOutputParser {
 									type: "tool_call",
 									raw: json,
 								});
+								const planContent = this.getPlanContent(
+									block.name,
+									block.input,
+								);
+								if (planContent) {
+									results.push({
+										data: planContent,
+										type: "plan",
+										raw: json,
+									});
+								}
 							}
 						}
 					} else {
@@ -339,6 +385,49 @@ export class AgentOutputParser {
 								raw: json,
 							});
 						}
+					} else if (
+						itemType === "tool_call" ||
+						itemType === "tool_use" ||
+						itemType === "function_call"
+					) {
+						const toolName =
+							(item.name as string | undefined) ||
+							(item.tool_name as string | undefined) ||
+							(item.toolName as string | undefined) ||
+							"unknown";
+						const rawArgs =
+							item.arguments ??
+							item.input ??
+							item.parameters ??
+							item.args;
+						let argsText = "";
+						if (rawArgs !== undefined) {
+							let parsedArgs: unknown = rawArgs;
+							if (typeof rawArgs === "string") {
+								try {
+									parsedArgs = JSON.parse(rawArgs);
+								} catch {
+									parsedArgs = rawArgs;
+								}
+							}
+							argsText = `\n${JSON.stringify(parsedArgs, null, 2)}`;
+							const planContent = this.getPlanContent(
+								toolName,
+								parsedArgs,
+							);
+							if (planContent) {
+								results.push({
+									data: planContent,
+									type: "plan",
+									raw: json,
+								});
+							}
+						}
+						results.push({
+							data: `\n[Tool: ${toolName}]${argsText}\n`,
+							type: "tool_call",
+							raw: json,
+						});
 					}
 				}
 				break;
@@ -379,6 +468,28 @@ export class AgentOutputParser {
 							}
 							if (text) {
 								results.push({ data: text, type: "tool_result", raw: json });
+							}
+							break;
+						}
+						case "tool_call":
+						case "tool_use":
+						case "function_call":
+						case "tool_result": {
+							const output =
+								item.output ??
+								item.result ??
+								item.content ??
+								item.response;
+							if (output !== undefined) {
+								const text =
+									typeof output === "string"
+										? output
+										: JSON.stringify(output, null, 2);
+								results.push({
+									data: `[Result]\n${text}\n`,
+									type: "tool_result",
+									raw: json,
+								});
 							}
 							break;
 						}

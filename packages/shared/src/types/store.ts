@@ -19,7 +19,8 @@ export interface Message {
 	| "tool_result"
 	| "thinking"
 	| "error"
-	| "system";
+	| "system"
+	| "plan";
 }
 
 /**

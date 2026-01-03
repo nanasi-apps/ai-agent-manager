@@ -26,6 +26,16 @@ function generatePlanSummary(planContent: string): string {
 	return `${clean.slice(0, 200)}...`;
 }
 
+function findLatestPlanContent(messages: { logType?: string; content: string }[]) {
+	for (let i = messages.length - 1; i >= 0; i--) {
+		const msg = messages[i];
+		if (msg?.logType === "plan" && msg.content?.trim()) {
+			return msg.content;
+		}
+	}
+	return null;
+}
+
 export function registerPlanTools(registerTool: ToolRegistrar) {
 	registerTool(
 		"propose_implementation_plan",
@@ -175,6 +185,17 @@ export function registerPlanTools(registerTool: ToolRegistrar) {
 				createdAt: now,
 				updatedAt: now,
 			});
+
+			const latestPlanContent = findLatestPlanContent(conversation.messages || []);
+			if (latestPlanContent?.trim() !== planContent.trim()) {
+				store.addMessage(sessionId, {
+					id: generateId(),
+					role: "agent",
+					content: planContent,
+					timestamp: now,
+					logType: "plan" as any,
+				});
+			}
 
 			store.addMessage(sessionId, {
 				id: generateId(),
