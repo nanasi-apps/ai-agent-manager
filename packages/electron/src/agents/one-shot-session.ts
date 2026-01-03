@@ -272,64 +272,68 @@ export class OneShotSession extends EventEmitter {
 		return undefined;
 	}
 
-	async processMessage(message: string, options?: { forceFresh?: boolean }) {
-		if (this.isProcessing) {
-			console.warn(`[OneShotSession] Session ${this.sessionId} is busy`);
-			this.emitLog("[Waiting for previous response...]\n", "system");
-			return;
-		}
-
-		await this.validateActiveWorktree();
-
-		const currentState = this.state;
-
-		let systemPrompt = "";
-		if (currentState.messageCount === 0) {
-			// this.stateManager.resetInvalidGeminiSession();
-			// Handled by machine logic or needs event?
-
-			const baseRules = currentState.config.rulesContent ?? "";
-			const worktreeInstructions = this.getWorktreeInstructions();
-			const parts = [baseRules, worktreeInstructions].filter(Boolean);
-			systemPrompt = parts.join("\n\n");
-			if (baseRules) {
-				console.log(
-					`[OneShotSession] Injecting rules for session ${this.sessionId}`,
-				);
+		async processMessage(
+			message: string,
+			options?: { forceFresh?: boolean; resetSessionId?: boolean },
+		) {
+			if (this.isProcessing) {
+				console.warn(`[OneShotSession] Session ${this.sessionId} is busy`);
+				this.emitLog("[Waiting for previous response...]\n", "system");
+				return;
 			}
-		}
-
-		const mcpServerUrl = `http://localhost:3001/mcp/${this.sessionId}/sse`;
-
-		try {
-			const driver = DriverResolver.getDriver(currentState.config);
-			const isGemini = isAgentType(currentState.config, "gemini");
-			const isCodex = isAgentType(currentState.config, "codex");
-			const isClaude = isAgentType(currentState.config, "claude");
-
-			const context: AgentDriverContext = {
-				sessionId: this.sessionId,
-				geminiSessionId: options?.forceFresh
-					? undefined
-					: currentState.geminiSessionId,
-				codexSessionId: options?.forceFresh
-					? undefined
-					: currentState.codexSessionId,
-				codexThreadId: options?.forceFresh
-					? undefined
-					: currentState.codexThreadId,
-				messageCount: currentState.messageCount,
-				mcpServerUrl:
-					isCodex || isGemini || isClaude ? mcpServerUrl : undefined,
-			};
-
-			const cmd = driver.getCommand(
-				context,
-				message,
-				currentState.config,
-			systemPrompt,
-			);
-
+	
+			await this.validateActiveWorktree();
+	
+			const currentState = this.state;
+	
+			let systemPrompt = "";
+			if (currentState.messageCount === 0) {
+				// this.stateManager.resetInvalidGeminiSession();
+				// Handled by machine logic or needs event?
+	
+				const baseRules = currentState.config.rulesContent ?? "";
+				const worktreeInstructions = this.getWorktreeInstructions();
+				const parts = [baseRules, worktreeInstructions].filter(Boolean);
+				systemPrompt = parts.join("\n\n");
+				if (baseRules) {
+					console.log(
+						`[OneShotSession] Injecting rules for session ${this.sessionId}`,
+					);
+				}
+			}
+	
+			const mcpServerUrl = `http://localhost:3001/mcp/${this.sessionId}/sse`;
+	
+			try {
+				const driver = DriverResolver.getDriver(currentState.config);
+				const isGemini = isAgentType(currentState.config, "gemini");
+				const isCodex = isAgentType(currentState.config, "codex");
+				const isClaude = isAgentType(currentState.config, "claude");
+	
+				const context: AgentDriverContext = {
+					sessionId: this.sessionId,
+					geminiSessionId:
+						options?.forceFresh || options?.resetSessionId
+							? undefined
+							: currentState.geminiSessionId,
+					codexSessionId:
+						options?.forceFresh || options?.resetSessionId
+							? undefined
+							: currentState.codexSessionId,
+					codexThreadId: options?.forceFresh
+						? undefined
+						: currentState.codexThreadId,
+					messageCount: currentState.messageCount,
+					mcpServerUrl:
+						isCodex || isGemini || isClaude ? mcpServerUrl : undefined,
+				};
+	
+				const cmd = driver.getCommand(
+					context,
+					message,
+					currentState.config,
+					systemPrompt,
+				);
 			console.log(
 				`[OneShotSession] Running: ${cmd.command} ${cmd.args.join(" ")}`,
 			);
@@ -598,7 +602,7 @@ export class OneShotSession extends EventEmitter {
 		console.log(
 			`[OneShotSession ${this.sessionId}] Calling processMessage with resume message`,
 		);
-		void this.processMessage(pending.resumeMessage);
+		void this.processMessage(pending.resumeMessage, { resetSessionId: true });
 	}
 
 	private async resolveSessionCwd(): Promise<string | undefined> {
