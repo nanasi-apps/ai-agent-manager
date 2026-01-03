@@ -57,6 +57,8 @@ export interface SummaryOptions {
 	agentType: string;
 	context: string;
 	cwd: string;
+	/** Timeout for the primary summary generation in milliseconds. */
+	timeoutMs?: number;
 	metadata?: {
 		geminiSessionId?: string;
 		codexSessionId?: string;

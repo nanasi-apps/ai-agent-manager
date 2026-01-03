@@ -18,6 +18,7 @@ export interface SummaryOptions {
 	agentType: string;
 	context: string;
 	cwd: string;
+	timeoutMs?: number;
 	metadata?: {
 		geminiSessionId?: string;
 		codexSessionId?: string;
@@ -33,12 +34,15 @@ export interface SummaryOptions {
  * @param options - Summary generation options
  * @returns Promise resolving to the summary string or null if generation failed
  */
+const DEFAULT_SUMMARY_TIMEOUT_MS = 10000;
+
 export function generateAgentSummary(
 	options: SummaryOptions,
 ): Promise<string | null> {
-	const { agentType, context, cwd, metadata } = options;
+	const { agentType, context, cwd, metadata, timeoutMs } = options;
 
 	return new Promise((resolve) => {
+		const resolvedTimeoutMs = timeoutMs ?? DEFAULT_SUMMARY_TIMEOUT_MS;
 		let command = "";
 		let args: string[] = [];
 		const prompt = HANDOVER_SUMMARY_PROMPT;
@@ -96,6 +100,27 @@ export function generateAgentSummary(
 
 			let output = "";
 			let stderrOutput = "";
+			let settled = false;
+			let timeoutId: NodeJS.Timeout | null = null;
+
+			const finish = (value: string | null): void => {
+				if (settled) return;
+				settled = true;
+				if (timeoutId) {
+					clearTimeout(timeoutId);
+				}
+				resolve(value);
+			};
+
+			if (resolvedTimeoutMs > 0) {
+				timeoutId = setTimeout(() => {
+					console.warn(
+						`[HandoverSummaryService] Summary generation timed out after ${resolvedTimeoutMs}ms`,
+					);
+					child.kill();
+					finish(null);
+				}, resolvedTimeoutMs);
+			}
 
 			child.stderr.on("data", (data) => {
 				stderrOutput += data.toString();
@@ -113,7 +138,7 @@ export function generateAgentSummary(
 
 			child.on("close", (code) => {
 				if (code === 0 && output.trim()) {
-					resolve(output.trim());
+					finish(output.trim());
 				} else {
 					console.warn(
 						`[HandoverSummaryService] Summary generation failed/empty with code ${code}`,
@@ -128,7 +153,7 @@ export function generateAgentSummary(
 							`[HandoverSummaryService] Summary stdout: ${output.trim().slice(0, 200)}`,
 						);
 					}
-					resolve(null);
+					finish(null);
 				}
 			});
 
@@ -136,7 +161,7 @@ export function generateAgentSummary(
 				console.error(
 					`[HandoverSummaryService] Summary generation error: ${err}`,
 				);
-				resolve(null);
+				finish(null);
 			});
 		} catch (e) {
 			console.error(

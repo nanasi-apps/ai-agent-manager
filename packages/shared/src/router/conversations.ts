@@ -21,6 +21,7 @@ const reasoningLevelSchema = z.enum(["low", "middle", "high", "extraHigh"]);
 const agentModeSchema = z.enum(["regular", "plan", "ask"]);
 const DEFAULT_REASONING_LEVEL: ReasoningLevel = "middle";
 const DEFAULT_AGENT_MODE: AgentMode = "regular";
+const HANDOVER_SUMMARY_TIMEOUT_MS = 10000;
 
 function shouldUseReasoning(agentCliType: string, model?: string): boolean {
 	if (agentCliType !== "codex") return false;
@@ -62,6 +63,20 @@ function summarizeContent(content: string): string {
 		.trim();
 	if (clean.length <= limit) return clean;
 	return clean.slice(0, limit) + "... (truncated)";
+}
+
+function buildFallbackSummary(
+	messages: Array<{ role: string; content: string }>,
+): string {
+	if (messages.length === 0) {
+		return "- No recent user or agent messages to summarize.";
+	}
+	return messages
+		.map((m) => {
+			const role = m.role === "user" ? "User" : "Agent";
+			return `- ${role}: ${summarizeContent(m.content)}`;
+		})
+		.join("\n");
 }
 
 export const conversationsRouter = {
@@ -419,7 +434,6 @@ export const conversationsRouter = {
 			const currentTemplate = conv.agentType
 				? getAgentTemplate(conv.agentType)
 				: undefined;
-			const sameCli = currentTemplate?.agent.type === nextTemplate.agent.type;
 			const resolvedModel =
 				parsedModel?.model || input.agentModel || conv.agentModel;
 			const resolvedReasoning = resolveReasoning(
@@ -474,57 +488,56 @@ export const conversationsRouter = {
 			// Prepare context handover data BEFORE resetting the session
 			let handoverSummary: string | null = null;
 			let handoverPreviousName = "";
+			const pastMessages = storeInstance.getMessages(input.sessionId);
+			const recent = pastMessages
+				.filter(
+					(m) =>
+						(m.role === "user" || m.role === "agent") &&
+						(!m.logType || m.logType === "text"),
+				)
+				.slice(-20);
 
-			if (!sameCli) {
-				const pastMessages = storeInstance.getMessages(input.sessionId);
-				const recent = pastMessages
-					.filter(
-						(m) =>
-							(m.role === "user" || m.role === "agent") &&
-							(!m.logType || m.logType === "text"),
-					)
-					.slice(-20);
+			handoverPreviousName = currentTemplate?.name || conv.agentType || "unknown";
 
-				if (recent.length > 0) {
-					handoverPreviousName =
-						currentTemplate?.name || conv.agentType || "unknown";
+			if (recent.length > 0) {
+				const historyText = recent
+					.map((m) => `${m.role === "user" ? "User" : "Agent"}: ${m.content}`)
+					.join("\n\n");
 
-					const historyText = recent
-						.map((m) => `${m.role === "user" ? "User" : "Agent"}: ${m.content}`)
-						.join("\n\n");
+				// Get metadata BEFORE resetSession clears it
+				const metadata = agentManagerInstance.getSessionMetadata(
+					input.sessionId,
+				);
 
-					// Get metadata BEFORE resetSession clears it
-					const metadata = agentManagerInstance.getSessionMetadata(
-						input.sessionId,
-					);
-
-					try {
-						// Generate summary using the injected service
-						const handoverService = getHandoverServiceOrThrow();
-						if (cwd) {
-							handoverSummary = await handoverService.generateAgentSummary({
-								agentType: conv.agentType || "gemini",
-								context: historyText,
-								cwd,
-								metadata,
-							});
+				try {
+					// Generate summary using the injected service
+					const handoverService = getHandoverServiceOrThrow();
+					if (cwd) {
+						handoverSummary = await handoverService.generateAgentSummary({
+							agentType: conv.agentType || "gemini",
+							context: historyText,
+							cwd,
+							metadata,
+							timeoutMs: HANDOVER_SUMMARY_TIMEOUT_MS,
+						});
+						if (handoverSummary) {
+							console.info(
+								"[ConversationsRouter] Handover summary generated (primary).",
+							);
 						}
-					} catch (error) {
-						console.error(
-							`[ConversationsRouter] Failed to generate summary: ${error}`,
-						);
 					}
-
-					// Fallback to simple truncation if smart summary failed
-					if (!handoverSummary) {
-						handoverSummary = recent
-							.map((m) => {
-								const role = m.role === "user" ? "User" : "Agent";
-								return `- ${role}: ${summarizeContent(m.content)}`;
-							})
-							.join("\n");
-					}
+				} catch (error) {
+					console.error(
+						`[ConversationsRouter] Failed to generate summary: ${error}`,
+					);
 				}
+			}
+
+			if (!handoverSummary) {
+				handoverSummary = buildFallbackSummary(recent);
+				console.warn(
+					"[ConversationsRouter] Using history fallback summary for handover.",
+				);
 			}
 
 			// NOW reset the session after we've captured the metadata
