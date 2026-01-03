@@ -7,15 +7,20 @@ contextBridge.exposeInMainWorld("electronAPI", {
 	setThemeSource: (mode: "system" | "light" | "dark") =>
 		ipcRenderer.invoke("dark-mode:set", mode),
 	onThemeChanged: (callback: (isDark: boolean) => void) => {
-		ipcRenderer.on("theme-changed", (_event, isDark) => callback(isDark));
+		const listener = (_event: any, isDark: boolean) => callback(isDark);
+		ipcRenderer.on("theme-changed", listener);
+		return () => ipcRenderer.removeListener("theme-changed", listener);
 	},
 	onAgentLog: (callback: (payload: AgentLogPayload) => void) => {
-		ipcRenderer.on("agent-log", (_event, payload) => callback(payload));
+		const listener = (_event: any, payload: AgentLogPayload) => callback(payload);
+		ipcRenderer.on("agent-log", listener);
+		return () => ipcRenderer.removeListener("agent-log", listener);
 	},
 	onAgentStateChanged: (callback: (payload: AgentStatePayload) => void) => {
-		ipcRenderer.on("agent:state-changed", (_event, payload) =>
-			callback(payload),
-		);
+		const listener = (_event: any, payload: AgentStatePayload) =>
+			callback(payload);
+		ipcRenderer.on("agent:state-changed", listener);
+		return () => ipcRenderer.removeListener("agent:state-changed", listener);
 	},
 });
 

@@ -120,7 +120,7 @@ watch(projectId, loadData, { immediate: true });
 
                 <Tooltip>
                   <TooltipTrigger as-child>
-                    <Button size="icon" @click="open">
+                    <Button size="icon" @click="() => open(projectId)">
                       <Plus class="size-4" />
                     </Button>
                   </TooltipTrigger>
@@ -151,7 +151,7 @@ watch(projectId, loadData, { immediate: true });
           <div v-else class="text-center py-12 text-muted-foreground border rounded-lg border-dashed">
             <MessageSquare class="size-12 mx-auto mb-4 opacity-20" />
             <p>No conversations in this project yet.</p>
-            <Button variant="link" @click="open" class="mt-2">
+            <Button variant="link" @click="() => open(projectId)" class="mt-2">
               Start your first conversation
             </Button>
           </div>

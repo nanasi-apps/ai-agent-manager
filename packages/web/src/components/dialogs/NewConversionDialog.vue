@@ -89,6 +89,11 @@ const loadData = async () => {
 		// Auto-select project logic
 		const routeProjectId = getRouteParamFrom(route.params, "id");
 
+		// Validate current selection
+		if (selectedProjectId.value && !projects.value.some(p => p.id === selectedProjectId.value)) {
+			selectedProjectId.value = "";
+		}
+
 		// Priority: 1. Composable state (Explicit open) 2. Route param 3. Default (first)
 		if (
 			preselectedProjectId.value &&
@@ -144,7 +149,7 @@ const handleStart = async () => {
 
 		// Navigate to the new conversion
 
-		router.push(`/conversions/${res.sessionId}`);
+		await router.push(`/conversions/${res.sessionId}`);
 	} catch (e) {
 		console.error("Failed to start conversation", e);
 	} finally {
@@ -270,7 +275,7 @@ const handleKeydown = (e: KeyboardEvent) => {
                 <Button 
                     type="submit" 
                     @click="handleStart" 
-                    :disabled="isLoading || !input.trim() || !selectedProjectId" 
+                    :disabled="isLoading || !input.trim() || !selectedProjectId || !selectedModelId" 
                     class="bg-blue-600 hover:bg-blue-500 text-white"
                 >
                     <span v-if="isLoading">Starting...</span>
