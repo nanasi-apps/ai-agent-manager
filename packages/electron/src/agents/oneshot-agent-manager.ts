@@ -168,7 +168,9 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
 
 	getSessionCwd(sessionId: string): string | undefined {
 		const session = this.sessions.get(sessionId);
-		return session?.config.cwd;
+		if (!session) return undefined;
+		// Prefer activeWorktree.cwd if available, otherwise fall back to config.cwd
+		return session.state.activeWorktree?.cwd ?? session.config.cwd;
 	}
 
 	getSessionHomes(

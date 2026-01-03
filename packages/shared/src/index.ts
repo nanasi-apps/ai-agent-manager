@@ -21,5 +21,7 @@ export {
 	setNativeDialog,
 	setStore,
 	setWorktreeManager,
+	setDevServerService,
 } from "./router";
 export * from "./types/index";
+export * from "./types/launch-config";

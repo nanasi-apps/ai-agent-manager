@@ -50,22 +50,42 @@ const validateAutoConfigJson = (json: string): AutoConfig | null => {
 	try {
 		const parsed = JSON.parse(json);
 		// Basic validation
-		if (!parsed.type || !["web", "other"].includes(parsed.type)) {
-			autoConfigParseError.value = "type must be 'web' or 'other'";
+		if (!parsed.type || !["web", "process", "other"].includes(parsed.type)) {
+			autoConfigParseError.value = "type must be 'web', 'process', or 'other'";
 			return null;
 		}
-		if (typeof parsed.command !== "string") {
-			autoConfigParseError.value = "command must be a string";
+		// Support both new 'startCommand' and legacy 'command'
+		const command = parsed.startCommand ?? parsed.command;
+		if (typeof command !== "string") {
+			autoConfigParseError.value = "startCommand must be a string";
 			return null;
 		}
-		if (typeof parsed.ports !== "object" || Array.isArray(parsed.ports)) {
-			autoConfigParseError.value = "ports must be an object";
-			return null;
+		// Normalize to new format
+		if (!parsed.startCommand && parsed.command) {
+			parsed.startCommand = parsed.command;
+			delete parsed.command;
 		}
-		if (!parsed.readiness?.logPattern) {
-			autoConfigParseError.value = "readiness.logPattern is required";
-			return null;
+		// Support both new 'services' array and legacy 'ports' object
+		if (parsed.ports && !parsed.services) {
+			// Convert legacy ports to services format
+			parsed.services = Object.entries(parsed.ports).map(([envKey, defaultPort]) => ({
+				name: envKey,
+				envKey,
+				default: defaultPort as number,
+			}));
+			delete parsed.ports;
 		}
+		if (!Array.isArray(parsed.services)) {
+			parsed.services = [];
+		}
+		// Normalize service configs: support envVar/port aliases
+		parsed.services = parsed.services.map((svc: any) => ({
+			name: svc.name,
+			envKey: svc.envKey ?? svc.envVar,
+			default: svc.default ?? svc.port,
+			argument: svc.argument,
+			ui: svc.ui,
+		}));
 		autoConfigParseError.value = null;
 		return parsed as AutoConfig;
 	} catch (e) {
@@ -456,8 +476,8 @@ watch(projectId, loadProject, { immediate: true });
                       v-model="autoConfigJsonDraft"
                       placeholder='{
   "type": "web",
-  "command": "pnpm run dev",
-  "ports": { "PORT": 3000 },
+  "startCommand": "pnpm run dev",
+  "services": [{ "name": "App", "envKey": "PORT", "default": 3000, "argument": "--port" }],
   "readiness": { "logPattern": "Ready in" }
 }'
                       class="font-mono text-sm min-h-[200px] leading-relaxed"
@@ -472,8 +492,8 @@ watch(projectId, loadProject, { immediate: true });
                   <h4 class="font-medium">Configuration Reference</h4>
                   <div class="grid gap-2 text-muted-foreground">
                      <div><code class="text-foreground">type</code>: <code>"web"</code> (opens browser) or <code>"other"</code> (Electron, Android, CLI)</div>
-                     <div><code class="text-foreground">command</code>: Startup command (e.g., <code>"pnpm run dev"</code>)</div>
-                     <div><code class="text-foreground">ports</code>: Environment variable to port mapping (e.g., <code>{"PORT": 3000}</code>)</div>
+                     <div><code class="text-foreground">startCommand</code>: Startup command (e.g., <code>"pnpm run dev"</code>)</div>
+                     <div><code class="text-foreground">services</code>: Array of service configs with <code>name</code>, <code>envKey</code>, <code>default</code> port, and optional <code>argument</code> for CLI port injection</div>
                      <div><code class="text-foreground">readiness.logPattern</code>: Regex to detect when server is ready</div>
                   </div>
                   
@@ -482,15 +502,15 @@ watch(projectId, loadProject, { immediate: true });
                      <div class="mt-2 space-y-2 pl-4">
                         <div>
                            <span class="font-medium">Next.js:</span>
-                           <code class="block bg-background p-2 rounded mt-1 text-xs">{"type": "web", "command": "pnpm run dev", "ports": {"PORT": 3000}, "readiness": {"logPattern": "Ready in"}}</code>
+                           <code class="block bg-background p-2 rounded mt-1 text-xs">{"type": "web", "startCommand": "pnpm run dev", "services": [{"name": "App", "envKey": "PORT", "default": 3000, "argument": "--port"}], "readiness": {"logPattern": "Ready in"}}</code>
+                        </div>
+                        <div>
+                           <span class="font-medium">Vite:</span>
+                           <code class="block bg-background p-2 rounded mt-1 text-xs">{"type": "web", "startCommand": "pnpm run dev", "services": [{"name": "App", "envKey": "PORT", "default": 5173, "argument": "--port"}], "readiness": {"logPattern": "Local:"}}</code>
                         </div>
                         <div>
                            <span class="font-medium">Electron:</span>
-                           <code class="block bg-background p-2 rounded mt-1 text-xs">{"type": "other", "command": "pnpm run dev", "ports": {"API_PORT": 3000}, "readiness": {"logPattern": "Electron app ready"}}</code>
-                        </div>
-                        <div>
-                           <span class="font-medium">Android:</span>
-                           <code class="block bg-background p-2 rounded mt-1 text-xs">{"type": "other", "command": "./gradlew installDebug", "ports": {}, "readiness": {"logPattern": "BUILD SUCCESSFUL"}}</code>
+                           <code class="block bg-background p-2 rounded mt-1 text-xs">{"type": "other", "startCommand": "pnpm run dev", "services": [{"name": "API", "envKey": "API_PORT", "default": 3000}], "readiness": {"logPattern": "Electron app ready"}}</code>
                         </div>
                      </div>
                   </details>

@@ -1,34 +1,23 @@
-import type { AutoConfig } from "@agent-manager/shared";
-import { getStoreOrThrow } from "@agent-manager/shared";
-import { spawn } from "node:child_process";
-import { shell } from "electron";
+import { AgentConfigSchema, getStoreOrThrow } from "@agent-manager/shared";
 import { z } from "zod";
-import { splitCommand } from "../../agents/drivers/interface";
-import { allocatePorts } from "../utils/port-utils";
+import { getAgentManager } from "../../agents/agent-manager";
+import { devServerManager } from "../../main/dev-server-manager";
+import { getSessionContext } from "../mcp-session-context";
 import type { ToolRegistrar, ToolResult } from "./types";
-
-interface RunningProcess {
-    pid: number;
-    command: string;
-    projectId: string;
-    ports: Record<string, number>;
-    startedAt: number;
-}
-
-// Track running processes
-const runningProcesses = new Map<string, RunningProcess>();
 
 export function registerLaunchTools(registerTool: ToolRegistrar) {
     registerTool(
         "launch_project",
         {
-            description: `Launch the project's development server based on its Auto Configuration.
+            description: `Launch the project's development server based on its Agent Configuration.
 This tool will:
-1. Read the project's AutoConfig settings
-2. Automatically allocate available ports (avoiding conflicts)
-3. Run the startup command with the allocated ports as environment variables
-4. Wait for the readiness pattern to appear in logs
-5. Open browser (for 'web' type) or notify completion (for 'other' type)
+1. Read the project's AgentConfig settings
+2. Automatically allocate available ports based on 'services' definition
+3. Run the startup command with the allocated ports injected as environment variables
+4. Wait for readiness (if configured)
+5. Perform post-launch actions (e.g. open browser)
+
+If a git worktree is active for the current session, the server will be launched in the worktree directory.
 
 Use this when implementation is complete and you want to start the development server.`,
             inputSchema: {
@@ -44,223 +33,63 @@ Use this when implementation is complete and you want to start the development s
         async ({ projectId, timeout = 60000 }): Promise<ToolResult> => {
             console.log(`[McpServer] launch_project called: projectId=${projectId}`);
 
-            // Get project and its AutoConfig
-            const store = getStoreOrThrow();
-            const project = store.getProject(projectId);
-
-            if (!project) {
-                return {
-                    content: [{ type: "text", text: `Error: Project ${projectId} not found` }],
-                    isError: true,
-                };
-            }
-
-            if (!project.autoConfig) {
-                return {
-                    content: [
-                        {
-                            type: "text",
-                            text: `Error: Project "${project.name}" does not have Auto Configuration set up. 
-Please configure it in Project Settings > Auto Configuration.`,
-                        },
-                    ],
-                    isError: true,
-                };
-            }
-
-            if (!project.rootPath) {
-                return {
-                    content: [{ type: "text", text: `Error: Project "${project.name}" does not have a root path set` }],
-                    isError: true,
-                };
-            }
-
-            const config: AutoConfig = project.autoConfig;
-
-            // Check if already running
-            if (runningProcesses.has(projectId)) {
-                const running = runningProcesses.get(projectId);
-                if (running) {
-                    return {
-                        content: [
-                            {
-                                type: "text",
-                                text: `Project "${project.name}" is already running (PID: ${running.pid})
-Command: ${running.command}
-Ports: ${JSON.stringify(running.ports)}
-Started at: ${new Date(running.startedAt).toISOString()}`,
-                            },
-                        ],
-                    };
-                }
-            }
-
             try {
-                // Allocate ports
-                console.log(`[McpServer] Allocating ports for config:`, config.ports);
-                const allocatedPorts = await allocatePorts(config.ports);
-                console.log(`[McpServer] Allocated ports:`, allocatedPorts);
+                // Check if there's an active worktree for this session
+                const context = getSessionContext();
+                let worktreeCwd: string | undefined;
 
-                // Prepare environment variables
-                const env: NodeJS.ProcessEnv = {
-                    ...process.env,
-                };
-                for (const [envVar, port] of Object.entries(allocatedPorts)) {
-                    env[envVar] = String(port);
-                }
+                console.log(`[McpServer] launch_project: sessionContext=${JSON.stringify(context)}`);
 
-                // Parse and run command
-                const { command, args } = splitCommand(config.command);
-                if (!command) {
-                    return {
-                        content: [{ type: "text", text: `Error: Invalid command: "${config.command}"` }],
-                        isError: true,
-                    };
-                }
-
-                console.log(`[McpServer] Spawning: ${command} ${args.join(" ")} in ${project.rootPath}`);
-
-                const childProcess = spawn(command, args, {
-                    cwd: project.rootPath,
-                    env,
-                    shell: true,
-                    stdio: ["ignore", "pipe", "pipe"],
-                    detached: false,
-                });
-
-                if (!childProcess.pid) {
-                    return {
-                        content: [{ type: "text", text: `Error: Failed to spawn process for command: ${config.command}` }],
-                        isError: true,
-                    };
-                }
-
-                // Track the process
-                runningProcesses.set(projectId, {
-                    pid: childProcess.pid,
-                    command: config.command,
-                    projectId,
-                    ports: allocatedPorts,
-                    startedAt: Date.now(),
-                });
-
-                // Wait for readiness pattern
-                const readinessPromise = new Promise<{ ready: boolean; logs: string }>((resolve) => {
-                    const logs: string[] = [];
-                    const pattern = new RegExp(config.readiness.logPattern);
-                    let resolved = false;
-
-                    const checkOutput = (data: Buffer) => {
-                        const text = data.toString();
-                        logs.push(text);
-                        console.log(`[launch_project] stdout: ${text}`);
-
-                        if (!resolved && pattern.test(text)) {
-                            resolved = true;
-                            resolve({ ready: true, logs: logs.join("") });
-                        }
-                    };
-
-                    childProcess.stdout?.on("data", checkOutput);
-                    childProcess.stderr?.on("data", (data) => {
-                        const text = data.toString();
-                        logs.push(text);
-                        console.log(`[launch_project] stderr: ${text}`);
-
-                        if (!resolved && pattern.test(text)) {
-                            resolved = true;
-                            resolve({ ready: true, logs: logs.join("") });
-                        }
-                    });
-
-                    childProcess.on("error", (error) => {
-                        if (!resolved) {
-                            resolved = true;
-                            resolve({ ready: false, logs: `Error: ${error.message}\n${logs.join("")}` });
-                        }
-                    });
-
-                    childProcess.on("exit", (code) => {
-                        if (!resolved) {
-                            resolved = true;
-                            resolve({
-                                ready: false,
-                                logs: `Process exited with code ${code}\n${logs.join("")}`,
-                            });
-                        }
-                    });
-
-                    // Timeout
-                    setTimeout(() => {
-                        if (!resolved) {
-                            resolved = true;
-                            resolve({
-                                ready: false,
-                                logs: `Timeout waiting for readiness pattern "${config.readiness.logPattern}"\n${logs.join("")}`,
-                            });
-                        }
-                    }, timeout);
-                });
-
-                const result = await readinessPromise;
-
-                if (!result.ready) {
-                    // Clean up on failure
-                    runningProcesses.delete(projectId);
-                    try {
-                        childProcess.kill();
-                    } catch {
-                        // Ignore kill errors
-                    }
-
-                    return {
-                        content: [
-                            {
-                                type: "text",
-                                text: `Failed to start project "${project.name}":
-${result.logs}`,
-                            },
-                        ],
-                        isError: true,
-                    };
-                }
-
-                // Success! Handle based on type
-                let actionMessage = "";
-
-                				if (config.type === "web") {
-                					// Find the main port (first one or PORT if exists)
-                					const mainPort = allocatedPorts.PORT ?? Object.values(allocatedPorts)[0];
-                					if (mainPort) {
-                						const url = `http://localhost:${mainPort}`;
-                						await shell.openExternal(url);                        actionMessage = `Opened browser at ${url}`;
+                if (context?.sessionId) {
+                    const manager = getAgentManager();
+                    worktreeCwd = manager.getSessionCwd?.(context.sessionId);
+                    console.log(`[McpServer] launch_project: getSessionCwd(${context.sessionId}) = ${worktreeCwd ?? "undefined"}`);
+                    if (worktreeCwd) {
+                        console.log(`[McpServer] Using worktree path: ${worktreeCwd}`);
                     } else {
-                        actionMessage = "No port to open browser (ports config is empty)";
+                        console.log(`[McpServer] No worktree path found for session ${context.sessionId}`);
                     }
                 } else {
-                    actionMessage = "Application launched (non-web type - window should appear automatically)";
+                    console.log(`[McpServer] No session context available`);
                 }
 
-                const portsSummary = Object.entries(allocatedPorts)
+                const processInfo = await devServerManager.launchProject(projectId, {
+                    timeout,
+                    cwd: worktreeCwd,
+                    conversationId: context?.sessionId,
+                });
+                const project = getStoreOrThrow().getProject(projectId);
+
+                const portsSummary = Object.entries(processInfo.ports)
                     .map(([envVar, port]) => `  ${envVar}=${port}`)
                     .join("\n");
 
+                let actionMessage = "";
+                if (processInfo.url) {
+                    actionMessage = `Opened browser at ${processInfo.url}`;
+                } else {
+                    actionMessage = `Application launched (Type: ${processInfo.type})`;
+                }
+
+                const cwdMessage = worktreeCwd
+                    ? `Working Directory: ${worktreeCwd} (worktree)`
+                    : `Working Directory: ${project?.rootPath ?? "unknown"}`;
+
                 return {
                     content: [
                         {
                             type: "text",
-                            text: `✅ Project "${project.name}" started successfully!
+                            text: `✅ Project "${project?.name ?? projectId}" started successfully!
 
-Type: ${config.type}
-Command: ${config.command}
-PID: ${childProcess.pid}
+Type: ${processInfo.type}
+Command: ${processInfo.command}
+PID: ${processInfo.pid}
+${cwdMessage}
 
 Allocated Ports:
 ${portsSummary || "  (none)"}
 
-${actionMessage}
-
-Readiness detected: "${config.readiness.logPattern}"`,
+${actionMessage}`,
                         },
                     ],
                 };
@@ -281,21 +110,14 @@ Readiness detected: "${config.readiness.logPattern}"`,
     registerTool(
         "project_set_auto_config",
         {
-            description: `Set or update the Auto Configuration for a project. 
-This configuration determines how the project is launched and monitored using 'launch_project'.
+            description: `Set or update the Agent Configuration for a project (agent.config.json equivalent). 
+This configuration determines how the project is launched and managed.
 Analyze the project structure (package.json, etc.) and call this tool with the appropriate settings.`,
             inputSchema: {
                 projectId: z
                     .string()
                     .describe("The project ID to configure"),
-                config: z.object({
-                    type: z.enum(["web", "other"]).describe("Application type"),
-                    command: z.string().describe("Startup command (e.g. 'pnpm run dev')"),
-                    ports: z.record(z.string(), z.number()).describe("Map of environment variable names to default ports"),
-                    readiness: z.object({
-                        logPattern: z.string().describe("Regex to detect when server is ready"),
-                    }),
-                }),
+                config: AgentConfigSchema,
             },
         },
         async ({ projectId, config }): Promise<ToolResult> => {
@@ -318,9 +140,8 @@ Analyze the project structure (package.json, etc.) and call this tool with the a
                             text: `✅ Auto Configuration updated for project "${project.name}"
 
 Type: ${config.type}
-Command: ${config.command}
-Ports: ${JSON.stringify(config.ports)}
-Readiness: "${config.readiness.logPattern}"
+Command: ${config.startCommand}
+Services: ${config.services?.length ? config.services.map((s: any) => `${s.name} (${s.default}${s.argument ? `, ${s.argument}` : ""})`).join(", ") : "(none)"}
 
 You can now use 'launch_project' to start this application.`,
                         },
@@ -349,31 +170,19 @@ You can now use 'launch_project' to start this application.`,
             },
         },
         async ({ projectId }): Promise<ToolResult> => {
-            const running = runningProcesses.get(projectId);
-
-            if (!running) {
-                return {
-                    content: [
-                        { type: "text", text: `No running process found for project ${projectId}` },
-                    ],
-                };
-            }
-
             try {
-                process.kill(running.pid, "SIGTERM");
-                runningProcesses.delete(projectId);
-
-                return {
-                    content: [
-                        {
-                            type: "text",
-                            text: `Stopped project (PID: ${running.pid})
-Command was: ${running.command}`,
-                        },
-                    ],
-                };
+                const context = getSessionContext();
+                const stopped = await devServerManager.stopProject(projectId, context?.sessionId);
+                if (stopped) {
+                    return {
+                        content: [{ type: "text", text: `Stopped project ${projectId}` }],
+                    };
+                } else {
+                    return {
+                        content: [{ type: "text", text: `Project ${projectId} is not running` }],
+                    };
+                }
             } catch (error) {
-                runningProcesses.delete(projectId);
                 return {
                     content: [
                         {
@@ -394,22 +203,23 @@ Command was: ${running.command}`,
             inputSchema: {},
         },
         async (): Promise<ToolResult> => {
-            if (runningProcesses.size === 0) {
+            const processes = devServerManager.listRunningProjects();
+            if (processes.length === 0) {
                 return {
                     content: [{ type: "text", text: "No projects are currently running." }],
                 };
             }
 
             const lines: string[] = [];
-            for (const [projectId, info] of runningProcesses) {
+            for (const info of processes) {
                 const store = getStoreOrThrow();
-                const project = store.getProject(projectId);
-                lines.push(`Project: ${project?.name ?? projectId}
+                const project = store.getProject(info.projectId);
+                lines.push(`Project: ${project?.name ?? info.projectId}
   PID: ${info.pid}
   Command: ${info.command}
   Ports: ${JSON.stringify(info.ports)}
   Started: ${new Date(info.startedAt).toISOString()}
-`);
+${info.conversationId ? `  Conversation: ${info.conversationId}\n` : ""}`);
             }
 
             return {

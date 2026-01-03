@@ -10,6 +10,8 @@ import { RULES_DIR } from "../services/rules-resolver";
 import type { Project } from "../types/store";
 import { generateUUID } from "../utils";
 
+import { AgentConfigSchema } from "../types/launch-config";
+
 const GtrConfigSchema = z.object({
 	copy: z.object({
 		include: z.array(z.string()),
@@ -22,14 +24,7 @@ const GtrConfigSchema = z.object({
 	}),
 });
 
-const AutoConfigSchema = z.object({
-	type: z.enum(["web", "other"]),
-	command: z.string(),
-	ports: z.record(z.string(), z.number()),
-	readiness: z.object({
-		logPattern: z.string(),
-	}),
-});
+const AutoConfigSchema = AgentConfigSchema;
 
 export const projectsRouter = {
 	getGtrConfig: os

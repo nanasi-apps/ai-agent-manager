@@ -1,5 +1,6 @@
 import {
 	setAgentManager,
+	setDevServerService,
 	setGtrConfigService,
 	setHandoverService,
 	setNativeDialog,
@@ -17,6 +18,7 @@ import { setupAgentState } from "./main/agent-state";
 import { setupIpc } from "./main/ipc";
 import { initializeWindowTheme, setupGlobalThemeHandlers } from "./main/theme";
 import { worktreeManager } from "./main/worktree-manager";
+import { devServerManager } from "./main/dev-server-manager";
 import { startMcpServer } from "./server/mcp-server.js";
 import { startOrpcServer } from "./server/orpc-server";
 import { GtrConfigService } from "./services/gtr-config-service";
@@ -35,6 +37,7 @@ setStore(store);
 setWorktreeManager(worktreeManager);
 setHandoverService(handoverSummaryService);
 setGtrConfigService(new GtrConfigService());
+setDevServerService(devServerManager);
 setNativeDialog({
 	selectDirectory: async () => {
 		const result = await dialog.showOpenDialog({

@@ -50,6 +50,10 @@ export interface Conversation {
 /**
  * Project entity
  */
+import { AgentConfigJson } from "./launch-config";
+
+// ...
+
 export interface Project {
 	id: string;
 	name: string;
@@ -59,7 +63,8 @@ export interface Project {
 	updatedAt: number;
 	activeGlobalRules?: string[];
 	projectRules?: ProjectRule[];
-	autoConfig?: AutoConfig;
+	// Use the new structured config
+	autoConfig?: AgentConfigJson;
 }
 
 export interface ProjectRule {
@@ -69,22 +74,10 @@ export interface ProjectRule {
 }
 
 /**
- * Auto configuration for automated project startup
- * Defines how to launch and manage the project's development environment
+ * Re-export AgentConfigJson as AutoConfig for backward compatibility in imports
+ * (or simply remove AutoConfig interface and let users import from launch-config)
  */
-export interface AutoConfig {
-	/** Application type: 'web' opens browser, 'other' for Electron/Android/CLI etc */
-	type: "web" | "other";
-	/** Command to start the development server or build process */
-	command: string;
-	/** Environment variable names mapped to default port numbers */
-	ports: Record<string, number>;
-	/** Readiness detection configuration */
-	readiness: {
-		/** Regex pattern to detect when the server is ready (e.g., "Ready in", "Listening on") */
-		logPattern: string;
-	};
-}
+export type AutoConfig = AgentConfigJson;
 
 export interface GlobalRule {
 	id: string;

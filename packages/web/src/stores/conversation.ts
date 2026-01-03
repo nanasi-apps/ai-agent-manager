@@ -102,6 +102,15 @@ export const useConversationStore = defineStore("conversation", () => {
     const isPlanViewerOpen = ref(false);
     const isApproving = ref(false);
 
+    // Dev Server state
+    const devServer = ref<{
+        isRunning: boolean;
+        url?: string;
+        pid?: number;
+        type?: "web" | "process" | "other";
+        error?: string;
+    }>({ isRunning: false });
+
     // Computed
     const selectedModelTemplate = computed(() =>
         modelTemplates.value.find((m) => m.id === modelIdDraft.value),
@@ -390,6 +399,11 @@ export const useConversationStore = defineStore("conversation", () => {
             await loadConversationMeta(id);
             const running = await orpc.isAgentRunning({ sessionId: id });
             isGenerating.value = running;
+
+            // Load Dev Server Status
+            if (projectId.value) {
+                await loadDevServerStatus(projectId.value, id);
+            }
 
             const savedMessages = await orpc.getMessages({ sessionId: id });
             if (savedMessages && savedMessages.length > 0) {
@@ -801,6 +815,74 @@ export const useConversationStore = defineStore("conversation", () => {
         }
     };
 
+    const loadDevServerStatus = async (pid: string, cid: string) => {
+        try {
+            const status = await orpc.devServerStatus({
+                projectId: pid,
+                conversationId: cid,
+            });
+            if (status) {
+                devServer.value = {
+                    isRunning: true,
+                    url: status.url,
+                    pid: status.pid,
+                    type: status.type,
+                };
+            } else {
+                devServer.value = { isRunning: false };
+            }
+        } catch (e) {
+            console.error("Error loading dev server status:", e);
+            devServer.value = { isRunning: false, error: String(e) };
+        }
+    };
+
+    const launchDevServer = async () => {
+        if (!projectId.value) return;
+        if (devServer.value.isRunning) return;
+
+        // Optimistic update
+        const originalState = { ...devServer.value };
+        devServer.value = { ...devServer.value, isRunning: true }; // Prevent double clicks immediately
+
+        try {
+            const result = await orpc.devServerLaunch({
+                projectId: projectId.value,
+                conversationId: sessionId.value,
+            });
+            devServer.value = {
+                isRunning: true,
+                url: result.url,
+                pid: result.pid,
+                type: result.type,
+            };
+        } catch (e) {
+            console.error("Failed to launch dev server:", e);
+            devServer.value = { ...originalState, error: String(e) }; // Revert on failure
+            messages.value.push({
+                id: crypto.randomUUID(),
+                role: "system",
+                content: `Failed to launch dev server: ${e}`,
+                timestamp: Date.now(),
+                logType: "error",
+            });
+        }
+    };
+
+    const stopDevServer = async () => {
+        if (!projectId.value) return;
+
+        try {
+            await orpc.devServerStop({
+                projectId: projectId.value,
+                conversationId: sessionId.value,
+            });
+            devServer.value = { isRunning: false };
+        } catch (e) {
+            console.error("Failed to stop dev server:", e);
+        }
+    };
+
     const toggleMcpSheet = () => {
         isMcpSheetOpen.value = !isMcpSheetOpen.value;
         if (isMcpSheetOpen.value) {
@@ -842,11 +924,11 @@ export const useConversationStore = defineStore("conversation", () => {
     };
 
     const isToolDisabled = (server: McpServerEntry, tool: McpTool) => {
-        return disabledMcpTools.value.has(`${server.name}-${tool.name}`);
+        return disabledMcpTools.value.has(`${server.name} - ${tool.name}`);
     };
 
     const handleToolClick = async (server: McpServerEntry, tool: McpTool) => {
-        const key = `${server.name}-${tool.name}`;
+        const key = `${server.name} - ${tool.name}`;
         const isCurrentlyDisabled = disabledMcpTools.value.has(key);
         const nextEnabled = isCurrentlyDisabled;
 
@@ -874,7 +956,7 @@ export const useConversationStore = defineStore("conversation", () => {
     };
 
     const toggleMcpServer = (server: McpServerEntry) => {
-        const serverKey = `${server.source}-${server.name}`;
+        const serverKey = `${server.source} - ${server.name}`;
         if (expandedMcpServer.value === serverKey) {
             expandedMcpServer.value = null;
             mcpServerTools.value = [];
@@ -1125,5 +1207,16 @@ export const useConversationStore = defineStore("conversation", () => {
         appendAgentLog,
         initSession,
         $reset,
+
+        swapModel,
+        updateReasoning,
+        updateMode,
+        setModelFromConversation,
+
+        // Dev Server
+        devServer,
+        loadDevServerStatus,
+        launchDevServer,
+        stopDevServer,
     };
 });

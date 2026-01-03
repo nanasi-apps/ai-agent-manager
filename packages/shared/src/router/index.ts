@@ -14,6 +14,7 @@ import { projectsRouter } from "./projects";
 // Import all sub-routers
 import { rulesRouter } from "./rules";
 import { worktreesRouter } from "./worktrees";
+import { devServerRouter } from "./dev-server";
 
 // Re-export services for external use
 export {
@@ -32,6 +33,7 @@ export {
 	setNativeDialog,
 	setStore,
 	setWorktreeManager,
+	setDevServerService,
 } from "../services/dependency-container";
 // Re-export model utilities
 export { buildModelId, HARDCODED_MODELS, parseModelId } from "../services/model-fetcher";
@@ -86,6 +88,9 @@ export const appRouter = os.router({
 
 	// Approvals
 	...approvalsRouter,
+
+	// Dev Server
+	...devServerRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -170,3 +170,43 @@ export function getGtrConfigServiceOrThrow(): IGtrConfigService {
 	}
 	return gtrConfigService;
 }
+
+export interface IRunningProcess {
+	pid: number;
+	command: string;
+	projectId: string;
+	ports: Record<string, number>;
+	startedAt: number;
+	type: "web" | "process" | "other";
+	url?: string;
+	conversationId?: string;
+}
+
+export interface IDevServerService {
+	getRunningProject(
+		projectId: string,
+		conversationId?: string,
+	): IRunningProcess | undefined;
+	listRunningProjects(): IRunningProcess[];
+	stopProject(projectId: string, conversationId?: string): Promise<boolean>;
+	launchProject(
+		projectId: string,
+		options?: { timeout?: number; cwd?: string; conversationId?: string },
+	): Promise<IRunningProcess>;
+}
+
+let devServerService: IDevServerService | null = null;
+
+export function setDevServerService(service: IDevServerService): void {
+	devServerService = service;
+	console.log("[DependencyContainer] DevServer service set");
+}
+
+export function getDevServerServiceOrThrow(): IDevServerService {
+	if (!devServerService) {
+		throw new Error(
+			"DevServer service not initialized. Call setDevServerService first.",
+		);
+	}
+	return devServerService;
+}

@@ -1,24 +1,12 @@
-import { createServer } from "node:net";
+import getPort, { portNumbers } from "get-port";
 
 /**
  * Check if a port is available
+ * Uses get-port to verify if the specific port can be bound
  */
-export function isPortAvailable(port: number): Promise<boolean> {
-    return new Promise((resolve) => {
-        const server = createServer();
-
-        server.once("error", () => {
-            resolve(false);
-        });
-
-        server.once("listening", () => {
-            server.close(() => {
-                resolve(true);
-            });
-        });
-
-        server.listen(port, "127.0.0.1");
-    });
+export async function isPortAvailable(port: number): Promise<boolean> {
+    const availablePort = await getPort({ port });
+    return availablePort === port;
 }
 
 /**
@@ -29,15 +17,9 @@ export async function findAvailablePort(
     basePort: number,
     maxAttempts: number = 100,
 ): Promise<number> {
-    for (let i = 0; i < maxAttempts; i++) {
-        const port = basePort + i;
-        if (await isPortAvailable(port)) {
-            return port;
-        }
-    }
-    throw new Error(
-        `Could not find an available port in range ${basePort}-${basePort + maxAttempts - 1}`,
-    );
+    return await getPort({
+        port: portNumbers(basePort, basePort + maxAttempts - 1),
+    });
 }
 
 /**
@@ -54,7 +36,15 @@ export async function allocatePorts(
         let port = defaultPort;
 
         // Find next available port that hasn't been allocated already
+        // We use isPortAvailable loop here because we need to ensure it doesn't conflict
+        // with other ports we just allocated in this function (usedPorts)
         while (usedPorts.has(port) || !(await isPortAvailable(port))) {
+            const reason = usedPorts.has(port)
+                ? "already allocated in this session"
+                : "in use by another process";
+            console.log(
+                `[PortUtils] Port ${port} for ${envVar} is ${reason}, trying ${port + 1}`,
+            );
             port++;
             // Safety limit to avoid infinite loop
             if (port > defaultPort + 1000) {
@@ -64,9 +54,16 @@ export async function allocatePorts(
             }
         }
 
+        if (port !== defaultPort) {
+            console.log(
+                `[PortUtils] Allocated port ${port} for ${envVar} (default was ${defaultPort})`,
+            );
+        }
+
         allocatedPorts[envVar] = port;
         usedPorts.add(port);
     }
 
     return allocatedPorts;
 }
+

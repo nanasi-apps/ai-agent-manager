@@ -1,13 +1,41 @@
 <script setup lang="ts">
-import { FileText, GitBranch, Plug } from "lucide-vue-next";
+import { FileText, GitBranch, Plug, Play, Square, ExternalLink } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
 import { useConversationStore } from "@/stores/conversation";
+import { watch, onUnmounted } from "vue";
 
 const conversation = useConversationStore();
 
 const handleSaveTitle = async () => {
 	await conversation.saveTitle();
 };
+
+let pollInterval: NodeJS.Timeout | null = null;
+
+watch(
+	() => conversation.projectId,
+	(pid) => {
+		if (pollInterval) {
+			clearInterval(pollInterval);
+			pollInterval = null;
+		}
+
+		if (pid && conversation.sessionId) {
+			conversation.loadDevServerStatus(pid, conversation.sessionId);
+			// Poll status every 5 seconds to keep sync with external changes (e.g. MCP tools)
+			pollInterval = setInterval(() => {
+				if (conversation.projectId === pid) {
+					conversation.loadDevServerStatus(pid, conversation.sessionId);
+				}
+			}, 5000);
+		}
+	},
+	{ immediate: true },
+);
+
+onUnmounted(() => {
+	if (pollInterval) clearInterval(pollInterval);
+});
 </script>
 
 <template>
@@ -33,6 +61,9 @@ const handleSaveTitle = async () => {
 						<span class="text-xs text-muted-foreground">{{
 							conversation.isConnected ? "Connected" : "Disconnected"
 						}}</span>
+						<span v-if="conversation.devServer.error" class="text-xs text-destructive ml-2" :title="conversation.devServer.error">
+							Server Error
+						</span>
 					</div>
 
 					<div
@@ -47,6 +78,44 @@ const handleSaveTitle = async () => {
 		</div>
 
 		<div class="flex items-center gap-2">
+			<!-- Dev Server Controls -->
+			<div v-if="conversation.projectId" class="flex items-center gap-2 border-r pr-2 mr-2">
+				<template v-if="conversation.devServer.isRunning">
+					<a
+						v-if="conversation.devServer.url"
+						:href="conversation.devServer.url"
+						target="_blank"
+						class="text-xs text-blue-500 hover:underline flex items-center gap-1 mr-2 px-2 py-1 rounded hover:bg-accent/50"
+					>
+						{{ conversation.devServer.url }}
+						<ExternalLink class="size-3" />
+					</a>
+					<span v-else class="text-xs text-muted-foreground mr-2">Running (PID: {{ conversation.devServer.pid }})</span>
+
+					<Button
+						variant="ghost"
+						size="icon"
+						class="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+						@click="conversation.stopDevServer()"
+						title="Stop Project"
+					>
+						<Square class="size-4 fill-current" />
+					</Button>
+				</template>
+
+				<Button
+					v-else
+					variant="ghost"
+					size="sm"
+					class="h-8 gap-2 text-primary hover:bg-primary/10"
+					@click="conversation.launchDevServer()"
+					title="Run Project"
+				>
+					<Play class="size-4 fill-current" />
+					<span class="text-xs font-medium">Run</span>
+				</Button>
+			</div>
+
 			<Button
 				v-if="conversation.latestPlanContent"
 				variant="ghost"

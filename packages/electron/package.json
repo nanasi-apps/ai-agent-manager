@@ -62,6 +62,7 @@
 		"@modelcontextprotocol/sdk": "^1.25.1",
 		"@orpc/server": "^1.13.0",
 		"fix-path": "^5.0.0",
+		"get-port": "^7.1.0",
 		"hono": "^4.11.3",
 		"node-pty": "^1.1.0",
 		"openai": "^6.15.0",
