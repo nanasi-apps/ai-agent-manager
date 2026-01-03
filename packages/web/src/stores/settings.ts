@@ -16,6 +16,8 @@ export interface AppSettings {
     notifyOnAgentComplete?: boolean;
     approvalNotificationChannels?: ApprovalChannel[];
     newConversionOpenMode?: "page" | "dialog";
+    slackWebhookUrl?: string;
+    discordWebhookUrl?: string;
 }
 
 const DEFAULT_NOTIFY_ON_AGENT_COMPLETE = true;
@@ -124,6 +126,12 @@ export const useSettingsStore = defineStore("settings", () => {
             }
             if (updates.newConversionOpenMode !== undefined) {
                 appSettings.value.newConversionOpenMode = updates.newConversionOpenMode;
+            }
+            if (updates.slackWebhookUrl !== undefined) {
+                appSettings.value.slackWebhookUrl = updates.slackWebhookUrl;
+            }
+            if (updates.discordWebhookUrl !== undefined) {
+                appSettings.value.discordWebhookUrl = updates.discordWebhookUrl;
             }
 
             saveSuccess.value = true;

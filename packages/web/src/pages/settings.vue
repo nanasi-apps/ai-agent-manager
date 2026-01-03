@@ -29,10 +29,14 @@ const selectedLanguage = ref("en");
 const notifyOnAgentComplete = ref(true);
 const approvalNotificationChannels = ref<ApprovalChannel[]>([]);
 const newConversionOpenMode = ref<"page" | "dialog">("page");
+const slackWebhookUrl = ref("");
+const discordWebhookUrl = ref("");
 
 // Visibility toggles
 const showOpenaiKey = ref(false);
 const showGeminiKey = ref(false);
+const showSlackWebhook = ref(false);
+const showDiscordWebhook = ref(false);
 
 // Local helpers
 const isApprovalChannelEnabled = (channel: ApprovalChannel) =>
@@ -59,6 +63,8 @@ function syncFromStore() {
 	notifyOnAgentComplete.value = settingsStore.notifyOnAgentComplete;
 	approvalNotificationChannels.value = [...settingsStore.approvalNotificationChannels];
 	newConversionOpenMode.value = settingsStore.newConversionOpenMode;
+	slackWebhookUrl.value = settingsStore.appSettings.slackWebhookUrl || "";
+	discordWebhookUrl.value = settingsStore.appSettings.discordWebhookUrl || "";
 }
 
 async function loadSettings() {
@@ -104,6 +110,12 @@ async function saveSettings(isAutoSave = false) {
 	if (newConversionOpenMode.value !== settingsStore.newConversionOpenMode) {
 		appUpdates.newConversionOpenMode = newConversionOpenMode.value;
 	}
+	if (slackWebhookUrl.value !== (settingsStore.appSettings.slackWebhookUrl || "")) {
+		appUpdates.slackWebhookUrl = slackWebhookUrl.value || undefined;
+	}
+	if (discordWebhookUrl.value !== (settingsStore.appSettings.discordWebhookUrl || "")) {
+		appUpdates.discordWebhookUrl = discordWebhookUrl.value || undefined;
+	}
 
 	try {
 		if (Object.keys(apiUpdates).length > 0) {
@@ -139,6 +151,8 @@ watchDebounced(
 		notifyOnAgentComplete,
 		approvalNotificationChannels,
 		newConversionOpenMode,
+		slackWebhookUrl,
+		discordWebhookUrl,
 	],
 	() => {
 		saveSettings(true);
@@ -250,12 +264,30 @@ watch(
                       toggleApprovalChannel('slack', checked === true);
                     }"
                   />
-                  <Label
-                    for="notify-approval-slack"
-                    class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer select-none"
-                  >
-                    {{ t('settings.notifications.channels.slack') }}
-                  </Label>
+                  <div class="flex-1 space-y-2">
+                    <Label
+                      for="notify-approval-slack"
+                      class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer select-none"
+                    >
+                      {{ t('settings.notifications.channels.slack') }}
+                    </Label>
+                    <div v-if="isApprovalChannelEnabled('slack')" class="relative">
+                      <Input
+                        v-model="slackWebhookUrl"
+                        :type="showSlackWebhook ? 'text' : 'password'"
+                        placeholder="https://hooks.slack.com/services/..."
+                        class="h-8 text-xs"
+                      />
+                       <button
+                        type="button"
+                        class="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        @click="showSlackWebhook = !showSlackWebhook"
+                      >
+                        <EyeOff v-if="showSlackWebhook" class="size-3" />
+                        <Eye v-else class="size-3" />
+                      </button>
+                    </div>
+                  </div>
                 </div>
                 <div class="flex items-center gap-3">
                   <Checkbox
@@ -265,12 +297,30 @@ watch(
                       toggleApprovalChannel('discord', checked === true);
                     }"
                   />
-                  <Label
-                    for="notify-approval-discord"
-                    class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer select-none"
-                  >
-                    {{ t('settings.notifications.channels.discord') }}
-                  </Label>
+                  <div class="flex-1 space-y-2">
+                    <Label
+                      for="notify-approval-discord"
+                      class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer select-none"
+                    >
+                      {{ t('settings.notifications.channels.discord') }}
+                    </Label>
+                    <div v-if="isApprovalChannelEnabled('discord')" class="relative">
+                      <Input
+                        v-model="discordWebhookUrl"
+                        :type="showDiscordWebhook ? 'text' : 'password'"
+                        placeholder="https://discord.com/api/webhooks/..."
+                        class="h-8 text-xs"
+                      />
+                      <button
+                        type="button"
+                        class="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        @click="showDiscordWebhook = !showDiscordWebhook"
+                      >
+                         <EyeOff v-if="showDiscordWebhook" class="size-3" />
+                        <Eye v-else class="size-3" />
+                      </button>
+                    </div>
+                  </div>
                 </div>
                 <p class="text-xs text-muted-foreground">
                   {{ t('settings.notifications.approvalsHint') }}

@@ -94,6 +94,8 @@ export interface AppSettings {
 	notifyOnAgentComplete?: boolean;
 	approvalNotificationChannels?: ApprovalChannel[];
 	newConversionOpenMode?: "page" | "dialog";
+	slackWebhookUrl?: string;
+	discordWebhookUrl?: string;
 }
 
 export interface ApiSettings {
