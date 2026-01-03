@@ -6,6 +6,7 @@ import type {
 import { randomUUID } from "node:crypto";
 import { BrowserWindow, Notification } from "electron";
 import { unifiedAgentManager } from "../agents";
+import { notificationService } from "../services/notification-service";
 import { store } from "../store/file-store";
 import { publishAgentState } from "./agent-state-port";
 
@@ -187,6 +188,13 @@ export function setupAgentState() {
 							timestamp: now,
 							logType: "system",
 						});
+
+						// Send notifications
+						const project = conversation.projectId
+							? store.getProject(conversation.projectId)
+							: undefined;
+						const message = `📋 **New Approval Request**\n\nProject: ${project?.name || "Unknown"}\n\nSummary: ${summary}`;
+						notificationService.notify(notificationChannels, message);
 					}
 				}
 			}

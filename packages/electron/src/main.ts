@@ -1,5 +1,6 @@
 import {
 	setAgentManager,
+	setGtrConfigService,
 	setHandoverService,
 	setNativeDialog,
 	setStore,
@@ -18,6 +19,7 @@ import { initializeWindowTheme, setupGlobalThemeHandlers } from "./main/theme";
 import { worktreeManager } from "./main/worktree-manager";
 import { startMcpServer } from "./server/mcp-server.js";
 import { startOrpcServer } from "./server/orpc-server";
+import { GtrConfigService } from "./services/gtr-config-service";
 import * as handoverSummaryService from "./services/handover-summary-service";
 import { store } from "./store";
 import { fixProcessPath } from "./utils/path-enhancer";
@@ -32,6 +34,7 @@ setElectronAgentManager(unifiedAgentManager);
 setStore(store);
 setWorktreeManager(worktreeManager);
 setHandoverService(handoverSummaryService);
+setGtrConfigService(new GtrConfigService());
 setNativeDialog({
 	selectDirectory: async () => {
 		const result = await dialog.showOpenDialog({
