@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import {
 	BookOpen,
-	Bot,
 	ChevronRight,
 	Folder,
 	Home,
@@ -143,8 +142,6 @@ watch(
 		} else if (path.startsWith("/conversions/")) {
 			const id = path.split("/")[2] || "";
 			activeItem.value = id;
-		} else if (path === "/agents") {
-			activeItem.value = "agents-manager";
 		} else if (path === "/rules") {
 			activeItem.value = "rules";
 		} else if (path === "/settings") {
@@ -158,12 +155,6 @@ watch(
 
 // Bottom navigation items.
 const bottomItems = computed<SidebarItem[]>(() => [
-	{
-		id: "agents-manager",
-		title: t('sidebar.agentsManager'),
-		url: "/agents",
-		icon: Bot,
-	},
 	{
 		id: "mcp-servers",
 		title: t('sidebar.mcpServers'),
@@ -338,61 +329,21 @@ function handleMouseUp() {
     
     <SidebarFooter class="border-t p-2">
       <SidebarMenu>
-        <template v-for="item in bottomItems" :key="item.id">
-          <Collapsible v-if="item.id === 'agents-manager'" as-child class="group/collapsible-agents">
-            <SidebarMenuItem>
-              <SidebarMenuButton 
-                as-child 
-                :tooltip="item.title"
-                :isActive="activeItem === item.id"
-                @click="handleItemClick(item.id)"
-                class="transition-all duration-200 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground data-[active=true]:border data-[active=true]:border-sidebar-border data-[active=true]:shadow-sm"
-              >
-                <router-link :to="item.url" class="flex items-center gap-2 !text-inherit grow overflow-hidden">
-                  <component :is="item.icon" class="size-4 shrink-0" />
-                  <span class="font-medium truncate">{{ item.title }}</span>
-                </router-link>
-              </SidebarMenuButton>
-
-              <CollapsibleTrigger as-child>
-                <SidebarMenuAction 
-                  class="transition-all duration-200 opacity-0 group-hover/collapsible-agents:opacity-100 group-data-[state=open]/collapsible-agents:opacity-100 group-data-[state=open]/collapsible-agents:rotate-90"
-                >
-                  <ChevronRight class="size-4" />
-                  <span class="sr-only">{{ t('sidebar.toggle') }}</span>
-                </SidebarMenuAction>
-              </CollapsibleTrigger>
-
-              <CollapsibleContent>
-                <SidebarMenuSub>
-                  <SidebarMenuSubItem>
-                    <SidebarMenuSubButton as-child>
-                      <router-link to="/agents" class="text-xs">
-                        {{ t('sidebar.overview') }}
-                      </router-link>
-                    </SidebarMenuSubButton>
-                  </SidebarMenuSubItem>
-                </SidebarMenuSub>
-              </CollapsibleContent>
-            </SidebarMenuItem>
-          </Collapsible>
-
-          <SidebarMenuItem v-else>
-            <SidebarMenuButton 
-              as-child 
-              :tooltip="item.title"
-              :isActive="activeItem === item.id"
-              @click="handleItemClick(item.id)"
-              class="transition-all duration-200 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground data-[active=true]:border data-[active=true]:border-sidebar-border data-[active=true]:shadow-sm"
-            >
-                <router-link :to="item.url" class="flex items-center gap-2 !text-inherit grow overflow-hidden">
-                <component :is="item.icon" class="size-4 shrink-0" />
-                <span class="font-medium truncate">{{ item.title }}</span>
-                <div v-if="item.isRunning" class="size-2 rounded-full bg-green-500 animate-pulse ml-auto mr-1 shrink-0 shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
-              </router-link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </template>
+        <SidebarMenuItem v-for="item in bottomItems" :key="item.id">
+          <SidebarMenuButton 
+            as-child 
+            :tooltip="item.title"
+            :isActive="activeItem === item.id"
+            @click="handleItemClick(item.id)"
+            class="transition-all duration-200 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground data-[active=true]:border data-[active=true]:border-sidebar-border data-[active=true]:shadow-sm"
+          >
+              <router-link :to="item.url" class="flex items-center gap-2 !text-inherit grow overflow-hidden">
+              <component :is="item.icon" class="size-4 shrink-0" />
+              <span class="font-medium truncate">{{ item.title }}</span>
+              <div v-if="item.isRunning" class="size-2 rounded-full bg-green-500 animate-pulse ml-auto mr-1 shrink-0 shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
+            </router-link>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
         
         <SidebarMenuItem>
           <SidebarMenuButton 

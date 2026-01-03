@@ -48,6 +48,7 @@ const handleSaveTitle = async () => {
 
 		<div class="flex items-center gap-2">
 			<Button
+				v-if="conversation.latestPlanContent"
 				variant="ghost"
 				size="icon"
 				class="h-8 w-8 text-muted-foreground"

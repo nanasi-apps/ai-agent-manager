@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { ModelTemplate } from "@agent-manager/shared";
-import { CheckCircle2, FileText, Loader2, X } from "lucide-vue-next";
+import { CheckCircle2, FileText, Loader2 } from "lucide-vue-next";
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { Button } from "@/components/ui/button";
@@ -57,9 +57,7 @@ const closeApproveDialog = () => {
 	isApproveDialogOpen.value = false;
 };
 
-const handleClose = () => {
-	conversation.togglePlanViewer();
-};
+
 </script>
 
 <template>
@@ -85,12 +83,7 @@ const handleClose = () => {
           {{ t('plan.approve', 'Approve') }}
         </Button>
         <!-- Close Button -->
-        <button
-          class="text-muted-foreground hover:text-foreground p-1 rounded-md hover:bg-muted"
-          @click="handleClose"
-        >
-          <X class="size-4" />
-        </button>
+
       </div>
     </div>
 

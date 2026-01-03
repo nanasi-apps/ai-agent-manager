@@ -9,6 +9,7 @@ import {
 	Cpu,
 	Sparkles,
 	Terminal,
+	FileText,
 } from "lucide-vue-next";
 import { useI18n } from "vue-i18n";
 import { Avatar } from "@/components/ui/avatar";
@@ -258,6 +259,16 @@ const handleCopy = async (content: string, id: string) => {
 const handleToggle = (id: string) => {
 	conversation.toggleMessage(id);
 };
+
+const handleLogClick = (msg: Message) => {
+	if (msg.logType === "plan") {
+		conversation.isPlanViewerOpen = true;
+		return;
+	}
+	if (!isAlwaysOpen(msg) && hasContent(msg)) {
+		handleToggle(msg.id);
+	}
+};
 </script>
 
 <template>
@@ -360,14 +371,10 @@ const handleToggle = (id: string) => {
 				<div v-else class="flex flex-col gap-0.5 py-0.5 px-4 group">
 					<!-- Header -->
 					<div
-						@click="
-							!isAlwaysOpen(item.message) &&
-							hasContent(item.message) &&
-							handleToggle(item.message.id)
-						"
+						@click="handleLogClick(item.message)"
 						class="flex items-center gap-2 select-none px-2 py-1.5 rounded-md transition-colors opacity-80 hover:opacity-100"
 						:class="
-							!isAlwaysOpen(item.message) && hasContent(item.message)
+							item.message.logType === 'plan' || (!isAlwaysOpen(item.message) && hasContent(item.message))
 									? 'cursor-pointer hover:bg-black/5 dark:hover:bg-white/5'
 										: 'cursor-default'
 						"
@@ -406,6 +413,10 @@ const handleToggle = (id: string) => {
 						<Cpu
 							v-else-if="item.message.logType === 'system'"
 							class="size-3.5 text-green-500 shrink-0"
+						/>
+						<FileText
+							v-else-if="item.message.logType === 'plan'"
+							class="size-3.5 text-orange-500 shrink-0"
 						/>
 						<AlertCircle v-else class="size-3.5 text-yellow-500 shrink-0" />
 

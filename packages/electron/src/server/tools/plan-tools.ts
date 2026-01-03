@@ -28,6 +28,70 @@ function generatePlanSummary(planContent: string): string {
 
 export function registerPlanTools(registerTool: ToolRegistrar) {
 	registerTool(
+		"propose_implementation_plan",
+		{
+			description:
+				"Propose an implementation plan to the user. Use this when you have created a plan that needs user review before execution.",
+			inputSchema: {
+				planContent: z
+					.string()
+					.describe("The Markdown content of the implementation plan"),
+				sessionId: z
+					.string()
+					.optional()
+					.describe("Optional session ID when not using a session MCP URL"),
+			},
+		},
+		async ({ planContent, sessionId: sessionIdArg }) => {
+			if (!planContent || !planContent.trim()) {
+				return {
+					content: [
+						{
+							type: "text",
+							text: "Error: planContent is required.",
+						},
+					],
+					isError: true,
+				};
+			}
+
+			const context = getSessionContext();
+			const sessionId = context?.sessionId || sessionIdArg;
+
+			if (!sessionId) {
+				return {
+					content: [
+						{
+							type: "text",
+							text: "Error: sessionId is required.",
+						},
+					],
+					isError: true,
+				};
+			}
+
+			const store = getStoreOrThrow();
+
+			store.addMessage(sessionId, {
+				id: generateId(),
+				role: "agent",
+				content: planContent,
+				timestamp: Date.now(),
+				logType: "plan" as any,
+			});
+
+			return {
+				content: [
+					{
+						type: "text",
+						text: "Plan proposed successfully. It is now visible to the user for review.",
+					},
+				],
+			};
+		},
+	);
+
+	registerTool(
 		"planning_create",
 		{
 			description:

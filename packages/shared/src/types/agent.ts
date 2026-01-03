@@ -41,7 +41,7 @@ export interface AgentConfig {
 export interface AgentLogPayload {
 	sessionId: string;
 	data: string;
-	type?: "text" | "tool_call" | "tool_result" | "thinking" | "error" | "system";
+	type?: "text" | "tool_call" | "tool_result" | "thinking" | "error" | "system" | "plan";
 	raw?: unknown;
 }
 

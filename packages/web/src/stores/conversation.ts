@@ -16,7 +16,8 @@ export type LogType =
     | "tool_result"
     | "thinking"
     | "error"
-    | "system";
+    | "system"
+    | "plan";
 
 export interface Message {
     id: string;
@@ -107,11 +108,10 @@ export const useConversationStore = defineStore("conversation", () => {
     );
 
     const latestPlanContent = computed(() => {
-        // Find the last message from agent that is text
-        // We iterate backwards
+        // Find the last message with logType 'plan'
         for (let i = messages.value.length - 1; i >= 0; i--) {
             const msg = messages.value[i];
-            if (msg && msg.role === "agent" && (!msg.logType || msg.logType === "text")) {
+            if (msg && msg.logType === "plan") {
                 return msg.content;
             }
         }
@@ -210,6 +210,7 @@ export const useConversationStore = defineStore("conversation", () => {
 
         if (type === "error") return "Error";
         if (type === "thinking") return "Thinking";
+        if (type === "plan") return "Implementation Plan";
 
         if (type === "system") {
             const modelMatch = content.match(/\[Using model: ([^\]]+)\]/);
@@ -653,6 +654,11 @@ export const useConversationStore = defineStore("conversation", () => {
                 timestamp: Date.now(),
                 logType: incomingType as LogType,
             });
+
+            if (incomingType === "plan") {
+                isPlanViewerOpen.value = true;
+                isMcpSheetOpen.value = false;
+            }
         }
     };
 
@@ -914,6 +920,7 @@ export const useConversationStore = defineStore("conversation", () => {
                         timestamp: Date.now(),
                         logType: "system",
                     });
+                    isPlanViewerOpen.value = false;
                 }
 
                 return result;
