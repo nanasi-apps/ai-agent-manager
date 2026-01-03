@@ -602,7 +602,7 @@ export class OneShotSession extends EventEmitter {
 		console.log(
 			`[OneShotSession ${this.sessionId}] Calling processMessage with resume message`,
 		);
-		void this.processMessage(pending.resumeMessage, { resetSessionId: true });
+		void this.processMessage(pending.resumeMessage, { forceFresh: true });
 	}
 
 	private async resolveSessionCwd(): Promise<string | undefined> {
