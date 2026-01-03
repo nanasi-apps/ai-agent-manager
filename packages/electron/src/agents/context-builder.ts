@@ -62,6 +62,8 @@ function getTemplate(name: string): string {
 export interface WorktreeInstructionsParams {
 	sessionId: string;
 	projectRoot?: string;
+	projectId?: string;
+	isAutoConfigured?: boolean;
 }
 
 export function buildWorktreeInstructions(
@@ -71,6 +73,8 @@ export function buildWorktreeInstructions(
 	return renderTemplate(getTemplate("worktree-instructions"), {
 		sessionId: params.sessionId,
 		projectRoot: params.projectRoot,
+		projectId: params.projectId,
+		isAutoConfigured: params.isAutoConfigured ? "true" : undefined,
 		branchSuggestion,
 	});
 }

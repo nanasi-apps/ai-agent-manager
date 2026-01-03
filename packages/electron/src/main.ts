@@ -56,7 +56,7 @@ function createWindow() {
 		},
 	});
 
-	const devUrl = "http://localhost:5173";
+	const devUrl = `http://localhost:${process.env.WEB_PORT || 5173}`;
 	if (app.isPackaged) {
 		win.loadFile(path.join(__dirname, "renderer/index.html")).catch((err) => {
 			console.error("Failed to load local file:", err);
@@ -93,13 +93,13 @@ app.whenReady().then(() => {
 
 	// Start ORPC WebSocket server
 	console.log("[Main] Starting ORPC WebSocket server...");
-	startOrpcServer(3002);
+	startOrpcServer(Number(process.env.ORPC_PORT) || 3002);
 
 	// Start internal MCP server
 	console.log("[Main] Starting internal MCP server...");
-	startMcpServer(3001)
+	startMcpServer(Number(process.env.MCP_PORT) || 3001)
 		.then(() => {
-			console.log("[Main] Internal MCP server started on port 3001");
+			console.log(`[Main] Internal MCP server started on port ${process.env.MCP_PORT || 3001}`);
 		})
 		.catch((err) => {
 			console.error("[Main] Failed to start MCP server:", err);

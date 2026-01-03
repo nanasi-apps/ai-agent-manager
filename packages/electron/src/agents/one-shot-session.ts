@@ -1,6 +1,10 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { EventEmitter } from "node:events";
-import type { AgentConfig, AgentLogPayload } from "@agent-manager/shared";
+import {
+	type AgentConfig,
+	type AgentLogPayload,
+	getStoreOrThrow,
+} from "@agent-manager/shared";
 import { createActor, type SnapshotFrom } from "xstate";
 import type { WorktreeResumeRequest } from "./agent-manager";
 import { isAgentType } from "./agent-type-utils";
@@ -707,10 +711,31 @@ export class OneShotSession extends EventEmitter {
 		if (session.config.mode === "regular") {
 			return "";
 		}
+
+
+		// Get projectId and config status from conversation
+		let projectId: string | undefined;
+		let isAutoConfigured = false;
+		try {
+			const store = getStoreOrThrow();
+			const conversation = store.getConversation(this.sessionId);
+			if (conversation?.projectId) {
+				projectId = conversation.projectId;
+				const project = store.getProject(conversation.projectId);
+				if (project?.autoConfig) {
+					isAutoConfigured = true;
+				}
+			}
+		} catch {
+			// Store not available, skip projectId
+		}
+
 		return buildInstructions(
 			this.sessionId,
 			session.projectRoot ?? session.config.cwd,
 			!!session.activeWorktree,
+			projectId,
+			isAutoConfigured,
 		);
 	}
 

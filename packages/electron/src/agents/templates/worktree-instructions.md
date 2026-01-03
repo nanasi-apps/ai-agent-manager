@@ -23,3 +23,19 @@ Always commit at logical task boundaries after making changes:
 
 If the task is read-only (no file changes), you may proceed in the main workspace.
 If worktree creation fails or the tool is unavailable, explain the issue and proceed with extra caution.
+
+{{#if projectId}}
+**Project Launch (Auto Configuration)**
+
+{{#if isAutoConfigured}}
+When your implementation is complete and you want to test or run the project:
+1. Use the `launch_project` MCP tool with `projectId`: `{{projectId}}`
+   - This prevents port conflicts and handles environment variables automatically.
+   - Do NOT manually run commands like `npm run dev`.
+{{else}}
+This project is not yet configured for auto-launch.
+1. Analyze the project (e.g. `package.json`) to determine the startup command and ports.
+2. Configure it using the `project_set_auto_config` tool with `projectId`: `{{projectId}}`
+3. Then, use `launch_project` to start the server.
+{{/if}}
+{{/if}}

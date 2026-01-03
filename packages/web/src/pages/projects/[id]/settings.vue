@@ -1,18 +1,17 @@
 <script setup lang="ts">
+import type { AutoConfig, GtrConfig, ProjectRule } from "@agent-manager/shared";
 import { ArrowLeft, FileText, Loader2, Plus, Trash2 } from "lucide-vue-next";
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import StringListInput from "@/components/ui/StringListInput.vue";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
-import StringListInput from "@/components/ui/StringListInput.vue";
 import { MIN_LOAD_TIME } from "@/lib/constants";
 import { getRouteParamFrom } from "@/lib/route-params";
 import { orpc } from "@/services/orpc";
-import type { ProjectRule, GtrConfig } from "@agent-manager/shared";
-
 
 const route = useRoute();
 const router = useRouter();
@@ -23,6 +22,7 @@ const project = ref<{
 	rootPath?: string;
 	activeGlobalRules?: string[];
 	projectRules?: ProjectRule[];
+	autoConfig?: AutoConfig;
 } | null>(null);
 const nameDraft = ref("");
 const rootPathDraft = ref("");
@@ -39,6 +39,41 @@ const gtrConfigDraft = ref<GtrConfig>({
 	hooks: { postCreate: [] },
 });
 const gtrConfigOriginal = ref<GtrConfig | null>(null);
+
+// AutoConfig for automated project startup
+const autoConfigJsonDraft = ref<string>("");
+const autoConfigOriginal = ref<AutoConfig | null>(null);
+const autoConfigParseError = ref<string | null>(null);
+
+const validateAutoConfigJson = (json: string): AutoConfig | null => {
+	if (!json.trim()) return null;
+	try {
+		const parsed = JSON.parse(json);
+		// Basic validation
+		if (!parsed.type || !["web", "other"].includes(parsed.type)) {
+			autoConfigParseError.value = "type must be 'web' or 'other'";
+			return null;
+		}
+		if (typeof parsed.command !== "string") {
+			autoConfigParseError.value = "command must be a string";
+			return null;
+		}
+		if (typeof parsed.ports !== "object" || Array.isArray(parsed.ports)) {
+			autoConfigParseError.value = "ports must be an object";
+			return null;
+		}
+		if (!parsed.readiness?.logPattern) {
+			autoConfigParseError.value = "readiness.logPattern is required";
+			return null;
+		}
+		autoConfigParseError.value = null;
+		return parsed as AutoConfig;
+	} catch (e) {
+		autoConfigParseError.value =
+			e instanceof Error ? e.message : "Invalid JSON";
+		return null;
+	}
+};
 
 // Project Rules Logic
 const selectedProjectRuleId = ref<string | null>(null);
@@ -119,6 +154,13 @@ const resetSettings = () => {
 	if (gtrConfigOriginal.value) {
 		gtrConfigDraft.value = JSON.parse(JSON.stringify(gtrConfigOriginal.value));
 	}
+
+	// Reset AutoConfig
+	autoConfigOriginal.value = project.value?.autoConfig ?? null;
+	autoConfigJsonDraft.value = autoConfigOriginal.value
+		? JSON.stringify(autoConfigOriginal.value, null, 2)
+		: "";
+	autoConfigParseError.value = null;
 };
 
 const isSettingsDirty = computed(() => {
@@ -141,7 +183,12 @@ const isSettingsDirty = computed(() => {
 					.sort((a, b) => a.name.localeCompare(b.name)),
 			) ||
 		JSON.stringify(gtrConfigDraft.value) !==
-			JSON.stringify(gtrConfigOriginal.value)
+			JSON.stringify(gtrConfigOriginal.value) ||
+		// AutoConfig dirty check
+		autoConfigJsonDraft.value.trim() !==
+			(autoConfigOriginal.value
+				? JSON.stringify(autoConfigOriginal.value, null, 2)
+				: "")
 	);
 });
 
@@ -162,6 +209,9 @@ const saveProjectSettings = async () => {
 				rootPath: trimmedRoot ? trimmedRoot : null,
 				activeGlobalRules: activeGlobalRulesDraft.value,
 				projectRules: projectRulesDraft.value,
+				autoConfig: autoConfigJsonDraft.value.trim()
+					? validateAutoConfigJson(autoConfigJsonDraft.value)
+					: null,
 			}),
 			orpc.updateGtrConfig({
 				projectId: id,
@@ -176,8 +226,14 @@ const saveProjectSettings = async () => {
 				rootPath: trimmedRoot || undefined,
 				activeGlobalRules: activeGlobalRulesDraft.value,
 				projectRules: JSON.parse(JSON.stringify(projectRulesDraft.value)),
+				autoConfig: autoConfigJsonDraft.value.trim()
+					? (validateAutoConfigJson(autoConfigJsonDraft.value) ?? undefined)
+					: undefined,
 			};
-			gtrConfigOriginal.value = JSON.parse(JSON.stringify(gtrConfigDraft.value));
+			gtrConfigOriginal.value = JSON.parse(
+				JSON.stringify(gtrConfigDraft.value),
+			);
+			autoConfigOriginal.value = project.value.autoConfig ?? null;
 			window.dispatchEvent(new Event("agent-manager:data-change"));
 		}
 	} catch (e) {
@@ -382,6 +438,62 @@ watch(projectId, loadProject, { immediate: true });
                           placeholder="e.g. npm install" 
                       />
                   </div>
+               </div>
+            </div>
+        </div>
+
+        <!-- Auto Configuration Section -->
+        <div class="mt-6 border rounded-lg p-4 bg-card/60">
+            <h2 class="text-lg font-semibold mb-4">Auto Configuration</h2>
+            <p class="text-sm text-muted-foreground mb-4">
+              Configure automated project startup. Define how the development server launches and when it's ready.
+            </p>
+
+            <div class="space-y-4">
+               <div>
+                  <label class="text-sm font-medium mb-2 block">Configuration (JSON)</label>
+                  <Textarea 
+                      v-model="autoConfigJsonDraft"
+                      placeholder='{
+  "type": "web",
+  "command": "pnpm run dev",
+  "ports": { "PORT": 3000 },
+  "readiness": { "logPattern": "Ready in" }
+}'
+                      class="font-mono text-sm min-h-[200px] leading-relaxed"
+                      :class="{ 'border-destructive': autoConfigParseError }"
+                  />
+                  <p v-if="autoConfigParseError" class="text-sm text-destructive mt-1">
+                    {{ autoConfigParseError }}
+                  </p>
+               </div>
+
+               <div class="bg-muted/30 rounded-md p-4 text-sm space-y-3">
+                  <h4 class="font-medium">Configuration Reference</h4>
+                  <div class="grid gap-2 text-muted-foreground">
+                     <div><code class="text-foreground">type</code>: <code>"web"</code> (opens browser) or <code>"other"</code> (Electron, Android, CLI)</div>
+                     <div><code class="text-foreground">command</code>: Startup command (e.g., <code>"pnpm run dev"</code>)</div>
+                     <div><code class="text-foreground">ports</code>: Environment variable to port mapping (e.g., <code>{"PORT": 3000}</code>)</div>
+                     <div><code class="text-foreground">readiness.logPattern</code>: Regex to detect when server is ready</div>
+                  </div>
+                  
+                  <details class="mt-3">
+                     <summary class="cursor-pointer text-muted-foreground hover:text-foreground">Examples</summary>
+                     <div class="mt-2 space-y-2 pl-4">
+                        <div>
+                           <span class="font-medium">Next.js:</span>
+                           <code class="block bg-background p-2 rounded mt-1 text-xs">{"type": "web", "command": "pnpm run dev", "ports": {"PORT": 3000}, "readiness": {"logPattern": "Ready in"}}</code>
+                        </div>
+                        <div>
+                           <span class="font-medium">Electron:</span>
+                           <code class="block bg-background p-2 rounded mt-1 text-xs">{"type": "other", "command": "pnpm run dev", "ports": {"API_PORT": 3000}, "readiness": {"logPattern": "Electron app ready"}}</code>
+                        </div>
+                        <div>
+                           <span class="font-medium">Android:</span>
+                           <code class="block bg-background p-2 rounded mt-1 text-xs">{"type": "other", "command": "./gradlew installDebug", "ports": {}, "readiness": {"logPattern": "BUILD SUCCESSFUL"}}</code>
+                        </div>
+                     </div>
+                  </details>
                </div>
             </div>
         </div>

@@ -59,12 +59,31 @@ export interface Project {
 	updatedAt: number;
 	activeGlobalRules?: string[];
 	projectRules?: ProjectRule[];
+	autoConfig?: AutoConfig;
 }
 
 export interface ProjectRule {
 	id: string;
 	name: string;
 	content: string;
+}
+
+/**
+ * Auto configuration for automated project startup
+ * Defines how to launch and manage the project's development environment
+ */
+export interface AutoConfig {
+	/** Application type: 'web' opens browser, 'other' for Electron/Android/CLI etc */
+	type: "web" | "other";
+	/** Command to start the development server or build process */
+	command: string;
+	/** Environment variable names mapped to default port numbers */
+	ports: Record<string, number>;
+	/** Readiness detection configuration */
+	readiness: {
+		/** Regex pattern to detect when the server is ready (e.g., "Ready in", "Listening on") */
+		logPattern: string;
+	};
 }
 
 export interface GlobalRule {

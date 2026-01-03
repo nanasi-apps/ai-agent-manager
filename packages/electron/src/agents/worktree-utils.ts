@@ -99,6 +99,8 @@ export function buildInstructions(
 	sessionId: string,
 	projectRoot: string | undefined,
 	isInWorktree: boolean,
+	projectId?: string,
+	isAutoConfigured?: boolean,
 ): string {
 	// If already in a worktree, skip instructions.
 	if (isInWorktree) {
@@ -108,5 +110,7 @@ export function buildInstructions(
 	return buildWorktreeInstructions({
 		sessionId,
 		projectRoot,
+		projectId,
+		isAutoConfigured,
 	});
 }

@@ -13,6 +13,9 @@ export default defineConfig(({ command }) => ({
 		vue(),
 		tailwindcss(),
 	],
+	server: {
+		port: Number(process.env.WEB_PORT) || 5173,
+	},
 	resolve: {
 		alias: {
 			"@": path.resolve(__dirname, "./src"),

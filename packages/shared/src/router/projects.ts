@@ -22,6 +22,15 @@ const GtrConfigSchema = z.object({
 	}),
 });
 
+const AutoConfigSchema = z.object({
+	type: z.enum(["web", "other"]),
+	command: z.string(),
+	ports: z.record(z.string(), z.number()),
+	readiness: z.object({
+		logPattern: z.string(),
+	}),
+});
+
 export const projectsRouter = {
 	getGtrConfig: os
 		.input(z.object({ projectId: z.string() }))
@@ -126,6 +135,7 @@ export const projectsRouter = {
 							}),
 						)
 						.optional(),
+					autoConfig: AutoConfigSchema.optional(),
 				})
 				.nullable(),
 		)
@@ -141,6 +151,7 @@ export const projectsRouter = {
 				updatedAt: project.updatedAt,
 				activeGlobalRules: project.activeGlobalRules,
 				projectRules: project.projectRules,
+				autoConfig: project.autoConfig,
 			};
 		}),
 
@@ -160,6 +171,7 @@ export const projectsRouter = {
 						}),
 					)
 					.optional(),
+				autoConfig: AutoConfigSchema.nullable().optional(),
 			}),
 		)
 		.output(z.object({ success: z.boolean() }))
@@ -180,6 +192,9 @@ export const projectsRouter = {
 			}
 			if (input.projectRules !== undefined) {
 				updates.projectRules = input.projectRules;
+			}
+			if (input.autoConfig !== undefined) {
+				updates.autoConfig = input.autoConfig ?? undefined;
 			}
 
 			storeInstance.updateProject(input.projectId, updates);

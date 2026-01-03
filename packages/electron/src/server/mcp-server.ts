@@ -18,6 +18,7 @@ import { getSessionContext, runWithSessionContext } from "./mcp-session-context"
 import {
 	registerFsTools,
 	registerGitTools,
+	registerLaunchTools,
 	registerPlanTools,
 	registerSearchTools,
 	registerWorktreeTools,
@@ -128,7 +129,7 @@ export async function startMcpServer(port: number = 3001) {
 
 	// Create a tool registrar that wraps handlers with security checks
 	const registerTool: ToolRegistrar = (name, schema, handler) => {
-		server.registerTool(name, schema, async (args: any, extra: any) => {
+		server.registerTool(name, schema, async (args: Record<string, unknown>, extra: unknown) => {
 			const context = getSessionContext();
 			const sessionId = context?.sessionId;
 
@@ -213,6 +214,7 @@ export async function startMcpServer(port: number = 3001) {
 	// Register all tools from modular files
 	registerFsTools(registerTool);
 	registerGitTools(registerTool);
+	registerLaunchTools(registerTool);
 	registerPlanTools(registerTool);
 	registerWorktreeTools(registerTool);
 	registerSearchTools(registerTool);
