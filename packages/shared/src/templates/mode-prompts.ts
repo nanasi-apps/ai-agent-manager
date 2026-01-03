@@ -10,6 +10,9 @@ Focus on providing clear, accurate, and helpful textual responses based on the a
 export const PLAN_MODE_PROMPT = `
 You are currently in **Plan Mode**.
 
+**CRITICAL: You DO NOT have access to tools for modifying files (write_file, replace_file_content, git_commit, etc.).**
+**Do not attempt to execute implementation steps. Focus solely on design, investigation, and planning.**
+
 ---
 
 ## Mission
