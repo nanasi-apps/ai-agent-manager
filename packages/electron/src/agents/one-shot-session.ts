@@ -321,7 +321,7 @@ export class OneShotSession extends EventEmitter {
 				context,
 				message,
 				currentState.config,
-				systemPrompt,
+			systemPrompt,
 			);
 
 			console.log(
@@ -371,10 +371,11 @@ export class OneShotSession extends EventEmitter {
 			const finalCwd = resolvedCwd || currentState.config.cwd;
 
 			const child = spawn(cmd.command, cmd.args, {
+				autoClose: true,
 				cwd: finalCwd,
-				env: spawnEnv,
-				shell: true,
-				detached: true,
+			env: spawnEnv,
+			shell: true,
+			detached: true,
 			});
 
 			this.currentProcess = child;
@@ -406,7 +407,7 @@ export class OneShotSession extends EventEmitter {
 			child.stdout.on("data", (data) => {
 				const str = data.toString();
 				if (this.state.config.streamJson) {
-					this.parseStreamJson(str);
+					this.parseStreamJson(str, child);
 				} else {
 					this.emitLog(str, "text");
 				}
@@ -509,7 +510,7 @@ export class OneShotSession extends EventEmitter {
 		}
 	}
 
-	private parseStreamJson(chunk: string) {
+	private parseStreamJson(chunk: string, originProcess: ChildProcess) {
 		const lines = chunk.split("\n").filter((l) => l.trim().length > 0);
 		const type = this.state.config.type;
 
@@ -519,23 +520,29 @@ export class OneShotSession extends EventEmitter {
 				const logs = this.parser.processJsonEvent(json, type);
 
 				for (const log of logs) {
-					if (log.metadata?.geminiSessionId) {
-						this.actor.send({
-							type: "SET_GEMINI_SESSION",
-							id: log.metadata.geminiSessionId,
-						});
-					}
-					if (log.metadata?.codexThreadId) {
-						this.actor.send({
-							type: "SET_CODEX_THREAD",
-							id: log.metadata.codexThreadId,
-						});
-					}
-					if (log.metadata?.codexSessionId) {
-						this.actor.send({
-							type: "SET_CODEX_SESSION",
-							id: log.metadata.codexSessionId,
-						});
+					// Check if the process emitting this log is still the active one
+					// before updating session state. This prevents race conditions
+					// where a dying process (e.g. invalid session) overwrites the
+					// state cleared by the error handler.
+					if (this.currentProcess === originProcess) {
+						if (log.metadata?.geminiSessionId) {
+							this.actor.send({
+								type: "SET_GEMINI_SESSION",
+								id: log.metadata.geminiSessionId,
+							});
+						}
+						if (log.metadata?.codexThreadId) {
+							this.actor.send({
+								type: "SET_CODEX_THREAD",
+								id: log.metadata.codexThreadId,
+							});
+						}
+						if (log.metadata?.codexSessionId) {
+							this.actor.send({
+								type: "SET_CODEX_SESSION",
+								id: log.metadata.codexSessionId,
+							});
+						}
 					}
 					this.emitLog(log.data, log.type, log.raw);
 				}
@@ -575,7 +582,7 @@ export class OneShotSession extends EventEmitter {
 			context: {
 				cwd: pending.request.cwd,
 				branch: pending.request.branch,
-				repoPath: pending.request.repoPath,
+			repoPath: pending.request.repoPath,
 			},
 		});
 
