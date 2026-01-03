@@ -107,8 +107,22 @@ export class OneShotSession extends EventEmitter {
 			};
 		}
 
+		// If the session was processing when persisted (e.g. app crash),
+		// force it to idle so it doesn't get stuck waiting for a process that doesn't exist.
+		let nextValue = state.value;
+		if (
+			nextValue === "processing" ||
+			(typeof nextValue === "object" && "processing" in nextValue)
+		) {
+			console.warn(
+				`[OneShotSession ${sessionId}] Found stale 'processing' state. Resetting to 'idle'.`,
+			);
+			nextValue = "idle";
+		}
+
 		return {
 			...state,
+			value: nextValue,
 			context: nextContext,
 		};
 	}
