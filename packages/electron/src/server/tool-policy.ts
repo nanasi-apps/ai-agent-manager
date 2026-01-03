@@ -7,6 +7,8 @@ import type { AgentMode } from "@agent-manager/shared";
 export const PLAN_MODE_FORBIDDEN_TOOLS = [
 	"write_file",
 	"replace_file_content",
+	"pre_file_edit",
+	"post_file_edit",
 	"git_add",
 	"git_commit",
 	"git_checkout",
