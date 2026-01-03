@@ -12,6 +12,9 @@ export interface RunningProcess {
     type: "web" | "process" | "other";
     url?: string;
     conversationId?: string;
+    logs: string[];
+    status: 'running' | 'stopped' | 'error';
+    exitCode?: number | null;
 }
 
 class DevServerManager {
@@ -22,21 +25,32 @@ class DevServerManager {
     }
 
     getRunningProject(projectId: string, conversationId?: string): RunningProcess | undefined {
-        return this.runningProcesses.get(this.getProcessKey(projectId, conversationId));
+        const key = this.getProcessKey(projectId, conversationId);
+        return this.runningProcesses.get(key);
     }
 
     listRunningProjects(): RunningProcess[] {
-        return Array.from(this.runningProcesses.values());
+        return Array.from(this.runningProcesses.values()).filter(p => p.status === 'running');
+    }
+
+    getProjectLogs(projectId: string, conversationId?: string): string[] {
+        const key = this.getProcessKey(projectId, conversationId);
+        const running = this.runningProcesses.get(key);
+        return running?.logs ?? [];
     }
 
     async stopProject(projectId: string, conversationId?: string): Promise<boolean> {
         const key = this.getProcessKey(projectId, conversationId);
         const running = this.runningProcesses.get(key);
+
+        // If it exists but is not running, we just return true (already stopped)
+        // AND we probably want to update status if not updated? 
+        // But if it's in map and status is running, we kill it.
         if (!running) return false;
+        if (running.status !== 'running') return true;
 
         try {
             // Clean up child process
-            // If pid is negative, it kills the process group (requires detached: true)
             try {
                 process.kill(-running.pid, "SIGTERM");
             } catch (e: any) {
@@ -46,12 +60,26 @@ class DevServerManager {
                 }
             }
 
-            this.runningProcesses.delete(key);
+            running.status = 'stopped';
+            // We keep it in the map to preserve logs
             return true;
         } catch (error) {
-            this.runningProcesses.delete(key);
+            running.status = 'error';
             throw error;
         }
+    }
+
+    async stopAll(): Promise<void> {
+        console.log("[DevServerManager] Stopping all running projects...");
+        const promises: Promise<boolean>[] = [];
+        for (const process of this.runningProcesses.values()) {
+            if (process.status === 'running') {
+                promises.push(this.stopProject(process.projectId, process.conversationId));
+            }
+        }
+        await Promise.allSettled(promises);
+        // We DO clear on stopAll (app exit)
+        this.runningProcesses.clear();
     }
 
     async launchProject(
@@ -62,9 +90,9 @@ class DevServerManager {
         console.log(`[DevServerManager] Launching project ${projectId}${conversationId ? ` (conversation: ${conversationId})` : ""}${overrideCwd ? ` in ${overrideCwd}` : ""}`);
 
         const key = this.getProcessKey(projectId, conversationId);
-        const running = this.runningProcesses.get(key);
-        if (running) {
-            return running;
+        const existing = this.runningProcesses.get(key);
+        if (existing && existing.status === 'running') {
+            return existing;
         }
 
         try {
@@ -138,6 +166,20 @@ class DevServerManager {
                 detached: true,
             });
 
+            // Capture logs
+            const logs: string[] = [];
+            const logHandler = (data: Buffer | string, isError: boolean) => {
+                const text = data.toString();
+                // Strip ANSI codes if needed, or keep for frontend rendering?
+                // For now, keep as is.
+                logs.push(text);
+                // Optional: Limit log size to prevent memory leaks
+                if (logs.length > 5000) logs.shift();
+            };
+
+            childProcess.stdout?.on("data", (d) => logHandler(d, false));
+            childProcess.stderr?.on("data", (d) => logHandler(d, true));
+
             if (!childProcess.pid) throw new Error(`Failed to spawn process for command: ${cmd}`);
 
             // Track process configuration
@@ -150,8 +192,26 @@ class DevServerManager {
                 type: config.type as "web" | "process" | "other",
                 url: undefined,
                 conversationId,
+                logs,
+                status: 'running'
             };
             this.runningProcesses.set(key, processInfo);
+
+            // Add global exit/error listeners to update status
+            childProcess.on('exit', (code, signal) => {
+                console.log(`[DevServerManager] Project ${projectId} exited with code ${code} signal ${signal}`);
+                if (processInfo.status === 'running') {
+                    processInfo.status = code === 0 ? 'stopped' : 'error';
+                    processInfo.exitCode = code;
+                }
+            });
+
+            childProcess.on('error', (err) => {
+                console.error(`[DevServerManager] Project ${projectId} error:`, err);
+                if (processInfo.status === 'running') {
+                    processInfo.status = 'error';
+                }
+            });
 
             // 4. Wait for readiness (if configured)
             const readinessConfig = config.readiness || (config as any).readiness;
@@ -186,11 +246,11 @@ class DevServerManager {
                     if (targetPort) {
                         const url = `http://localhost:${targetPort}`;
                         processInfo.url = url;
-                        try {
-                            await shell.openExternal(url);
-                        } catch (e) {
-                            console.error("Failed to open browser:", e);
-                        }
+                        // try {
+                        //     await shell.openExternal(url);
+                        // } catch (e) {
+                        //     console.error("Failed to open browser:", e);
+                        // }
                     }
                 }
             } else {
@@ -200,11 +260,11 @@ class DevServerManager {
                     if (mainPort) {
                         const url = `http://localhost:${mainPort}`;
                         processInfo.url = url;
-                        try {
-                            await shell.openExternal(url);
-                        } catch (e) {
-                            console.error("Failed to open browser:", e);
-                        }
+                        // try {
+                        //     await shell.openExternal(url);
+                        // } catch (e) {
+                        //     console.error("Failed to open browser:", e);
+                        // }
                     }
                 }
             }

@@ -114,3 +114,13 @@ app.on("window-all-closed", () => {
 		app.quit();
 	}
 });
+
+app.on("before-quit", async (event) => {
+	const running = devServerManager.listRunningProjects();
+	if (running.length === 0) return;
+
+	event.preventDefault();
+	console.log(`[Main] Stopping ${running.length} dev servers before quit...`);
+	await devServerManager.stopAll();
+	app.quit();
+});

@@ -109,6 +109,7 @@ export const devServerRouter = {
                     command: z.string(),
                     startedAt: z.number(),
                     conversationId: z.string().optional(),
+                    status: z.enum(["running", "stopped", "error"]),
                 })
                 .optional(),
         )
@@ -117,7 +118,13 @@ export const devServerRouter = {
                 input.projectId,
                 input.conversationId,
             );
+            // getRunningProject now returns undefined if status is NOT running
+            // But if we want to return 'stopped' or 'error' status, we should probably change getRunningProject
+            // OR use a different method to get "any" project status.
+            // For now, if undefined, frontend assumes stopped.
+
             if (!process) return undefined;
+
             return {
                 pid: process.pid,
                 projectId: process.projectId,
@@ -126,6 +133,14 @@ export const devServerRouter = {
                 command: process.command,
                 startedAt: process.startedAt,
                 conversationId: process.conversationId,
+                status: process.status,
             };
+        }),
+
+    devServerLogs: os
+        .input(z.object({ projectId: z.string(), conversationId: z.string().optional() }))
+        .output(z.array(z.string()))
+        .handler(async ({ input }) => {
+            return getDevServerServiceOrThrow().getProjectLogs(input.projectId, input.conversationId);
         }),
 };

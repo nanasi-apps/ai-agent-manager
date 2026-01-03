@@ -180,6 +180,9 @@ export interface IRunningProcess {
 	type: "web" | "process" | "other";
 	url?: string;
 	conversationId?: string;
+	logs: string[];
+	status: 'running' | 'stopped' | 'error';
+	exitCode?: number | null;
 }
 
 export interface IDevServerService {
@@ -193,6 +196,7 @@ export interface IDevServerService {
 		projectId: string,
 		options?: { timeout?: number; cwd?: string; conversationId?: string },
 	): Promise<IRunningProcess>;
+	getProjectLogs(projectId: string, conversationId?: string): string[];
 }
 
 let devServerService: IDevServerService | null = null;

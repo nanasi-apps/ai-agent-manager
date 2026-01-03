@@ -1,17 +1,18 @@
 <script setup lang="ts">
-import { FileText, GitBranch, Plug, Play, Square, ExternalLink } from "lucide-vue-next";
+import { FileText, GitBranch, Plug, Play, Square, ExternalLink, Terminal } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
 import { useConversationStore } from "@/stores/conversation";
-import { watch, onUnmounted } from "vue";
+import { watch, onUnmounted, ref } from "vue";
+import DevServerLogsViewer from "./DevServerLogsViewer.vue";
 
 const conversation = useConversationStore();
+const isLogsOpen = ref(false);
 
 const handleSaveTitle = async () => {
 	await conversation.saveTitle();
 };
 
 let pollInterval: NodeJS.Timeout | null = null;
-
 watch(
 	() => conversation.projectId,
 	(pid) => {
@@ -80,17 +81,25 @@ onUnmounted(() => {
 		<div class="flex items-center gap-2">
 			<!-- Dev Server Controls -->
 			<div v-if="conversation.projectId" class="flex items-center gap-2 border-r pr-2 mr-2">
-				<template v-if="conversation.devServer.isRunning">
-					<a
-						v-if="conversation.devServer.url"
-						:href="conversation.devServer.url"
-						target="_blank"
-						class="text-xs text-blue-500 hover:underline flex items-center gap-1 mr-2 px-2 py-1 rounded hover:bg-accent/50"
-					>
-						{{ conversation.devServer.url }}
-						<ExternalLink class="size-3" />
-					</a>
-					<span v-else class="text-xs text-muted-foreground mr-2">Running (PID: {{ conversation.devServer.pid }})</span>
+				<template v-if="conversation.devServer.isRunning || conversation.devServer.status === 'error'">
+                    <template v-if="conversation.devServer.status === 'error'">
+                         <span class="text-xs text-destructive mr-2 flex items-center gap-1 font-medium">
+                            <span class="size-2 rounded-full bg-destructive animate-pulse"></span>
+                            Error (Exit: {{ conversation.devServer.exitCode ?? '?' }})
+                        </span>
+                    </template>
+					<template v-else>
+                        <a
+                            v-if="conversation.devServer.url"
+                            :href="conversation.devServer.url"
+                            target="_blank"
+                            class="text-xs text-blue-500 hover:underline flex items-center gap-1 mr-2 px-2 py-1 rounded hover:bg-accent/50"
+                        >
+                            {{ conversation.devServer.url }}
+                            <ExternalLink class="size-3" />
+                        </a>
+                        <span v-else class="text-xs text-muted-foreground mr-2">Running (PID: {{ conversation.devServer.pid }})</span>
+                    </template>
 
 					<Button
 						variant="ghost"
@@ -101,6 +110,15 @@ onUnmounted(() => {
 					>
 						<Square class="size-4 fill-current" />
 					</Button>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        class="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-accent/50"
+                        @click="isLogsOpen = true"
+                        title="View Logs"
+                    >
+                        <Terminal class="size-4" />
+                    </Button>
 				</template>
 
 				<Button
@@ -108,7 +126,7 @@ onUnmounted(() => {
 					variant="ghost"
 					size="sm"
 					class="h-8 gap-2 text-primary hover:bg-primary/10"
-					@click="conversation.launchDevServer()"
+						@click="conversation.launchDevServer()"
 					title="Run Project"
 				>
 					<Play class="size-4 fill-current" />
@@ -138,5 +156,14 @@ onUnmounted(() => {
 				<Plug class="size-4" />
 			</Button>
 		</div>
+
+        <!-- Dialogs -->
+        <DevServerLogsViewer
+            v-if="conversation.projectId && conversation.sessionId"
+            :open="isLogsOpen"
+            @update:open="isLogsOpen = $event"
+            :project-id="conversation.projectId"
+            :conversation-id="conversation.sessionId"
+        />
 	</div>
 </template>

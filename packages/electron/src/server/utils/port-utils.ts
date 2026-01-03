@@ -33,25 +33,12 @@ export async function allocatePorts(
     const usedPorts = new Set<number>();
 
     for (const [envVar, defaultPort] of Object.entries(portsConfig)) {
-        let port = defaultPort;
+        // Use a random port from the start, as requested
+        let port = await getPort();
 
-        // Find next available port that hasn't been allocated already
-        // We use isPortAvailable loop here because we need to ensure it doesn't conflict
-        // with other ports we just allocated in this function (usedPorts)
-        while (usedPorts.has(port) || !(await isPortAvailable(port))) {
-            const reason = usedPorts.has(port)
-                ? "already allocated in this session"
-                : "in use by another process";
-            console.log(
-                `[PortUtils] Port ${port} for ${envVar} is ${reason}, trying ${port + 1}`,
-            );
-            port++;
-            // Safety limit to avoid infinite loop
-            if (port > defaultPort + 1000) {
-                throw new Error(
-                    `Could not find available port for ${envVar} starting from ${defaultPort}`,
-                );
-            }
+        // Ensure we don't allocate the same port twice within this session
+        while (usedPorts.has(port)) {
+            port = await getPort();
         }
 
         if (port !== defaultPort) {
@@ -63,7 +50,5 @@ export async function allocatePorts(
         allocatedPorts[envVar] = port;
         usedPorts.add(port);
     }
-
     return allocatedPorts;
 }
-

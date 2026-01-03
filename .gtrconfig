@@ -1,0 +1,5 @@
+[copy]
+	includeDirs = node_modules/
+	excludeDirs = node_modules/.cache
+[hooks]
+	postCreate = pnpm i

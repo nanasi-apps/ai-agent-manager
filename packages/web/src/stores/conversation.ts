@@ -109,6 +109,8 @@ export const useConversationStore = defineStore("conversation", () => {
         pid?: number;
         type?: "web" | "process" | "other";
         error?: string;
+        status?: "running" | "stopped" | "error";
+        exitCode?: number | null;
     }>({ isRunning: false });
 
     // Computed
@@ -823,10 +825,13 @@ export const useConversationStore = defineStore("conversation", () => {
             });
             if (status) {
                 devServer.value = {
-                    isRunning: true,
+                    isRunning: status.status === 'running',
                     url: status.url,
                     pid: status.pid,
                     type: status.type,
+                    status: status.status as "running" | "stopped" | "error", // Ensure strict typing
+                    // @ts-ignore - ORPC types might need regeneration
+                    exitCode: status.exitCode,
                 };
             } else {
                 devServer.value = { isRunning: false };
@@ -834,6 +839,19 @@ export const useConversationStore = defineStore("conversation", () => {
         } catch (e) {
             console.error("Error loading dev server status:", e);
             devServer.value = { isRunning: false, error: String(e) };
+        }
+    };
+
+    const fetchDevServerLogs = async (pid: string, cid: string) => {
+        try {
+            const logs = await orpc.devServerLogs({
+                projectId: pid,
+                conversationId: cid,
+            });
+            return logs;
+        } catch (e) {
+            console.error("Error fetching dev server logs:", e);
+            return [];
         }
     };
 
@@ -1216,6 +1234,7 @@ export const useConversationStore = defineStore("conversation", () => {
         // Dev Server
         devServer,
         loadDevServerStatus,
+        fetchDevServerLogs,
         launchDevServer,
         stopDevServer,
     };
