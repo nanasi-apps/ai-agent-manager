@@ -5,7 +5,15 @@ import type { ContractRouterClient } from "@orpc/contract";
 
 // Initialize the ORPC client
 export const createClient = () => {
-	const wsUrl = "ws://localhost:3002";
+	const orpcPort =
+		typeof window !== "undefined" && window.electronAPI?.getOrpcPort
+			? window.electronAPI.getOrpcPort()
+			: Number(import.meta.env.VITE_ORPC_PORT) || 3002;
+	const hostname =
+		typeof window !== "undefined" && window.location.hostname
+			? window.location.hostname
+			: "localhost";
+	const wsUrl = `ws://${hostname}:${orpcPort}`;
 	console.log(`Web: Connecting to ORPC via WebSocket (${wsUrl})...`);
 
 	// Create WebSocket instance

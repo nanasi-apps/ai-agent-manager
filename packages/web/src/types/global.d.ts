@@ -12,6 +12,7 @@ export interface ElectronAPI {
 	onAgentStateChanged: (
 		callback: (payload: AgentStatePayload) => void,
 	) => () => void;
+	getOrpcPort: () => number;
 }
 
 declare global {
