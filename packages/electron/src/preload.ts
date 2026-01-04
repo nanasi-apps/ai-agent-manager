@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
 		ipcRenderer.on("agent:state-changed", listener);
 		return () => ipcRenderer.removeListener("agent:state-changed", listener);
 	},
+	getOrpcPort: () => Number(process.env.ORPC_PORT) || 3002,
 });
 
 window.addEventListener("message", (event) => {
