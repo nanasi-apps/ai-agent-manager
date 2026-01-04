@@ -198,7 +198,7 @@ export interface IDevServerService {
 	stopProject(projectId: string, conversationId?: string): Promise<boolean>;
 	launchProject(
 		projectId: string,
-		options?: { timeout?: number; cwd?: string; conversationId?: string },
+		options?: { timeout?: number; cwd?: string; conversationId?: string; configName?: string },
 	): Promise<IRunningProcess>;
 	getProjectLogs(projectId: string, conversationId?: string): string[];
 }

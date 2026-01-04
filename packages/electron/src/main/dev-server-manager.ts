@@ -86,12 +86,12 @@ class DevServerManager {
 
     async launchProject(
         projectId: string,
-        options: { timeout?: number; cwd?: string; conversationId?: string } = {},
+        options: { timeout?: number; cwd?: string; conversationId?: string; configName?: string } = {},
     ): Promise<RunningProcess> {
-        const { timeout = 60000, cwd: overrideCwd, conversationId } = options;
+        const { timeout = 60000, cwd: overrideCwd, conversationId, configName } = options;
         logger.info(
-            "Launching project {projectId} (conversation: {conversationId}, cwd: {cwd})",
-            { projectId, conversationId: conversationId ?? "none", cwd: overrideCwd ?? "default" },
+            "Launching project {projectId} (conversation: {conversationId}, cwd: {cwd}, config: {configName})",
+            { projectId, conversationId: conversationId ?? "none", cwd: overrideCwd ?? "default", configName: configName ?? "auto" },
         );
 
         const key = this.getProcessKey(projectId, conversationId);
@@ -106,7 +106,22 @@ class DevServerManager {
 
             if (!project) throw new Error(`Project ${projectId} not found`);
 
-            const config = project.autoConfig;
+            let config: AutoConfig | undefined;
+
+            if (configName) {
+                config = project.launchConfigs?.find(c => c.name === configName);
+                if (!config) throw new Error(`Launch configuration "${configName}" not found for project "${project.name}"`);
+            } else {
+                // Fallback / Auto logic
+                // 1. Try launchConfigs[0] if exists
+                if (project.launchConfigs && project.launchConfigs.length > 0) {
+                    config = project.launchConfigs[0];
+                }
+                // 2. Try autoConfig
+                else {
+                    config = project.autoConfig;
+                }
+            }
 
             if (!config) throw new Error(`Project "${project.name}" does not have Agent Configuration set up.`);
             if (!project.rootPath) throw new Error(`Project "${project.name}" does not have a root path set`);

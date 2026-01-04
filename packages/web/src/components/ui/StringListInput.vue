@@ -96,7 +96,7 @@ const handleKeydown = (e: KeyboardEvent) => {
         <Input
           :model-value="item"
           class="flex-1"
-          @update:model-value="(val: string) => updateItem(index, val)"
+          @update:model-value="(val: string | number) => updateItem(index, String(val))"
           @blur="() => normalizeItem(index)"
         />
         <Button

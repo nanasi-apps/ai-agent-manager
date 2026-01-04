@@ -37,8 +37,8 @@ export const EnvBuilder = {
 		}
 
 		// Inject API keys and Base URLs from Store settings
-		// ONLY if using a Custom Model (one that is not in the hardcoded list)
-		// This prevents overriding standard CLI auth/config for standard models
+		// Codex uses custom settings only for non-hardcoded models.
+		// Gemini honors API settings when an API key is configured.
 		const apiSettings = store.getApiSettings();
 		const currentModel = state.config.model;
 		const configType = state.config.type; // gemini, codex, etc.
@@ -48,6 +48,7 @@ export const EnvBuilder = {
 		if (configType && currentModel && HARDCODED_MODELS[configType]) {
 			isStandardModel = HARDCODED_MODELS[configType].includes(currentModel);
 		}
+		const hasGeminiApiSettings = !!apiSettings.geminiApiKey;
 
 		// Gemini
 		let geminiHome: string | undefined;
@@ -56,8 +57,11 @@ export const EnvBuilder = {
 			const geminiEnv = await prepareGeminiEnv({
 				mcpServerUrl,
 				existingHome: state.geminiHome,
-				apiKey: !isStandardModel ? apiSettings.geminiApiKey : undefined,
-				baseUrl: !isStandardModel ? apiSettings.geminiBaseUrl : undefined,
+				apiKey: hasGeminiApiSettings ? apiSettings.geminiApiKey : undefined,
+				baseUrl:
+					hasGeminiApiSettings && apiSettings.geminiBaseUrl
+						? apiSettings.geminiBaseUrl
+						: undefined,
 				mode: options.mode,
 			});
 			Object.assign(env, geminiEnv);

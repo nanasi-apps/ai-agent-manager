@@ -293,20 +293,30 @@ export async function startMcpServer(port: number = 3001) {
 	}, 100);
 
 	// Session-specific MCP endpoint: /mcp/:sessionId/*
+	// This is the ONLY way to connect to the MCP server
 	app.all("/mcp/:sessionId/*", async (c) => {
 		const sessionId = c.req.param("sessionId");
 		const isSuperuser = c.req.query("superuser") === "true";
+
+		// Validate session exists
+		const conv = getStoreOrThrow().getConversation(sessionId);
+		if (!conv) {
+			console.warn(`[McpServer] Invalid session ID: ${sessionId}`);
+			return c.json({ error: "Invalid session ID" }, 401);
+		}
+
+		const projectId = conv.projectId;
+
 		const context: Parameters<StreamableHTTPTransport["handleRequest"]>[0] = c;
-		return runWithSessionContext({ sessionId, isSuperuser }, () =>
+		return runWithSessionContext({ sessionId, projectId, isSuperuser }, () =>
 			transport.handleRequest(context),
 		);
 	});
 
-	// Default MCP endpoint (backward compatible)
-	app.all("/mcp/*", async (c) => {
-		console.log(`[McpServer] Handling MCP request: ${c.req.url}`);
-		const context: Parameters<StreamableHTTPTransport["handleRequest"]>[0] = c;
-		return transport.handleRequest(context);
+	// Reject requests to /mcp/* without sessionId
+	app.all("/mcp/*", (c) => {
+		console.warn(`[McpServer] Rejected request without session ID: ${c.req.url}`);
+		return c.json({ error: "Session ID required. Use /mcp/:sessionId/* endpoint." }, 401);
 	});
 
 	// Health check

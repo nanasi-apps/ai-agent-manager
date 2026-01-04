@@ -2,7 +2,7 @@ import { AgentConfigSchema, getStoreOrThrow } from "@agent-manager/shared";
 import { z } from "zod";
 import { getAgentManager } from "../../agents/agent-manager";
 import { devServerManager } from "../../main/dev-server-manager";
-import { getSessionContext } from "../mcp-session-context";
+import { getSessionContext, getSessionProjectId } from "../mcp-session-context";
 import type { ToolRegistrar, ToolResult } from "./types";
 
 export function registerLaunchTools(registerTool: ToolRegistrar) {
@@ -21,16 +21,27 @@ If a git worktree is active for the current session, the server will be launched
 
 Use this when implementation is complete and you want to start the development server.`,
             inputSchema: {
-                projectId: z
-                    .string()
-                    .describe("The project ID to launch"),
                 timeout: z
                     .number()
                     .optional()
                     .describe("Timeout in milliseconds to wait for readiness (default: 60000)"),
             },
         },
-        async ({ projectId, timeout = 60000 }): Promise<ToolResult> => {
+        async ({ timeout = 60000 }): Promise<ToolResult> => {
+            const projectId = getSessionProjectId();
+
+            if (!projectId) {
+                return {
+                    content: [
+                        {
+                            type: "text",
+                            text: "Error: Could not determine project ID. No session context available.",
+                        },
+                    ],
+                    isError: true,
+                };
+            }
+
             console.log(`[McpServer] launch_project called: projectId=${projectId}`);
 
             try {
@@ -114,13 +125,19 @@ ${actionMessage}`,
 This configuration determines how the project is launched and managed.
 Analyze the project structure (package.json, etc.) and call this tool with the appropriate settings.`,
             inputSchema: {
-                projectId: z
-                    .string()
-                    .describe("The project ID to configure"),
                 config: AgentConfigSchema,
             },
         },
-        async ({ projectId, config }): Promise<ToolResult> => {
+        async ({ config }): Promise<ToolResult> => {
+            const projectId = getSessionProjectId();
+
+            if (!projectId) {
+                return {
+                    content: [{ type: "text", text: "Error: Could not determine project ID. No session context available." }],
+                    isError: true,
+                };
+            }
+
             const store = getStoreOrThrow();
             const project = store.getProject(projectId);
 
@@ -164,12 +181,19 @@ You can now use 'launch_project' to start this application.`,
     registerTool(
         "stop_project",
         {
-            description: "Stop a running project that was launched with launch_project",
-            inputSchema: {
-                projectId: z.string().describe("The project ID to stop"),
-            },
+            description: "Stop a running project that was launched with launch_project.",
+            inputSchema: {},
         },
-        async ({ projectId }): Promise<ToolResult> => {
+        async (): Promise<ToolResult> => {
+            const projectId = getSessionProjectId();
+
+            if (!projectId) {
+                return {
+                    content: [{ type: "text", text: "Error: Could not determine project ID. No session context available." }],
+                    isError: true,
+                };
+            }
+
             try {
                 const context = getSessionContext();
                 const stopped = await devServerManager.stopProject(projectId, context?.sessionId);

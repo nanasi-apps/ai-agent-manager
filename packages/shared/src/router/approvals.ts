@@ -216,14 +216,8 @@ export const approvalsRouter = {
                 return { success: false, message: "Invalid model ID" };
             }
 
-            // Update approval status
-            storeInstance.updateApproval(input.id, {
-                status: "approved",
-                approvedModelId: input.modelId,
-                mode: "regular", // Execute in agent mode
-                respondedAt: Date.now(),
-                responseMessage: input.message,
-            });
+            // Delete approval request as it is now approved and being executed
+            storeInstance.deleteApproval(input.id);
 
             // Get the conversation
             const conv = storeInstance.getConversation(approval.sessionId);

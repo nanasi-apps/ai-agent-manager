@@ -50,7 +50,7 @@ export interface Conversation {
 /**
  * Project entity
  */
-import { AgentConfigJson } from "./launch-config";
+import type { AgentConfigJson } from "./launch-config";
 
 // ...
 
@@ -65,6 +65,11 @@ export interface Project {
 	projectRules?: ProjectRule[];
 	// Use the new structured config
 	autoConfig?: AgentConfigJson;
+	/**
+	 * Multiple launch configurations
+	 * This allows users to have different run profiles (e.g. Run, Debug, Tests)
+	 */
+	launchConfigs?: AgentConfigJson[];
 }
 
 export interface ProjectRule {

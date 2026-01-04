@@ -13,6 +13,7 @@ export const devServerRouter = {
                 projectId: z.string(),
                 conversationId: z.string().optional(),
                 timeout: z.number().default(60000),
+                configName: z.string().optional(),
             }),
         )
         .output(
@@ -78,7 +79,7 @@ export const devServerRouter = {
 
             const process = await getDevServerServiceOrThrow().launchProject(
                 input.projectId,
-                { timeout: input.timeout, cwd: worktreeCwd, conversationId: input.conversationId },
+                { timeout: input.timeout, cwd: worktreeCwd, conversationId: input.conversationId, configName: input.configName },
             );
             return {
                 pid: process.pid,

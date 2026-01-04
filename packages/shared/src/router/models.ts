@@ -48,9 +48,11 @@ export const modelsRouter = {
 			// Check which API keys are configured
 			const hasOpenaiKey = !!apiSettings.openaiApiKey;
 			const hasGeminiApiKey = !!apiSettings.geminiApiKey;
+			const openaiBaseUrl = apiSettings.openaiBaseUrl ?? "";
+			const geminiBaseUrl = apiSettings.geminiBaseUrl ?? "";
 
 			// Skip cache if we need to check API settings dynamically
-			const cacheKey = `all:openai=${hasOpenaiKey}:gemini=${hasGeminiApiKey}`;
+			const cacheKey = `all:openai=${hasOpenaiKey}:${openaiBaseUrl}:gemini=${hasGeminiApiKey}:${geminiBaseUrl}`;
 			const cached = modelListCache.get(cacheKey);
 			const now = Date.now();
 			if (cached && cached.expiresAt > now) {
@@ -95,18 +97,31 @@ export const modelsRouter = {
 				}
 
 				const modelEntries: { model: string; isCustom: boolean }[] = [];
+				const hardcodedModels = getModelsForCliType(cliType);
 				if (isCustomEndpoint) {
-					const hardcodedModels = getModelsForCliType(cliType);
+					const customModels = models.filter(
+						(model) => !hardcodedModels.includes(model),
+					);
 					const seen = new Set<string>();
-					for (const model of hardcodedModels) {
-						if (seen.has(model)) continue;
-						seen.add(model);
-						modelEntries.push({ model, isCustom: false });
-					}
-					for (const model of models) {
-						if (seen.has(model)) continue;
-						seen.add(model);
-						modelEntries.push({ model, isCustom: true });
+
+					if (customModels.length === 0) {
+						const fallbackModels = models.length > 0 ? models : hardcodedModels;
+						for (const model of fallbackModels) {
+							if (seen.has(model)) continue;
+							seen.add(model);
+							modelEntries.push({ model, isCustom: true });
+						}
+					} else {
+						for (const model of hardcodedModels) {
+							if (seen.has(model)) continue;
+							seen.add(model);
+							modelEntries.push({ model, isCustom: false });
+						}
+						for (const model of customModels) {
+							if (seen.has(model)) continue;
+							seen.add(model);
+							modelEntries.push({ model, isCustom: true });
+						}
 					}
 				} else {
 					for (const model of models) {

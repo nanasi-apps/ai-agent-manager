@@ -1,6 +1,7 @@
 import { os } from "@orpc/server";
 import { z } from "zod";
 import { getStoreOrThrow } from "../services/dependency-container";
+import { modelListCache } from "../services/model-fetcher";
 
 export const apiSettingsRouter = {
 	getApiSettings: os
@@ -53,6 +54,7 @@ export const apiSettingsRouter = {
 				updates.geminiBaseUrl = input.geminiBaseUrl || undefined;
 			}
 			getStoreOrThrow().updateApiSettings(updates);
+			modelListCache.clear();
 			return { success: true };
 		}),
 };

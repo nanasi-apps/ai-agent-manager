@@ -14,22 +14,19 @@ import {
 	getCurrentBranch,
 	runGtr,
 } from "../utils";
+import { getSessionContext } from "../mcp-session-context";
 import type { ToolRegistrar } from "./types";
 
 export function registerWorktreeTools(registerTool: ToolRegistrar) {
 	registerTool(
 		"worktree_create",
 		{
-			description: "Create a git worktree for a branch",
+			description: "Create a git worktree for a branch.",
 			inputSchema: {
 				repoPath: z
 					.string()
 					.describe("Absolute path to the git repository root"),
 				branch: z.string().describe("Branch name to create or checkout"),
-				sessionId: z
-					.string()
-					.optional()
-					.describe("Optional agent session ID to resume in the worktree"),
 				resume: z
 					.boolean()
 					.optional()
@@ -40,7 +37,10 @@ export function registerWorktreeTools(registerTool: ToolRegistrar) {
 					.describe("Optional message to send on resume"),
 			},
 		},
-		async ({ repoPath, branch, sessionId, resume, resumeMessage }) => {
+		async ({ repoPath, branch, resume, resumeMessage }) => {
+			const context = getSessionContext();
+			const sessionId = context?.sessionId;
+
 			console.log(
 				`[McpServer] worktree_create called: branch=${branch}, sessionId=${sessionId}, resume=${resume}`,
 			);
@@ -336,12 +336,12 @@ export function registerWorktreeTools(registerTool: ToolRegistrar) {
 					args && args.length > 0
 						? [command, ...args]
 						: (() => {
-								const parsed = splitCommand(command);
-								if (!parsed.command) {
-									throw new Error("Command must be a non-empty string.");
-								}
-								return [parsed.command, ...parsed.args];
-							})();
+							const parsed = splitCommand(command);
+							if (!parsed.command) {
+								throw new Error("Command must be a non-empty string.");
+							}
+							return [parsed.command, ...parsed.args];
+						})();
 				const result = await runGtr(repoPath, ["run", branch, ...commandParts]);
 				return {
 					content: [{ type: "text", text: result }],

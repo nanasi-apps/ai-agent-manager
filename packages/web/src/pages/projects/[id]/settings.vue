@@ -694,7 +694,7 @@ watch(projectId, loadProject, { immediate: true });
                                       :model-value="entry.value"
                                       class="flex-1"
                                       placeholder="e.g. **/.env.example or node_modules"
-                                      @update:model-value="(val: string) => updateIncludeEntry(index, { value: val })"
+                                      @update:model-value="(val: string | number) => updateIncludeEntry(index, { value: String(val) })"
                                       @blur="() => normalizeIncludeEntry(index)"
                                   />
                                   <Button
@@ -760,7 +760,7 @@ watch(projectId, loadProject, { immediate: true });
                                       :model-value="entry.value"
                                       class="flex-1"
                                       placeholder="e.g. **/.env or node_modules/.cache"
-                                      @update:model-value="(val: string) => updateExcludeEntry(index, { value: val })"
+                                      @update:model-value="(val: string | number) => updateExcludeEntry(index, { value: String(val) })"
                                       @blur="() => normalizeExcludeEntry(index)"
                                   />
                                   <Button

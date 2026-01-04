@@ -54,15 +54,8 @@ onUnmounted(() => {
 					@keydown.enter.prevent="handleSaveTitle"
 				/>
 				<div class="flex items-center gap-2">
-					<div class="flex items-center gap-1.5">
-						<span
-							class="size-1.5 rounded-full"
-							:class="conversation.isConnected ? 'bg-green-500' : 'bg-red-500'"
-						/>
-						<span class="text-xs text-muted-foreground">{{
-							conversation.isConnected ? "Connected" : "Disconnected"
-						}}</span>
-						<span v-if="conversation.devServer.error" class="text-xs text-destructive ml-2" :title="conversation.devServer.error">
+					<div v-if="conversation.devServer.error" class="flex items-center gap-1.5">
+						<span class="text-xs text-destructive" :title="conversation.devServer.error">
 							Server Error
 						</span>
 					</div>
