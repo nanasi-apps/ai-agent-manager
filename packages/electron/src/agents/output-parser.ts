@@ -54,6 +54,22 @@ export class AgentOutputParser {
 		return planContent.trim() ? planContent : null;
 	}
 
+	private extractErrorMessage(value: unknown): string | null {
+		if (!value) return null;
+		if (typeof value === "string") {
+			const trimmed = value.trim();
+			return trimmed ? trimmed : null;
+		}
+		if (typeof value === "object" && value !== null) {
+			const message = (value as Record<string, unknown>).message;
+			if (typeof message === "string") {
+				const trimmed = message.trim();
+				return trimmed ? trimmed : null;
+			}
+		}
+		return null;
+	}
+
 	processJsonEvent(json: unknown, agentType: AgentType): ParsedLog[] {
 		if (typeof json !== "object" || json === null) {
 			return [];
@@ -195,7 +211,18 @@ export class AgentOutputParser {
 				break;
 			}
 			case "result": {
-				// Final result with stats - logged to console only
+				const status = json.status as string | undefined;
+				const normalizedStatus = status?.toLowerCase();
+				const errorMessage =
+					this.extractErrorMessage(json.error) ??
+					this.extractErrorMessage(json.message);
+				if (normalizedStatus === "error" || errorMessage) {
+					results.push({
+						data: `[Error] ${errorMessage ?? "Unknown error"}\n`,
+						type: "error",
+						raw: json,
+					});
+				}
 				break;
 			}
 			default:

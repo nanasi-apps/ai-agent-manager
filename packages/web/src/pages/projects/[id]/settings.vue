@@ -11,7 +11,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { MIN_LOAD_TIME } from "@/lib/constants";
 import { getRouteParamFrom } from "@/lib/route-params";
-import { orpc } from "@/services/orpc";
+import { orpcQuery } from "@/services/orpc";
 
 const route = useRoute();
 const router = useRouter();
@@ -140,9 +140,9 @@ const loadProject = async () => {
 
 	try {
 		const [p, rules, gtrConfig] = await Promise.all([
-			orpc.getProject({ projectId: id }),
-			orpc.listGlobalRules(),
-			orpc.getGtrConfig({ projectId: id }),
+			orpcQuery.getProject.call({ projectId: id }),
+			orpcQuery.listGlobalRules.call(),
+			orpcQuery.getGtrConfig.call({ projectId: id }),
 		]);
 		globalRules.value = rules;
 		gtrConfigOriginal.value = gtrConfig;
@@ -291,7 +291,7 @@ const addExcludeEntries = () => {
 
 const pickIncludeEntries = async () => {
 	if (!hasNativePicker.value) return;
-	const selected = await orpc.selectPaths({
+	const selected = await orpcQuery.selectPaths.call({
 		type: includeAddType.value === "file" ? "file" : "dir",
 		multiple: true,
 	});
@@ -307,7 +307,7 @@ const pickIncludeEntries = async () => {
 
 const pickExcludeEntries = async () => {
 	if (!hasNativePicker.value) return;
-	const selected = await orpc.selectPaths({
+	const selected = await orpcQuery.selectPaths.call({
 		type: excludeAddType.value === "file" ? "file" : "dir",
 		multiple: true,
 	});
@@ -441,7 +441,7 @@ const saveProjectSettings = async () => {
 	isSavingProject.value = true;
 	try {
 		const [updateResult] = await Promise.all([
-			orpc.updateProject({
+			orpcQuery.updateProject.call({
 				projectId: id,
 				name: trimmedName,
 				rootPath: trimmedRoot ? trimmedRoot : null,
@@ -451,7 +451,7 @@ const saveProjectSettings = async () => {
 					? validateAutoConfigJson(autoConfigJsonDraft.value)
 					: null,
 			}),
-			orpc.updateGtrConfig({
+			orpcQuery.updateGtrConfig.call({
 				projectId: id,
 				config: gtrConfigDraft.value,
 			}),
@@ -484,7 +484,7 @@ const saveProjectSettings = async () => {
 const browseRootPath = async () => {
 	if (!hasNativePicker.value) return;
 	try {
-		const selected = await orpc.selectDirectory();
+		const selected = await orpcQuery.selectDirectory.call();
 		if (selected) {
 			rootPathDraft.value = selected;
 		}

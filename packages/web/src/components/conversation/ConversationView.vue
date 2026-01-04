@@ -5,7 +5,7 @@ import type {
 	AgentStatePayload,
 	ReasoningLevel,
 } from "@agent-manager/shared";
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import ChatInput from "@/components/conversation/ChatInput.vue";
 import ChatMessageList from "@/components/conversation/ChatMessageList.vue";
@@ -82,67 +82,7 @@ const modeOptions: { label: string; value: AgentMode }[] = [
 	{ label: "Agent", value: "regular" },
 ];
 
-// Scroll handling
-type ScrollAreaInstance = InstanceType<typeof ScrollArea> & {
-	$el?: HTMLElement;
-};
-const scrollAreaRef = ref<ScrollAreaInstance | null>(null);
-const messagesEndRef = ref<HTMLElement | null>(null);
-
-const getScrollViewport = () => {
-	if (!scrollAreaRef.value) return null;
-	const el = scrollAreaRef.value.$el;
-
-	if (!el) return null;
-
-	return el.querySelector("[data-radix-scroll-area-viewport]") as HTMLElement | null;
-};
-
-const saveScrollPosition = (id: string) => {
-	if (!id) return;
-
-	const viewport = getScrollViewport();
-	if (viewport) {
-		sessionStorage.setItem(`scroll-pos-${id}`, viewport.scrollTop.toString());
-	}
-};
-
-const restoreScrollPosition = async () => {
-	await nextTick();
-	const key = `scroll-pos-${conversation.sessionId}`;
-	const saved = sessionStorage.getItem(key);
-
-	if (saved !== null) {
-		const viewport = getScrollViewport();
-		if (viewport) {
-			viewport.scrollTop = parseInt(saved, 10);
-			return;
-		}
-	}
-
-	await scrollToBottom(false);
-};
-
-const scrollToBottom = async (smooth = true) => {
-	await nextTick();
-
-	if (messagesEndRef.value) {
-		messagesEndRef.value.scrollIntoView({
-			behavior: smooth ? "smooth" : "instant",
-		});
-		return;
-	}
-
-	const viewport = getScrollViewport();
-
-	if (viewport) {
-		if (smooth) {
-			viewport.scrollTo({ top: viewport.scrollHeight, behavior: "smooth" });
-		} else {
-			viewport.scrollTop = viewport.scrollHeight;
-		}
-	}
-};
+const isSessionReady = ref(false);
 
 // Session initialization
 async function initSession(id: string) {
@@ -151,6 +91,7 @@ async function initSession(id: string) {
     }
     
     conversation.initSession(id);
+	isSessionReady.value = false;
 
 	if (id === "new") {
 		conversation.projectId = null;
@@ -162,8 +103,8 @@ async function initSession(id: string) {
 		await conversation.loadConversation(id);
 	} finally {
 		conversation.isLoading = false;
-		setTimeout(async () => {
-			await restoreScrollPosition();
+		setTimeout(() => {
+			isSessionReady.value = true;
 		}, 100);
 	}
 }
@@ -171,12 +112,9 @@ async function initSession(id: string) {
 // Watch for sessionId changes
 watch(
 	() => props.sessionId,
-	(newId, oldId) => {
-		if (oldId) {
-			saveScrollPosition(oldId);
-		}
+	(newId) => {
 		if (newId) {
-			initSession(newId);
+			void initSession(newId);
 		}
 	},
     { immediate: true }
@@ -192,8 +130,7 @@ watch(
 // Event handlers
 const handleSendMessage = async () => {
 	const isNew = props.sessionId === "new";
-	await conversation.sendMessage(scrollToBottom);
-	scrollToBottom();
+	await conversation.sendMessage(() => {});
 
 	if (isNew && conversation.sessionId !== "new") {
 		router.replace(`/conversions/${conversation.sessionId}`);
@@ -220,7 +157,6 @@ onMounted(async () => {
 		const handleLog = (payload: AgentLogPayload) => {
 			if (payload.sessionId === conversation.sessionId) {
 				conversation.appendAgentLog(payload);
-				scrollToBottom();
 
 				if (payload.type === "system") {
 					if (
@@ -269,9 +205,6 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
-    if (conversation.sessionId) {
-		saveScrollPosition(conversation.sessionId);
-	}
     if (removeLogListener) removeLogListener();
     if (removeStateListener) removeStateListener();
 });
@@ -294,10 +227,14 @@ onUnmounted(() => {
 				<Transition name="viewer-fade" mode="out-in">
 					<div :key="props.sessionId" class="flex flex-col h-full min-w-0">
 						<!-- Messages Area -->
-						<ScrollArea class="flex-1 min-h-0" ref="scrollAreaRef">
-							<div v-if="conversation.sessionId === 'new'" class="h-full flex flex-col items-center justify-center text-muted-foreground p-8 text-center">
-								<!-- New Session Setup UI -->
-								<div class="space-y-6 w-full text-left max-w-3xl p-4">
+						<div class="relative flex-1 min-h-0">
+							<!-- New Session Setup UI -->
+							<ScrollArea
+								v-if="conversation.sessionId === 'new'"
+								class="h-full w-full"
+							>
+								<div class="h-full flex flex-col items-center justify-center text-muted-foreground p-8 text-center">
+									<div class="space-y-6 w-full text-left max-w-3xl p-4">
                                 <h3 class="text-xl font-semibold text-foreground">Start a new conversation</h3>
                                 
                                 <div class="flex flex-col gap-4">
@@ -369,11 +306,15 @@ onUnmounted(() => {
                                 <p class="text-sm">Type your message below to begin.</p>
                             </div>
                         </div>
+							</ScrollArea>
 
-							<!-- ChatMessageList (no props needed) -->
-							<ChatMessageList v-else />
-							<div ref="messagesEndRef" class="h-px" />
-						</ScrollArea>
+							<!-- ChatMessageList with TanStack Virtual -->
+							<ChatMessageList
+								v-else
+								class="h-full w-full transition-opacity duration-150"
+								:class="isSessionReady ? 'opacity-100' : 'opacity-0'"
+							/>
+						</div>
 
 					<!-- ChatInput (only emits for actions) -->
 					<ChatInput

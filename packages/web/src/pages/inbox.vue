@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
 import {
 	CheckCircle2,
 	Clock,
@@ -8,7 +9,7 @@ import {
 	Loader2,
 	XCircle,
 } from "lucide-vue-next";
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import { Badge } from "@/components/ui/badge";
@@ -25,37 +26,76 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { renderMarkdown } from "@/lib/markdown";
-import type { ApprovalListItem, ApprovalRequest, ApprovalStatus, ModelTemplate } from "@agent-manager/shared";
-import { orpc } from "@/services/orpc";
+import type { ApprovalRequest, ApprovalStatus, ModelTemplate } from "@agent-manager/shared";
+import { orpcQuery } from "@/services/orpc";
 
 
 const { t } = useI18n();
 const router = useRouter();
+const queryClient = useQueryClient();
 
+// Queries
+const { data: approvals, isLoading } = useQuery(
+	orpcQuery.listApprovals.queryOptions({
+		input: {},
+	})
+);
 
-// State
-const isLoading = ref(true);
-const approvals = ref<ApprovalListItem[]>([]);
-const modelTemplates = ref<ModelTemplate[]>([]);
+const { data: modelTemplates } = useQuery(
+	orpcQuery.listModelTemplates.queryOptions({
+		input: {},
+		staleTime: 5 * 60 * 1000, // 5 minutes
+	})
+);
 
 // Dialog state
 const selectedApproval = ref<ApprovalRequest | null>(null);
 const isDialogOpen = ref(false);
 const isLoadingDetail = ref(false);
-const isProcessing = ref(false);
 const selectedModelId = ref("");
 
 // Computed
 const pendingApprovals = computed(() =>
-	approvals.value.filter((a) => a.status === "pending"),
+	(approvals.value ?? []).filter((a) => a.status === "pending"),
 );
 
 const pastApprovals = computed(() =>
-	approvals.value.filter((a) => a.status !== "pending"),
+	(approvals.value ?? []).filter((a) => a.status !== "pending"),
 );
 
 const availableModels = computed(() =>
-	modelTemplates.value.filter((m) => m.agentType !== "default"),
+	(modelTemplates.value ?? []).filter((m) => m.agentType !== "default"),
+);
+
+// Mutations
+const approveMutation = useMutation(
+	orpcQuery.approveAndExecute.mutationOptions({
+		onSuccess: (result) => {
+			if (result.success && result.sessionId) {
+				isDialogOpen.value = false;
+				router.push(`/conversions/${result.sessionId}`);
+			}
+		},
+		onError: (err) => {
+			console.error("Failed to approve:", err);
+		},
+	})
+);
+
+const rejectMutation = useMutation(
+	orpcQuery.rejectApproval.mutationOptions({
+		onSuccess: () => {
+			isDialogOpen.value = false;
+			queryClient.invalidateQueries({ queryKey: orpcQuery.listApprovals.key() });
+		},
+		onError: (err) => {
+			console.error("Failed to reject:", err);
+		},
+	})
+);
+
+const isProcessing = computed(() => 
+	approveMutation.isPending.value || rejectMutation.isPending.value
 );
 
 // Helpers
@@ -91,33 +131,13 @@ const getStatusBadge = (status: ApprovalStatus) => {
 };
 
 // API calls
-const loadApprovals = async () => {
-	isLoading.value = true;
-	try {
-		const result = await orpc.listApprovals({});
-		approvals.value = result;
-	} catch (err) {
-		console.error("Failed to load approvals:", err);
-	} finally {
-		isLoading.value = false;
-	}
-};
-
-const loadModelTemplates = async () => {
-	try {
-		modelTemplates.value = await orpc.listModelTemplates({});
-	} catch (err) {
-		console.error("Failed to load model templates:", err);
-	}
-};
-
-const openApprovalDetail = async (item: ApprovalListItem) => {
+const openApprovalDetail = async (item: { id: string }) => {
 	isDialogOpen.value = true;
 	isLoadingDetail.value = true;
 	selectedApproval.value = null;
 
 	try {
-		const detail = await orpc.getApproval({ id: item.id });
+		const detail = await orpcQuery.getApproval.call({ id: item.id });
 		if (detail) {
 			selectedApproval.value = detail;
 			// Default to first model
@@ -132,43 +152,17 @@ const openApprovalDetail = async (item: ApprovalListItem) => {
 	}
 };
 
-const handleApprove = async () => {
+const handleApprove = () => {
 	if (!selectedApproval.value || !selectedModelId.value) return;
-
-	isProcessing.value = true;
-	try {
-		const result = await orpc.approveAndExecute({
-			id: selectedApproval.value.id,
-			modelId: selectedModelId.value,
-		});
-
-		if (result.success && result.sessionId) {
-			isDialogOpen.value = false;
-			// Navigate to the conversation
-			router.push(`/conversions/${result.sessionId}`);
-		}
-	} catch (err) {
-		console.error("Failed to approve:", err);
-	} finally {
-		isProcessing.value = false;
-	}
+	approveMutation.mutate({
+		id: selectedApproval.value.id,
+		modelId: selectedModelId.value,
+	});
 };
 
-const handleReject = async () => {
+const handleReject = () => {
 	if (!selectedApproval.value) return;
-
-	isProcessing.value = true;
-	try {
-		await orpc.rejectApproval({
-			id: selectedApproval.value.id,
-		});
-		isDialogOpen.value = false;
-		await loadApprovals();
-	} catch (err) {
-		console.error("Failed to reject:", err);
-	} finally {
-		isProcessing.value = false;
-	}
+	rejectMutation.mutate({ id: selectedApproval.value.id });
 };
 
 const goToConversation = (sessionId: string) => {
@@ -180,11 +174,6 @@ watch(isDialogOpen, (open) => {
 	if (!open) {
 		selectedApproval.value = null;
 	}
-});
-
-// Mount
-onMounted(async () => {
-	await Promise.all([loadApprovals(), loadModelTemplates()]);
 });
 </script>
 
@@ -211,7 +200,7 @@ onMounted(async () => {
 
         <!-- Empty state -->
         <div
-          v-else-if="approvals.length === 0"
+          v-else-if="(approvals ?? []).length === 0"
           class="text-center py-16 text-muted-foreground"
         >
           <Inbox class="size-16 mx-auto mb-4 opacity-20" />

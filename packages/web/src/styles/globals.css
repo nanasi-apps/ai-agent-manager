@@ -313,7 +313,8 @@
    Markdown Content Styles
    ============================================ */
 .markdown-content {
-    @apply text-sm leading-relaxed;
+    @apply text-sm leading-relaxed break-words;
+    word-break: break-word;
 }
 
 .markdown-content h1 {

@@ -17,7 +17,7 @@ import { useNewConversionDialogStore } from "@/stores/newConversionDialog";
 import type { ModelTemplate } from "@/stores/conversation";
 import { groupModelTemplates } from "@/lib/modelTemplateGroups";
 import { getRouteParamFrom } from "@/lib/route-params";
-import { orpc } from "@/services/orpc";
+import { orpcQuery } from "@/services/orpc";
 
 
 const newConversionDialogStore = useNewConversionDialogStore();
@@ -73,8 +73,8 @@ const loadData = async () => {
 	isInitializing.value = true;
 	try {
 		const [projRes, modelRes] = await Promise.all([
-			orpc.listProjects({}),
-			orpc.listModelTemplates({}),
+			orpcQuery.listProjects.call({}),
+			orpcQuery.listModelTemplates.call({}),
 		]);
 		projects.value = projRes;
 		modelTemplates.value = modelRes;
@@ -134,7 +134,7 @@ const handleStart = async () => {
 	isLoading.value = true;
 	try {
 		// Create new session via orpc
-		const res = await orpc.createConversation({
+		const res = await orpcQuery.createConversation.call({
 			projectId: selectedProjectId.value,
 			initialMessage: input.value,
 			modelId: selectedModelId.value,

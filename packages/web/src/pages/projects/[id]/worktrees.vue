@@ -13,7 +13,7 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { getRouteParamFrom } from "@/lib/route-params";
-import { orpc } from "@/services/orpc";
+import { orpcQuery } from "@/services/orpc";
 import type { Worktree } from "@agent-manager/shared";
 
 const route = useRoute();
@@ -70,7 +70,7 @@ const removeSelectedWorktrees = async () => {
 
     try {
         await Promise.all(selectedPaths.value.map(path => 
-            orpc.removeWorktree({
+            orpcQuery.removeWorktree.call({
                 projectId: id,
                 path,
                 force: true, 
@@ -90,7 +90,7 @@ const loadWorktrees = async () => {
 	if (!id) return;
 	isLoading.value = true;
 	try {
-		const res = await orpc.listWorktrees({ projectId: id });
+		const res = await orpcQuery.listWorktrees.call({ projectId: id });
 		worktrees.value = res;
 		
 		// Cleanup selected paths
@@ -114,7 +114,7 @@ const removeWorktree = async (path: string) => {
 	)
 		return;
 	try {
-		await orpc.removeWorktree({
+		await orpcQuery.removeWorktree.call({
 			projectId: id,
 			path,
 			force: true, // Allow force remove for now or make it an option

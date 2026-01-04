@@ -8,7 +8,7 @@ import type {
 } from "@agent-manager/shared";
 import { defineStore } from "pinia";
 import { computed, ref, watch } from "vue";
-import { orpc } from "@/services/orpc";
+import { orpcQuery } from "@/services/orpc";
 
 export type LogType =
     | "text"
@@ -295,6 +295,7 @@ export const useConversationStore = defineStore("conversation", () => {
             const plainText = content.replace(/<[^>]*>/g, "");
             await navigator.clipboard.writeText(plainText);
             copiedId.value = id;
+            // biome-ignore lint/suspicious/noAssignInExpressions: <explanation>
             setTimeout(() => (copiedId.value = null), 2000);
         } catch (err) {
             console.error("Failed to copy:", err);
@@ -304,7 +305,7 @@ export const useConversationStore = defineStore("conversation", () => {
     // API calls
     const loadModelTemplates = async () => {
         try {
-            modelTemplates.value = await orpc.listModelTemplates({});
+            modelTemplates.value = await orpcQuery.listModelTemplates.call({});
             if (!modelIdDraft.value) {
                 applyConversationModelSelection();
             }
@@ -350,7 +351,7 @@ export const useConversationStore = defineStore("conversation", () => {
 
     const loadBranchInfo = async (sid: string, pid?: string) => {
         try {
-            currentBranch.value = await orpc.getCurrentBranch({
+            currentBranch.value = await orpcQuery.getCurrentBranch.call({
                 sessionId: sid,
                 projectId: pid,
             });
@@ -362,7 +363,7 @@ export const useConversationStore = defineStore("conversation", () => {
 
     const loadConversationMeta = async (id: string) => {
         try {
-            const conv = await orpc.getConversation({ sessionId: id });
+            const conv = await orpcQuery.getConversation.call({ sessionId: id });
             if (conv) {
                 conversationTitle.value = conv.title;
                 titleDraft.value = conv.title;
@@ -399,7 +400,7 @@ export const useConversationStore = defineStore("conversation", () => {
         }
         try {
             await loadConversationMeta(id);
-            const running = await orpc.isAgentRunning({ sessionId: id });
+            const running = await orpcQuery.isAgentRunning.call({ sessionId: id });
             isGenerating.value = running;
 
             // Load Dev Server Status
@@ -407,7 +408,7 @@ export const useConversationStore = defineStore("conversation", () => {
                 await loadDevServerStatus(projectId.value, id);
             }
 
-            const savedMessages = await orpc.getMessages({ sessionId: id });
+            const savedMessages = await orpcQuery.getMessages.call({ sessionId: id });
             if (savedMessages && savedMessages.length > 0) {
                 messages.value = savedMessages.map((m) => ({
                     id: m.id,
@@ -436,7 +437,7 @@ export const useConversationStore = defineStore("conversation", () => {
 
         isSavingTitle.value = true;
         try {
-            const result = await orpc.updateConversationTitle({
+            const result = await orpcQuery.updateConversationTitle.call({
                 sessionId: sessionId.value,
                 title: nextTitle,
             });
@@ -478,7 +479,7 @@ export const useConversationStore = defineStore("conversation", () => {
         });
 
         try {
-            const result = await orpc.swapConversationAgent({
+            const result = await orpcQuery.swapConversationAgent.call({
                 sessionId: sessionId.value,
                 modelId: nextId,
                 reasoning: supportsReasoning.value ? reasoningDraft.value : undefined,
@@ -537,7 +538,7 @@ export const useConversationStore = defineStore("conversation", () => {
         });
 
         try {
-            const result = await orpc.swapConversationAgent({
+            const result = await orpcQuery.swapConversationAgent.call({
                 sessionId: sessionId.value,
                 modelId: currentModelId.value,
                 reasoning: nextReasoning,
@@ -590,7 +591,7 @@ export const useConversationStore = defineStore("conversation", () => {
         });
 
         try {
-            const result = await orpc.swapConversationAgent({
+            const result = await orpcQuery.swapConversationAgent.call({
                 sessionId: sessionId.value,
                 mode: nextMode,
             });
@@ -705,7 +706,7 @@ export const useConversationStore = defineStore("conversation", () => {
             isGenerating.value = true;
 
             try {
-                const res = await orpc.createConversation({
+                const res = await orpcQuery.createConversation.call({
                     projectId: projectId.value,
                     initialMessage: messageText,
                     modelId: modelIdDraft.value,
@@ -771,7 +772,7 @@ export const useConversationStore = defineStore("conversation", () => {
         isGenerating.value = true;
 
         try {
-            await orpc.sendMessage({
+            await orpcQuery.sendMessage.call({
                 sessionId: sessionId.value,
                 message: messageText,
             });
@@ -792,7 +793,7 @@ export const useConversationStore = defineStore("conversation", () => {
 
     const stopGeneration = async () => {
         try {
-            await orpc.stopSession({ sessionId: sessionId.value });
+            await orpcQuery.stopSession.call({ sessionId: sessionId.value });
         } catch (err) {
             console.error("Failed to stop session:", err);
         }
@@ -804,7 +805,7 @@ export const useConversationStore = defineStore("conversation", () => {
     const loadMcpServers = async () => {
         isLoadingMcp.value = true;
         try {
-            const result = await orpc.getSessionMcpServers({
+            const result = await orpcQuery.getSessionMcpServers.call({
                 sessionId: sessionId.value,
             });
             sessionMcpServers.value = result.sessionServers;
@@ -819,7 +820,7 @@ export const useConversationStore = defineStore("conversation", () => {
 
     const loadDevServerStatus = async (pid: string, cid: string) => {
         try {
-            const status = await orpc.devServerStatus({
+            const status = await orpcQuery.devServerStatus.call({
                 projectId: pid,
                 conversationId: cid,
             });
@@ -844,7 +845,7 @@ export const useConversationStore = defineStore("conversation", () => {
 
     const fetchDevServerLogs = async (pid: string, cid: string) => {
         try {
-            const logs = await orpc.devServerLogs({
+            const logs = await orpcQuery.devServerLogs.call({
                 projectId: pid,
                 conversationId: cid,
             });
@@ -864,7 +865,7 @@ export const useConversationStore = defineStore("conversation", () => {
         devServer.value = { ...devServer.value, isRunning: true }; // Prevent double clicks immediately
 
         try {
-            const result = await orpc.devServerLaunch({
+            const result = await orpcQuery.devServerLaunch.call({
                 projectId: projectId.value,
                 conversationId: sessionId.value,
             });
@@ -891,7 +892,7 @@ export const useConversationStore = defineStore("conversation", () => {
         if (!projectId.value) return;
 
         try {
-            await orpc.devServerStop({
+            await orpcQuery.devServerStop.call({
                 projectId: projectId.value,
                 conversationId: sessionId.value,
             });
@@ -930,7 +931,7 @@ export const useConversationStore = defineStore("conversation", () => {
                 url.searchParams.set("superuser", "true");
                 serverForUi.config.url = url.toString();
             }
-            const result = await orpc.listMcpTools(serverForUi);
+            const result = await orpcQuery.listMcpTools.call(serverForUi);
             mcpServerTools.value = result;
         } catch (err: unknown) {
             console.error("Failed to load MCP tools:", err);
@@ -957,7 +958,7 @@ export const useConversationStore = defineStore("conversation", () => {
         }
 
         try {
-            await orpc.toggleConversationMcpTool({
+            await orpcQuery.toggleConversationMcpTool.call({
                 sessionId: sessionId.value,
                 serverName: server.name,
                 toolName: tool.name,
@@ -1010,7 +1011,7 @@ export const useConversationStore = defineStore("conversation", () => {
         try {
             if (sendToInbox) {
                 // Create approval request and send to inbox
-                const result = await orpc.createApproval({
+                const result = await orpcQuery.createApproval.call({
                     sessionId: sessionId.value,
                     projectId: projectId.value || "",
                     planContent,
@@ -1030,7 +1031,7 @@ export const useConversationStore = defineStore("conversation", () => {
                 return result;
             }
             // Direct execution - approve and execute immediately
-            const result = await orpc.createApproval({
+            const result = await orpcQuery.createApproval.call({
                 sessionId: sessionId.value,
                 projectId: projectId.value || "",
                 planContent,
@@ -1041,7 +1042,7 @@ export const useConversationStore = defineStore("conversation", () => {
             }
 
             // Execute immediately
-            const execResult = await orpc.approveAndExecute({
+            const execResult = await orpcQuery.approveAndExecute.call({
                 id: result.id,
                 modelId,
             });

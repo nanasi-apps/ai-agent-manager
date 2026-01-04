@@ -14,7 +14,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
-import { orpc } from "@/services/orpc";
+import { orpcQuery } from "@/services/orpc";
 import type { GlobalRule } from "@agent-manager/shared";
 
 const { t } = useI18n();
@@ -34,7 +34,7 @@ const isCreating = ref(false);
 const loadRules = async () => {
 	isLoading.value = true;
 	try {
-		const res = await orpc.listGlobalRules();
+		const res = await orpcQuery.listGlobalRules.call();
 		rules.value = res;
 		// If we have a selected rule, refresh its content too if sticking to it?
 		// Or if nothing selected, select first?
@@ -53,7 +53,7 @@ const selectRule = async (rule: GlobalRule) => {
 	selectedRule.value = rule;
 	isLoading.value = true;
 	try {
-		const details = await orpc.getGlobalRule({ id: rule.id });
+		const details = await orpcQuery.getGlobalRule.call({ id: rule.id });
 		if (details) {
 			ruleContent.value = details.content;
 		}
@@ -69,7 +69,7 @@ const saveCurrentRule = async () => {
 	if (!selectedRule.value) return;
 	isSaving.value = true;
 	try {
-		await orpc.updateGlobalRule({
+		await orpcQuery.updateGlobalRule.call({
 			id: selectedRule.value.id,
 			content: ruleContent.value,
 		});
@@ -84,7 +84,7 @@ const createRule = async () => {
 	if (!newRuleName.value.trim()) return;
 	isCreating.value = true;
 	try {
-		const res = await orpc.createGlobalRule({
+		const res = await orpcQuery.createGlobalRule.call({
 			name: newRuleName.value,
 			content: "",
 		});
@@ -109,7 +109,7 @@ const createRule = async () => {
 const deleteRule = async (id: string) => {
 	if (!confirm(t('rules.confirmDelete'))) return;
 	try {
-		await orpc.deleteGlobalRule({ id });
+		await orpcQuery.deleteGlobalRule.call({ id });
 		await loadRules();
 		if (selectedRule.value?.id === id) {
 			selectedRule.value = null;

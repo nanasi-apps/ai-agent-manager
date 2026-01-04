@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
-import { orpc } from "@/services/orpc";
+import { orpcQuery } from "@/services/orpc";
 
 export type ApprovalChannel = "inbox" | "slack" | "discord";
 
@@ -64,8 +64,8 @@ export const useSettingsStore = defineStore("settings", () => {
         isLoading.value = true;
         try {
             const [apiData, appData] = await Promise.all([
-                orpc.getApiSettings(),
-                orpc.getAppSettings(),
+                orpcQuery.getApiSettings.call(),
+                orpcQuery.getAppSettings.call(),
             ]);
             apiSettings.value = apiData;
             appSettings.value = appData;
@@ -83,7 +83,7 @@ export const useSettingsStore = defineStore("settings", () => {
         isSaving.value = true;
         saveSuccess.value = false;
         try {
-            await orpc.updateApiSettings(updates);
+            await orpcQuery.updateApiSettings.call(updates);
 
             // Update local state
             if (updates.openaiApiKey) apiSettings.value.openaiApiKey = "***";
@@ -111,7 +111,7 @@ export const useSettingsStore = defineStore("settings", () => {
         isSaving.value = true;
         saveSuccess.value = false;
         try {
-            await orpc.updateAppSettings(updates);
+            await orpcQuery.updateAppSettings.call(updates);
 
             // Update local state
             if (updates.language !== undefined) {
@@ -148,10 +148,10 @@ export const useSettingsStore = defineStore("settings", () => {
         isSaving.value = true;
         try {
             if (key === "openai") {
-                await orpc.updateApiSettings({ openaiApiKey: "" });
+                await orpcQuery.updateApiSettings.call({ openaiApiKey: "" });
                 apiSettings.value.openaiApiKey = undefined;
             } else {
-                await orpc.updateApiSettings({ geminiApiKey: "" });
+                await orpcQuery.updateApiSettings.call({ geminiApiKey: "" });
                 apiSettings.value.geminiApiKey = undefined;
             }
         } finally {

@@ -29,7 +29,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
-import { orpc } from "@/services/orpc";
+import { orpcQuery } from "@/services/orpc";
 import type { McpServerEntry } from "@agent-manager/shared";
 
 const { t } = useI18n();
@@ -54,7 +54,7 @@ const activeFilter = ref<"all" | "gemini" | "claude-desktop" | "claude-code">(
 const loadServers = async () => {
 	isLoading.value = true;
 	try {
-		const result = await orpc.getMcpServersBySource();
+		const result = await orpcQuery.getMcpServersBySource.call();
 		servers.value = result;
 	} catch (e) {
 		console.error("Failed to load MCP servers:", e);

@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useProjectsStore } from "@/stores/projects";
-import { orpc } from "@/services/orpc";
+import { orpcQuery } from "@/services/orpc";
 
 const props = defineProps<{
 	open: boolean;
@@ -34,7 +34,7 @@ const hasNativePicker = computed(() => {
 const browseRootPath = async () => {
 	if (!hasNativePicker.value) return;
 	try {
-		const selected = await orpc.selectDirectory();
+		const selected = await orpcQuery.selectDirectory.call();
 		if (selected) {
 			rootPath.value = selected;
 		}

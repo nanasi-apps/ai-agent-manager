@@ -2,6 +2,7 @@ import type { AppRouter } from "@agent-manager/shared";
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/websocket";
 import type { ContractRouterClient } from "@orpc/contract";
+import { createTanstackQueryUtils } from "@orpc/tanstack-query";
 
 // Initialize the ORPC client
 export const createClient = () => {
@@ -39,3 +40,7 @@ export const createClient = () => {
 };
 
 export const orpc = createClient();
+
+// TanStack Query utilities for all ORPC procedures
+export const orpcQuery = createTanstackQueryUtils(orpc);
+

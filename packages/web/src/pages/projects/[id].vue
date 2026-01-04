@@ -19,7 +19,7 @@ import {
 import { useNewConversionDialogStore } from "@/stores/newConversionDialog";
 import { MIN_LOAD_TIME } from "@/lib/constants";
 import { getRouteParamFrom } from "@/lib/route-params";
-import { orpc } from "@/services/orpc";
+import { orpcQuery } from "@/services/orpc";
 
 const route = useRoute();
 const router = useRouter();
@@ -48,8 +48,8 @@ const loadData = async () => {
 
 	try {
 		const [p, convs] = await Promise.all([
-			orpc.getProject({ projectId: id }),
-			orpc.listConversations({ projectId: id }),
+			orpcQuery.getProject.call({ projectId: id }),
+			orpcQuery.listConversations.call({ projectId: id }),
 		]);
 		project.value = p;
 		conversations.value = convs.sort((a, b) => b.updatedAt - a.updatedAt);
