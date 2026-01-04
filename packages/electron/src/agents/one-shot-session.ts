@@ -4,6 +4,7 @@ import {
 	type AgentConfig,
 	type AgentLogPayload,
 	getStoreOrThrow,
+	getLogger,
 } from "@agent-manager/shared";
 import { createActor, type SnapshotFrom } from "xstate";
 import type { WorktreeResumeRequest } from "./agent-manager";
@@ -28,6 +29,8 @@ import {
 	pathExists,
 	validateWorktreePath,
 } from "./worktree-utils";
+
+const logger = getLogger(["electron", "one-shot-session"]);
 
 type AgentMachineSnapshot = SnapshotFrom<typeof agentMachine>;
 
@@ -118,8 +121,9 @@ export class OneShotSession extends EventEmitter {
 			nextValue === "processing" ||
 			(typeof nextValue === "object" && "processing" in nextValue)
 		) {
-			console.warn(
-				`[OneShotSession ${sessionId}] Found stale 'processing' state. Resetting to 'idle'.`,
+			logger.warn(
+				"Found stale 'processing' state in session {sessionId}. Resetting to 'idle'.",
+				{ sessionId },
 			);
 			nextValue = "idle";
 		}
@@ -203,13 +207,7 @@ export class OneShotSession extends EventEmitter {
 	stop() {
 		this.killCurrentProcess();
 		this.actor.send({ type: "STOP" });
-		this.actor.send({ type: "RESET", mode: "soft" }); // Reset message count via reset? No, stop just goes to idle.
-		// SessionStateManager.stopProcessing just set isProcessing=false.
-		// My machine's STOP goes to idle.
-		// Also clear worktree resume
-		// this.stateManager.clearWorktreeResume(); -> This is in context?
-		// My machine context has pendingWorktreeResume. I should clear it?
-		// Maybe STOP event should clear it.
+		this.actor.send({ type: "RESET", mode: "soft" });
 		this.emitLog("\n[Generation stopped by user]\n", "system");
 	}
 
@@ -253,20 +251,23 @@ export class OneShotSession extends EventEmitter {
 			if (!currentProcess.killed) {
 				setTimeout(() => {
 					if (this.currentProcess === currentProcess && currentProcess.pid) {
-						console.log(
-							`[OneShotSession ${this.sessionId}] Killing process (pid=${currentProcess.pid}) for worktree switch`,
+						logger.info(
+							"Killing process (pid={pid}) for worktree switch in session {sessionId}",
+							{ sessionId: this.sessionId, pid: currentProcess.pid },
 						);
 						killProcessGroup(currentProcess.pid);
 					}
 				}, 500);
 			} else {
-				console.log(
-					`[OneShotSession ${this.sessionId}] Process already marked killed; waiting for close event`,
+				logger.info(
+					"Process already marked killed; waiting for close event in session {sessionId}",
+					{ sessionId: this.sessionId },
 				);
 			}
 		} else {
-			console.log(
-				`[OneShotSession ${this.sessionId}] Process not running, triggering immediate worktree resume`,
+			logger.info(
+				"Process not running, triggering immediate worktree resume in session {sessionId}",
+				{ sessionId: this.sessionId },
 			);
 			setImmediate(() => {
 				this.handlePendingWorktreeResume();
@@ -295,7 +296,7 @@ export class OneShotSession extends EventEmitter {
 		options?: { forceFresh?: boolean; resetSessionId?: boolean },
 	) {
 		if (this.isProcessing) {
-			console.warn(`[OneShotSession] Session ${this.sessionId} is busy`);
+			logger.warn("Session {sessionId} is busy", { sessionId: this.sessionId });
 			this.emitLog("[Waiting for previous response...]\n", "system");
 			return;
 		}
@@ -306,16 +307,14 @@ export class OneShotSession extends EventEmitter {
 
 		let systemPrompt = "";
 		if (currentState.messageCount === 0) {
-			// this.stateManager.resetInvalidGeminiSession();
-			// Handled by machine logic or needs event?
-
 			const baseRules = currentState.config.rulesContent ?? "";
 			const worktreeInstructions = this.getWorktreeInstructions();
 			const parts = [baseRules, worktreeInstructions].filter(Boolean);
 			systemPrompt = parts.join("\n\n");
 			if (baseRules) {
-				console.log(
-					`[OneShotSession] Injecting rules for session ${this.sessionId}`,
+				logger.info(
+					"Injecting rules for session {sessionId}",
+					{ sessionId: this.sessionId },
 				);
 			}
 		}
@@ -352,12 +351,18 @@ export class OneShotSession extends EventEmitter {
 				currentState.config,
 				systemPrompt,
 			);
-			console.log(
-				`[OneShotSession] Running: ${cmd.command} ${cmd.args.join(" ")}`,
+			logger.info(
+				"Running: {command} {args}",
+				{ command: cmd.command, args: cmd.args.join(" ") },
 			);
 			if (isCodex) {
-				console.log(
-					`[OneShotSession] Codex context: messageCount=${context.messageCount}, codexThreadId=${context.codexThreadId ?? "undefined"}, codexSessionId=${context.codexSessionId ?? "undefined"}`,
+				logger.info(
+					"Codex context: messageCount={messageCount}, codexThreadId={codexThreadId}, codexSessionId={codexSessionId}",
+					{
+						messageCount: context.messageCount,
+						codexThreadId: context.codexThreadId ?? "undefined",
+						codexSessionId: context.codexSessionId ?? "undefined",
+					},
 				);
 			}
 
@@ -391,8 +396,13 @@ export class OneShotSession extends EventEmitter {
 			}
 
 			if (isGemini) {
-				console.log(
-					`[OneShotSession] Spawn Env Check: GEMINI_BASE_URL=${spawnEnv.GEMINI_BASE_URL}, GEMINI_API_BASE=${spawnEnv.GEMINI_API_BASE}, GEMINI_API_KEY=${spawnEnv.GEMINI_API_KEY ? "***" : "missing"}`,
+				logger.info(
+					"Spawn Env Check: GEMINI_BASE_URL={baseUrl}, GEMINI_API_BASE={apiBase}, GEMINI_API_KEY={apiKeyStatus}",
+					{
+						baseUrl: spawnEnv.GEMINI_BASE_URL,
+						apiBase: spawnEnv.GEMINI_API_BASE,
+						apiKeyStatus: spawnEnv.GEMINI_API_KEY ? "***" : "missing",
+					},
 				);
 			}
 			const resolvedCwd = await this.resolveSessionCwd();
@@ -420,16 +430,16 @@ export class OneShotSession extends EventEmitter {
 			});
 
 			child.on("error", (err) => {
-				this.actor.send({ type: "STOP" }); // Or ERROR event
-				console.error(
-					`[OneShotSession ${this.sessionId}] Failed to start subprocess.`,
-					err,
+				this.actor.send({ type: "STOP" });
+				logger.error(
+					"Failed to start subprocess for session {sessionId}: {err}",
+					{ sessionId: this.sessionId, err },
 				);
 				this.emitLog(`Failed to start subprocess: ${err.message}`, "error");
 			});
 		} catch (error: unknown) {
 			this.actor.send({ type: "STOP" });
-			console.error(`[OneShotSession] Error running command:`, error);
+			logger.error("Error running command: {error}", { error });
 			this.emitLog(`Error: ${error instanceof Error ? error.message : String(error)}`, "error");
 		}
 	}
@@ -448,7 +458,7 @@ export class OneShotSession extends EventEmitter {
 		if (child.stderr) {
 			child.stderr.on("data", (data) => {
 				const str = data.toString();
-				console.log(`[OneShotSession ${this.sessionId}] stderr:`, str);
+				logger.info("stderr for session {sessionId}: {str}", { sessionId: this.sessionId, str });
 				if (!this.state.config.streamJson) {
 					this.emitLog(str, "text");
 				}
@@ -458,26 +468,28 @@ export class OneShotSession extends EventEmitter {
 	}
 
 	private handleProcessClose(child: ChildProcess, code: number | null) {
-		console.log(
-			`[OneShotSession ${this.sessionId}] handleProcessClose called, code=${code}, hasPending=${!!this.state.pendingWorktreeResume}`,
+		logger.info(
+			"handleProcessClose called for session {sessionId}, code={code}, hasPending={hasPending}",
+			{ sessionId: this.sessionId, code, hasPending: !!this.state.pendingWorktreeResume },
 		);
 
 		if (this.currentProcess !== child) {
-			console.log(
-				`[OneShotSession ${this.sessionId}] Ignoring close event - process mismatch`,
+			logger.info(
+				"Ignoring close event for session {sessionId} - process mismatch",
+				{ sessionId: this.sessionId },
 			);
 			return;
 		}
 
-		// Capture pending before stopping clearing currentProcess
 		const hasPendingResume = !!this.state.pendingWorktreeResume;
 
 		// Transition to idle
 		this.actor.send({ type: "AGENT_COMPLETE" });
 		this.currentProcess = undefined;
 
-		console.log(
-			`[OneShotSession ${this.sessionId}] Process exited with code ${code}, hasPendingResume=${hasPendingResume}`,
+		logger.info(
+			"Process exited for session {sessionId} with code {code}, hasPendingResume={hasPendingResume}",
+			{ sessionId: this.sessionId, code, hasPendingResume },
 		);
 
 		if (!hasPendingResume) {
@@ -494,8 +506,9 @@ export class OneShotSession extends EventEmitter {
 		// Check for session invalidation errors
 		if (isSessionInvalidError(stderr)) {
 			if (currentSessionState.geminiSessionId) {
-				console.warn(
-					`[OneShotSession ${this.sessionId}] Gemini session ${currentSessionState.geminiSessionId} is invalid.`,
+				logger.warn(
+					"Gemini session {geminiSessionId} is invalid for session {sessionId}.",
+					{ geminiSessionId: currentSessionState.geminiSessionId, sessionId: this.sessionId },
 				);
 			}
 			// Mark invalid and stop
@@ -511,7 +524,6 @@ export class OneShotSession extends EventEmitter {
 			// Auto-retry with the last message
 			const lastMessage = this.state.lastUserMessage;
 			if (lastMessage) {
-				// Yield to event loop to allow state updates (INVALIDATE_SESSION) to propagate
 				setTimeout(() => {
 					void this.processMessage(lastMessage, { forceFresh: true });
 				}, 0);
@@ -528,8 +540,9 @@ export class OneShotSession extends EventEmitter {
 				);
 			} else {
 				if (currentSessionState.geminiSessionId) {
-					console.warn(
-						`[OneShotSession ${this.sessionId}] Gemini API error, clearing session ID.`,
+					logger.warn(
+						"Gemini API error for session {sessionId}, clearing session ID.",
+						{ sessionId: this.sessionId },
 					);
 				}
 				this.actor.send({ type: "INVALIDATE_SESSION" });
@@ -551,10 +564,6 @@ export class OneShotSession extends EventEmitter {
 				const logs = this.parser.processJsonEvent(json, type);
 
 				for (const log of logs) {
-					// Check if the process emitting this log is still the active one
-					// before updating session state. This prevents race conditions
-					// where a dying process (e.g. invalid session) overwrites the
-					// state cleared by the error handler.
 					if (this.currentProcess === originProcess) {
 						if (log.metadata?.geminiSessionId) {
 							this.actor.send({
@@ -574,10 +583,10 @@ export class OneShotSession extends EventEmitter {
 								id: log.metadata.codexSessionId,
 							});
 						}
-						// Handle session invalidation from JSON errors (e.g. Codex turn.failed)
 						if (log.metadata?.sessionInvalid) {
-							console.warn(
-								`[OneShotSession ${this.sessionId}] Session invalid detected via JSON output`,
+							logger.warn(
+								"Session invalid detected via JSON output for session {sessionId}",
+								{ sessionId: this.sessionId },
 							);
 							this.actor.send({ type: "INVALIDATE_SESSION" });
 							this.actor.send({ type: "STOP" });
@@ -588,14 +597,13 @@ export class OneShotSession extends EventEmitter {
 								"system",
 							);
 
-							// Auto-retry with the last message
 							const lastMessage = this.state.lastUserMessage;
 							if (lastMessage) {
 								setTimeout(() => {
 									void this.processMessage(lastMessage, { forceFresh: true });
 								}, 0);
 							}
-							return; // Stop processing further logs from this dying process
+							return;
 						}
 					}
 					this.emitLog(log.data, log.type, log.raw);
@@ -609,26 +617,30 @@ export class OneShotSession extends EventEmitter {
 
 	private handlePendingWorktreeResume() {
 		const pending = this.state.pendingWorktreeResume;
-		console.log(
-			`[OneShotSession ${this.sessionId}] handlePendingWorktreeResume called, hasPending=${!!pending}`,
+		logger.info(
+			"handlePendingWorktreeResume called for session {sessionId}, hasPending={hasPending}",
+			{ sessionId: this.sessionId, hasPending: !!pending },
 		);
 
 		if (!pending) {
-			console.log(
-				`[OneShotSession ${this.sessionId}] No pending worktree resume, skipping`,
+			logger.info(
+				"No pending worktree resume for session {sessionId}, skipping",
+				{ sessionId: this.sessionId },
 			);
 			return;
 		}
 
 		if (this.isProcessing) {
-			console.log(
-				`[OneShotSession ${this.sessionId}] Worktree resume deferred; agent still processing`,
+			logger.info(
+				"Worktree resume deferred for session {sessionId}; agent still processing",
+				{ sessionId: this.sessionId },
 			);
 			return;
 		}
 
-		console.log(
-			`[OneShotSession ${this.sessionId}] Activating worktree: branch=${pending.request.branch}, cwd=${pending.request.cwd}`,
+		logger.info(
+			"Activating worktree for session {sessionId}: branch={branch}, cwd={cwd}",
+			{ sessionId: this.sessionId, branch: pending.request.branch, cwd: pending.request.cwd },
 		);
 
 		this.actor.send({ type: "CLEAR_PENDING_WORKTREE_RESUME" });
@@ -646,8 +658,9 @@ export class OneShotSession extends EventEmitter {
 			"system",
 		);
 
-		console.log(
-			`[OneShotSession ${this.sessionId}] Calling processMessage with resume message`,
+		logger.info(
+			"Calling processMessage with resume message for session {sessionId}",
+			{ sessionId: this.sessionId },
 		);
 		void this.processMessage(pending.resumeMessage, { forceFresh: true });
 	}

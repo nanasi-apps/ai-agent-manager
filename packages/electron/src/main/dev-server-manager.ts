@@ -1,7 +1,9 @@
 import { spawn } from "node:child_process";
 import { shell } from "electron";
-import { getStoreOrThrow, type AutoConfig } from "@agent-manager/shared";
+import { getStoreOrThrow, getLogger, type AutoConfig } from "@agent-manager/shared";
 import { allocatePorts } from "../server/utils/port-utils";
+
+const logger = getLogger(["electron", "dev-server-manager"]);
 
 export interface RunningProcess {
     pid: number;
@@ -56,7 +58,7 @@ class DevServerManager {
             } catch (e: any) {
                 // ignore if already dead
                 if (e.code !== 'ESRCH') {
-                    console.log(`[DevServerManager] Failed to kill process group ${running.pid}:`, e);
+                    logger.info("Failed to kill process group {pid}: {err}", { pid: running.pid, err: e });
                 }
             }
 
@@ -70,7 +72,7 @@ class DevServerManager {
     }
 
     async stopAll(): Promise<void> {
-        console.log("[DevServerManager] Stopping all running projects...");
+        logger.info("Stopping all running projects...");
         const promises: Promise<boolean>[] = [];
         for (const process of this.runningProcesses.values()) {
             if (process.status === 'running') {
@@ -87,7 +89,10 @@ class DevServerManager {
         options: { timeout?: number; cwd?: string; conversationId?: string } = {},
     ): Promise<RunningProcess> {
         const { timeout = 60000, cwd: overrideCwd, conversationId } = options;
-        console.log(`[DevServerManager] Launching project ${projectId}${conversationId ? ` (conversation: ${conversationId})` : ""}${overrideCwd ? ` in ${overrideCwd}` : ""}`);
+        logger.info(
+            "Launching project {projectId} (conversation: {conversationId}, cwd: {cwd})",
+            { projectId, conversationId: conversationId ?? "none", cwd: overrideCwd ?? "default" },
+        );
 
         const key = this.getProcessKey(projectId, conversationId);
         const existing = this.runningProcesses.get(key);
@@ -110,7 +115,7 @@ class DevServerManager {
             const workingDir = overrideCwd ?? project.rootPath;
 
             // 1. Allocate ports
-            console.log(`[DevServerManager] Allocating ports for project ${projectId}`);
+            logger.info("Allocating ports for project {projectId}", { projectId });
             const portRequests: Record<string, number> = {};
 
             if (config.services && config.services.length > 0) {
@@ -119,7 +124,7 @@ class DevServerManager {
                 }
             } else if ((config as any).ports) {
                 // Backward compatibility for legacy config
-                console.log("[DevServerManager] Using legacy 'ports' configuration");
+                logger.info("Using legacy 'ports' configuration");
                 const legacyPorts = (config as any).ports as Record<string, number>;
                 for (const [key, val] of Object.entries(legacyPorts)) {
                     portRequests[key] = val;
@@ -127,7 +132,7 @@ class DevServerManager {
             }
 
             const allocatedPorts = await allocatePorts(portRequests);
-            console.log(`[DevServerManager] Allocated ports:`, allocatedPorts);
+            logger.info("Allocated ports: {allocatedPorts}", { allocatedPorts });
 
             // 2. Prepare environment variables and command prefix
             const env: NodeJS.ProcessEnv = {
@@ -156,7 +161,7 @@ class DevServerManager {
             // Combine: environment variables prefix + command + CLI arguments
             const fullCommand = `BROWSER=none ${envPrefix}${cmd}${cliArgs}`;
 
-            console.log(`[DevServerManager] Spawning: ${fullCommand} in ${workingDir}`);
+            logger.info("Spawning: {fullCommand} in {workingDir}", { fullCommand, workingDir });
 
             const childProcess = spawn(fullCommand, {
                 cwd: workingDir,
@@ -199,7 +204,10 @@ class DevServerManager {
 
             // Add global exit/error listeners to update status
             childProcess.on('exit', (code, signal) => {
-                console.log(`[DevServerManager] Project ${projectId} exited with code ${code} signal ${signal}`);
+                logger.info(
+                    "Project {projectId} exited with code {code} signal {signal}",
+                    { projectId, code, signal },
+                );
                 if (processInfo.status === 'running') {
                     processInfo.status = code === 0 ? 'stopped' : 'error';
                     processInfo.exitCode = code;
@@ -207,7 +215,7 @@ class DevServerManager {
             });
 
             childProcess.on('error', (err) => {
-                console.error(`[DevServerManager] Project ${projectId} error:`, err);
+                logger.error("Project {projectId} error: {err}", { projectId, err });
                 if (processInfo.status === 'running') {
                     processInfo.status = 'error';
                 }
@@ -217,7 +225,10 @@ class DevServerManager {
             const readinessConfig = config.readiness || (config as any).readiness;
 
             if (readinessConfig && readinessConfig.logPattern) {
-                console.log(`[DevServerManager] Waiting for readiness: ${readinessConfig.logPattern}`);
+                logger.info(
+                    "Waiting for readiness: {logPattern}",
+                    { logPattern: readinessConfig.logPattern },
+                );
                 try {
                     const { ready, logs } = await this.waitForReadiness(childProcess, readinessConfig.logPattern, timeout);
 
@@ -272,7 +283,7 @@ class DevServerManager {
             return processInfo;
 
         } catch (error) {
-            console.error(`[DevServerManager] Error launching project ${projectId}:`, error);
+            logger.error("Error launching project {projectId}: {error}", { projectId, error });
             // Cleanup on error
             await this.stopProject(projectId, conversationId).catch(() => { });
             throw error;

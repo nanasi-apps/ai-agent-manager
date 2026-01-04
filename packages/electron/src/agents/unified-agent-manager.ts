@@ -4,8 +4,11 @@ import type {
 	AgentLogPayload,
 	AgentStatePayload,
 } from "@agent-manager/shared";
+import { getLogger } from "@agent-manager/shared";
 import type { IAgentManager, WorktreeResumeRequest } from "./agent-manager";
 import { oneShotAgentManager } from "./oneshot-agent-manager";
+
+const logger = getLogger(["electron", "unified-agent-manager"]);
 
 /**
  * Unified agent manager that wraps the CLI-based OneShot manager
@@ -29,8 +32,9 @@ export class UnifiedAgentManager extends EventEmitter implements IAgentManager {
 		command: string,
 		config?: Partial<AgentConfig>,
 	) {
-		console.log(
-			`[UnifiedAgentManager] Starting session ${sessionId} (type: ${config?.type ?? "custom"})`,
+		logger.info(
+			"Starting session {sessionId} (type: {type})",
+			{ sessionId, type: config?.type ?? "custom" },
 		);
 		oneShotAgentManager.startSession(sessionId, command, config);
 	}

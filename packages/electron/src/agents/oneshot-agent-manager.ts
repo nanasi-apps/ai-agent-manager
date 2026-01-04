@@ -1,9 +1,12 @@
 import { EventEmitter } from "node:events";
 import type { AgentConfig, AgentLogPayload } from "@agent-manager/shared";
+import { getLogger } from "@agent-manager/shared";
 import { store } from "../store/file-store";
 import type { IAgentManager, WorktreeResumeRequest } from "./agent-manager";
 import { OneShotSession } from "./one-shot-session";
 import type { AgentStateChangePayload } from "./types";
+
+const logger = getLogger(["electron", "oneshot-agent-manager"]);
 
 /**
  * One-shot agent manager for CLIs that work best in non-interactive mode
@@ -18,13 +21,14 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
 		config?: Partial<AgentConfig>,
 	) {
 		if (this.sessions.has(sessionId)) {
-			console.warn(
-				`[OneShotAgentManager] Session ${sessionId} already exists.`,
+			logger.warn(
+				"Session {sessionId} already exists.",
+				{ sessionId },
 			);
 			return;
 		}
 
-		console.log(`[OneShotAgentManager] Creating session ${sessionId}`);
+		logger.info("Creating session {sessionId}", { sessionId });
 
 		const agentConfig: AgentConfig = {
 			type: config?.type ?? "custom",
@@ -41,8 +45,13 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
 		const persistedState = store.getConversation(sessionId)?.agentState;
 		if (persistedState) {
 			const ctx = (persistedState as { context?: { codexThreadId?: string; messageCount?: number } })?.context;
-			console.log(
-				`[OneShotAgentManager] Restoring session ${sessionId} with persisted state: codexThreadId=${ctx?.codexThreadId ?? "undefined"}, messageCount=${ctx?.messageCount ?? 0}`,
+			logger.info(
+				"Restoring session {sessionId} with persisted state: codexThreadId={codexThreadId}, messageCount={messageCount}",
+				{
+					sessionId,
+					codexThreadId: ctx?.codexThreadId ?? "undefined",
+					messageCount: ctx?.messageCount ?? 0,
+				},
 			);
 		}
 		const session = new OneShotSession(sessionId, agentConfig, persistedState);
@@ -91,7 +100,7 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
 	async sendToSession(sessionId: string, message: string) {
 		const session = this.sessions.get(sessionId);
 		if (!session) {
-			console.warn(`[OneShotAgentManager] Session ${sessionId} not found`);
+			logger.warn("Session {sessionId} not found", { sessionId });
 			this.emitLog(sessionId, "[Error: Session not found]\n", "error");
 			return;
 		}
@@ -105,8 +114,9 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
 	): boolean {
 		const session = this.sessions.get(sessionId);
 		if (!session) {
-			console.warn(
-				`[OneShotAgentManager] Worktree resume requested for missing session ${sessionId}`,
+			logger.warn(
+				"Worktree resume requested for missing session {sessionId}",
+				{ sessionId },
 			);
 			return false;
 		}

@@ -6,6 +6,8 @@ import {
 	setNativeDialog,
 	setStore,
 	setWorktreeManager,
+	initLogger,
+	getLogger,
 } from "@agent-manager/shared";
 import { app, BrowserWindow, dialog } from "electron";
 import path from "node:path";
@@ -28,6 +30,9 @@ import { fixProcessPath } from "./utils/path-enhancer";
 
 // Call fixProcessPath BEFORE any other imports that might use git
 fixProcessPath();
+initLogger();
+
+const logger = getLogger(["electron", "main"]);
 
 // Set up dependencies for the router
 // Use unifiedAgentManager to support both CLI-based and API-based agents
@@ -74,11 +79,11 @@ function createWindow() {
 	const devUrl = `http://localhost:${process.env.WEB_PORT || 5173}`;
 	if (app.isPackaged) {
 		win.loadFile(path.join(__dirname, "renderer/index.html")).catch((err) => {
-			console.error("Failed to load local file:", err);
+			logger.error("Failed to load local file: {err}", { err });
 		});
 	} else {
 		win.loadURL(devUrl).catch((err) => {
-			console.error("Failed to load URL:", err);
+			logger.error("Failed to load URL: {err}", { err });
 		});
 	}
 
@@ -91,7 +96,7 @@ app.whenReady().then(() => {
 	// Initialize the persistent store with Electron's userData path
 	const userDataPath = app.getPath("userData");
 	store.setDataPath(userDataPath);
-	console.log(`[Main] Store initialized with path: ${userDataPath}`);
+	logger.info("Store initialized with path: {userDataPath}", { userDataPath });
 
 	createWindow();
 
@@ -107,17 +112,19 @@ app.whenReady().then(() => {
 	setupAgentState();
 
 	// Start ORPC WebSocket server
-	console.log("[Main] Starting ORPC WebSocket server...");
+	logger.info("Starting ORPC WebSocket server...");
 	startOrpcServer(Number(process.env.ORPC_PORT) || 3002);
 
 	// Start internal MCP server
-	console.log("[Main] Starting internal MCP server...");
+	logger.info("Starting internal MCP server...");
 	startMcpServer(Number(process.env.MCP_PORT) || 3001)
 		.then(() => {
-			console.log(`[Main] Internal MCP server started on port ${process.env.MCP_PORT || 3001}`);
+			logger.info("Internal MCP server started on port {port}", {
+				port: process.env.MCP_PORT || 3001,
+			});
 		})
 		.catch((err) => {
-			console.error("[Main] Failed to start MCP server:", err);
+			logger.error("Failed to start MCP server: {err}", { err });
 		});
 });
 
@@ -132,7 +139,9 @@ app.on("before-quit", async (event) => {
 	if (running.length === 0) return;
 
 	event.preventDefault();
-	console.log(`[Main] Stopping ${running.length} dev servers before quit...`);
+	logger.info("Stopping {count} dev servers before quit...", {
+		count: running.length,
+	});
 	await devServerManager.stopAll();
 	app.quit();
 });

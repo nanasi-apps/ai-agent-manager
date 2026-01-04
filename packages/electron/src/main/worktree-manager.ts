@@ -1,13 +1,16 @@
 import { exec } from "node:child_process";
 import { promisify } from "node:util";
-import type {
-	Worktree,
-	WorktreeCommit,
-	WorktreeDiff,
-	WorktreeStatus,
-	WorktreeStatusEntry,
+import {
+	getLogger,
+	type Worktree,
+	type WorktreeCommit,
+	type WorktreeDiff,
+	type WorktreeStatus,
+	type WorktreeStatusEntry,
 } from "@agent-manager/shared";
 import { getEnhancedEnv } from "../utils/path-enhancer";
+
+const logger = getLogger(["electron", "worktree-manager"]);
 
 const execAsyncBase = promisify(exec);
 
@@ -43,7 +46,7 @@ export class WorktreeManager {
 			const output = await runGtr(projectRoot, ["list", "--porcelain"]);
 			return this.parseWorktreeList(output, projectRoot);
 		} catch (error) {
-			console.error("[WorktreeManager] Failed to list worktrees:", error);
+			logger.error("Failed to list worktrees: {error}", { error });
 			throw error;
 		}
 	}
@@ -121,12 +124,10 @@ export class WorktreeManager {
 	): Promise<Worktree> {
 		try {
 			if (relativePath) {
-				console.warn(
-					"[WorktreeManager] relativePath is ignored when using git gtr.",
-				);
+				logger.warn("relativePath is ignored when using git gtr.");
 			}
 			const cmd = `git gtr new ${branch}`;
-			console.log(`[WorktreeManager] Executing: ${cmd}`);
+			logger.info("Executing: {cmd}", { cmd });
 			await runGtr(projectRoot, ["new", branch]);
 
 			const worktrees = await this.getWorktrees(projectRoot);
@@ -138,7 +139,7 @@ export class WorktreeManager {
 			}
 			return created;
 		} catch (error) {
-			console.error("[WorktreeManager] Failed to create worktree:", error);
+			logger.error("Failed to create worktree: {error}", { error });
 			throw error;
 		}
 	}
@@ -159,12 +160,10 @@ export class WorktreeManager {
 			}
 			const cmdArgs = ["rm", target.branch];
 			if (force) cmdArgs.push("--force");
-			console.log(
-				`[WorktreeManager] Executing: git gtr ${cmdArgs.join(" ")}`,
-			);
+			logger.info("Executing: git gtr {args}", { args: cmdArgs.join(" ") });
 			await runGtr(projectRoot, cmdArgs);
 		} catch (error) {
-			console.error("[WorktreeManager] Failed to remove worktree:", error);
+			logger.error("Failed to remove worktree: {error}", { error });
 			throw error;
 		}
 	}
@@ -173,7 +172,7 @@ export class WorktreeManager {
 		try {
 			await runGtr(projectRoot, ["clean"]);
 		} catch (error) {
-			console.error("[WorktreeManager] Failed to prune worktrees:", error);
+			logger.error("Failed to prune worktrees: {error}", { error });
 			throw error;
 		}
 	}
@@ -187,7 +186,7 @@ export class WorktreeManager {
 			]);
 			return this.parseStatusOutput(output);
 		} catch (error) {
-			console.error("[WorktreeManager] Failed to get worktree status:", error);
+			logger.error("Failed to get worktree status: {error}", { error });
 			throw error;
 		}
 	}
@@ -211,7 +210,7 @@ export class WorktreeManager {
 				untracked,
 			};
 		} catch (error) {
-			console.error("[WorktreeManager] Failed to get worktree diff:", error);
+			logger.error("Failed to get worktree diff: {error}", { error });
 			throw error;
 		}
 	}
@@ -245,10 +244,7 @@ export class WorktreeManager {
 					};
 				});
 		} catch (error) {
-			console.error(
-				"[WorktreeManager] Failed to list worktree commits:",
-				error,
-			);
+			logger.error("Failed to list worktree commits: {error}", { error });
 			throw error;
 		}
 	}
