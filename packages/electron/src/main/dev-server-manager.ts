@@ -115,7 +115,7 @@ class DevServerManager {
             const workingDir = overrideCwd ?? project.rootPath;
 
             // 1. Allocate ports
-            logger.info("Allocating ports for project {projectId}", { projectId });
+            logger.debug("Allocating ports for project {projectId}", { projectId });
             const portRequests: Record<string, number> = {};
 
             if (config.services && config.services.length > 0) {
@@ -132,7 +132,7 @@ class DevServerManager {
             }
 
             const allocatedPorts = await allocatePorts(portRequests);
-            logger.info("Allocated ports: {allocatedPorts}", { allocatedPorts });
+            logger.debug("Allocated ports: {allocatedPorts}", { allocatedPorts });
 
             // 2. Prepare environment variables and command prefix
             const env: NodeJS.ProcessEnv = {

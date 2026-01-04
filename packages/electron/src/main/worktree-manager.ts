@@ -127,7 +127,7 @@ export class WorktreeManager {
 				logger.warn("relativePath is ignored when using git gtr.");
 			}
 			const cmd = `git gtr new ${branch}`;
-			logger.info("Executing: {cmd}", { cmd });
+			logger.debug("Executing: {cmd}", { cmd });
 			await runGtr(projectRoot, ["new", branch]);
 
 			const worktrees = await this.getWorktrees(projectRoot);
@@ -160,7 +160,7 @@ export class WorktreeManager {
 			}
 			const cmdArgs = ["rm", target.branch];
 			if (force) cmdArgs.push("--force");
-			logger.info("Executing: git gtr {args}", { args: cmdArgs.join(" ") });
+			logger.debug("Executing: git gtr {args}", { args: cmdArgs.join(" ") });
 			await runGtr(projectRoot, cmdArgs);
 		} catch (error) {
 			logger.error("Failed to remove worktree: {error}", { error });

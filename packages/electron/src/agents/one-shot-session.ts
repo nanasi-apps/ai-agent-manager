@@ -251,7 +251,7 @@ export class OneShotSession extends EventEmitter {
 			if (!currentProcess.killed) {
 				setTimeout(() => {
 					if (this.currentProcess === currentProcess && currentProcess.pid) {
-						logger.info(
+						logger.debug(
 							"Killing process (pid={pid}) for worktree switch in session {sessionId}",
 							{ sessionId: this.sessionId, pid: currentProcess.pid },
 						);
@@ -259,13 +259,13 @@ export class OneShotSession extends EventEmitter {
 					}
 				}, 500);
 			} else {
-				logger.info(
+				logger.debug(
 					"Process already marked killed; waiting for close event in session {sessionId}",
 					{ sessionId: this.sessionId },
 				);
 			}
 		} else {
-			logger.info(
+			logger.debug(
 				"Process not running, triggering immediate worktree resume in session {sessionId}",
 				{ sessionId: this.sessionId },
 			);
@@ -396,7 +396,7 @@ export class OneShotSession extends EventEmitter {
 			}
 
 			if (isGemini) {
-				logger.info(
+				logger.debug(
 					"Spawn Env Check: GEMINI_BASE_URL={baseUrl}, GEMINI_API_BASE={apiBase}, GEMINI_API_KEY={apiKeyStatus}",
 					{
 						baseUrl: spawnEnv.GEMINI_BASE_URL,
@@ -458,7 +458,7 @@ export class OneShotSession extends EventEmitter {
 		if (child.stderr) {
 			child.stderr.on("data", (data) => {
 				const str = data.toString();
-				logger.info("stderr for session {sessionId}: {str}", { sessionId: this.sessionId, str });
+				logger.debug("stderr for session {sessionId}: {str}", { sessionId: this.sessionId, str });
 				if (!this.state.config.streamJson) {
 					this.emitLog(str, "text");
 				}
@@ -468,13 +468,13 @@ export class OneShotSession extends EventEmitter {
 	}
 
 	private handleProcessClose(child: ChildProcess, code: number | null) {
-		logger.info(
+		logger.debug(
 			"handleProcessClose called for session {sessionId}, code={code}, hasPending={hasPending}",
 			{ sessionId: this.sessionId, code, hasPending: !!this.state.pendingWorktreeResume },
 		);
 
 		if (this.currentProcess !== child) {
-			logger.info(
+			logger.debug(
 				"Ignoring close event for session {sessionId} - process mismatch",
 				{ sessionId: this.sessionId },
 			);
@@ -617,13 +617,13 @@ export class OneShotSession extends EventEmitter {
 
 	private handlePendingWorktreeResume() {
 		const pending = this.state.pendingWorktreeResume;
-		logger.info(
+		logger.debug(
 			"handlePendingWorktreeResume called for session {sessionId}, hasPending={hasPending}",
 			{ sessionId: this.sessionId, hasPending: !!pending },
 		);
 
 		if (!pending) {
-			logger.info(
+			logger.debug(
 				"No pending worktree resume for session {sessionId}, skipping",
 				{ sessionId: this.sessionId },
 			);
@@ -631,7 +631,7 @@ export class OneShotSession extends EventEmitter {
 		}
 
 		if (this.isProcessing) {
-			logger.info(
+			logger.debug(
 				"Worktree resume deferred for session {sessionId}; agent still processing",
 				{ sessionId: this.sessionId },
 			);
@@ -658,7 +658,7 @@ export class OneShotSession extends EventEmitter {
 			"system",
 		);
 
-		logger.info(
+		logger.debug(
 			"Calling processMessage with resume message for session {sessionId}",
 			{ sessionId: this.sessionId },
 		);
