@@ -1,21 +1,9 @@
 <script setup lang="ts">
-import { GitBranch, Loader2, Plus, Trash2 } from "lucide-vue-next";
+import { GitBranch, Loader2, Trash2 } from "lucide-vue-next";
 import { computed, onMounted, ref } from "vue";
-import { useRoute } from "vue-router";
-import { Badge } from "@/components/ui/badge";
+import { useRoute, useRouter } from "vue-router";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-	DialogTrigger,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
 	Table,
 	TableBody,
@@ -26,23 +14,76 @@ import {
 } from "@/components/ui/table";
 import { getRouteParamFrom } from "@/lib/route-params";
 import { orpc } from "@/services/orpc";
-import type { Worktree, WorktreeCommit } from "@agent-manager/shared";
+import type { Worktree } from "@agent-manager/shared";
 
 const route = useRoute();
+const router = useRouter();
 const projectId = computed(() => getRouteParamFrom(route.params, "id"));
 
 
 const worktrees = ref<Worktree[]>([]);
 const isLoading = ref(false);
-const isCreating = ref(false);
-const selectedWorktree = ref<Worktree | null>(null);
-const worktreeCommits = ref<WorktreeCommit[]>([]);
-const isDetailLoading = ref(false);
+const selectedPaths = ref<string[]>([]);
 
-// New Worktree Form
-const isDialogOpen = ref(false);
-const newBranch = ref("");
-const newPath = ref("");
+const selectablePaths = computed(() =>
+  worktrees.value.filter(wt => !wt.isMain).map(wt => wt.path),
+);
+
+const isAllSelected = computed(() => {
+  if (selectablePaths.value.length === 0) return false;
+
+  const selectedCount = selectablePaths.value.filter(path =>
+    selectedPaths.value.includes(path),
+  ).length;
+  if (selectedCount === 0) return false;
+  if (selectedCount === selectablePaths.value.length) return true;
+  return "indeterminate";
+});
+
+const handleSelectAllToggle = (checked: boolean | "indeterminate") => {
+  selectedPaths.value = checked === true ? [...selectablePaths.value] : [];
+};
+
+const toggleSelection = (path: string, checked: boolean | 'indeterminate') => {
+  if (checked === true) {
+    if (!selectedPaths.value.includes(path)) {
+      selectedPaths.value = [...selectedPaths.value, path];
+    }
+  } else {
+    selectedPaths.value = selectedPaths.value.filter(p => p !== path);
+  }
+};
+
+const removeSelectedWorktrees = async () => {
+    const id = projectId.value;
+    if (!id) return;
+    
+    const count = selectedPaths.value.length;
+    if (count === 0) return;
+    
+    if (
+        !confirm(
+            `Are you sure you want to remove ${count} worktree(s)? Uncommitted changes may be lost.`,
+        )
+    )
+        return;
+
+    try {
+        await Promise.all(selectedPaths.value.map(path => 
+            orpc.removeWorktree({
+                projectId: id,
+                path,
+                force: true, 
+            })
+        ));
+        selectedPaths.value = [];
+        await loadWorktrees();
+    } catch (e) {
+        console.error(e);
+        alert("Failed to remove some worktrees: " + e);
+        await loadWorktrees();
+    }
+};
 
 const loadWorktrees = async () => {
 	const id = projectId.value;
@@ -51,68 +92,15 @@ const loadWorktrees = async () => {
 	try {
 		const res = await orpc.listWorktrees({ projectId: id });
 		worktrees.value = res;
-		if (res.length > 0) {
-			const existing = selectedWorktree.value;
-			const found = existing
-				? res.find((wt) => wt.path === existing.path)
-				: undefined;
-			const target = found || res[0];
-			if (target) {
-				await selectWorktree(target);
-			}
-		} else {
-			selectedWorktree.value = null;
-			worktreeCommits.value = [];
-		}
+		
+		// Cleanup selected paths
+		const existingPaths = res.map(wt => wt.path);
+		selectedPaths.value = selectedPaths.value.filter(p => existingPaths.includes(p));
+
 	} catch (e) {
 		console.error(e);
 	} finally {
 		isLoading.value = false;
-	}
-};
-
-const loadWorktreeDetails = async (worktree: Worktree) => {
-	const id = projectId.value;
-	if (!id) return;
-	isDetailLoading.value = true;
-	try {
-		const commits = await orpc.listWorktreeCommits({
-			projectId: id,
-			path: worktree.path,
-			limit: 15,
-		});
-		worktreeCommits.value = commits;
-	} catch (e) {
-		console.error(e);
-	} finally {
-		isDetailLoading.value = false;
-	}
-};
-
-const selectWorktree = async (worktree: Worktree) => {
-	selectedWorktree.value = worktree;
-	await loadWorktreeDetails(worktree);
-};
-
-const createWorktree = async () => {
-	const id = projectId.value;
-	if (!id) return;
-	if (!newBranch.value) return;
-	isCreating.value = true;
-	try {
-		await orpc.createWorktree({
-			projectId: id,
-			branch: newBranch.value,
-			relativePath: newPath.value || undefined,
-		});
-		isDialogOpen.value = false;
-		newBranch.value = "";
-		newPath.value = "";
-		await loadWorktrees();
-	} catch (e) {
-		console.error(e);
-	} finally {
-		isCreating.value = false;
 	}
 };
 
@@ -143,10 +131,8 @@ const getWorktreeName = (path: string) => {
 	return path.split(/[\\/]/).pop() || path;
 };
 
-const formatCommitDate = (value: string) => {
-	const date = new Date(value);
-	if (Number.isNaN(date.getTime())) return value;
-	return date.toLocaleString();
+const goToConversation = (conversationId: string) => {
+	router.push(`/conversions/${conversationId}`);
 };
 
 onMounted(() => {
@@ -167,41 +153,6 @@ onMounted(() => {
         </p>
       </div>
       
-      <Dialog v-model:open="isDialogOpen">
-        <DialogTrigger as-child>
-          <Button>
-            <Plus class="size-4 mr-2" />
-            Add Worktree
-          </Button>
-        </DialogTrigger>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Create New Worktree</DialogTitle>
-            <DialogDescription>
-              Create a new linked working directory for a specific branch.
-            </DialogDescription>
-          </DialogHeader>
-          <div class="space-y-4 py-4">
-            <div class="space-y-2">
-              <label class="text-sm font-medium">Branch Name</label>
-              <Input v-model="newBranch" placeholder="feature/new-agent-task" />
-              <p class="text-xs text-muted-foreground">Existing branch will be checked out, or new one created.</p>
-            </div>
-            <div class="space-y-2">
-              <label class="text-sm font-medium">Directory Path (Optional)</label>
-              <Input v-model="newPath" placeholder=".worktrees/task-1" />
-              <p class="text-xs text-muted-foreground">Relative to project root. Default: .worktrees/&lt;branch&gt;</p>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" @click="isDialogOpen = false">Cancel</Button>
-            <Button :disabled="!newBranch || isCreating" @click="createWorktree">
-              <Loader2 v-if="isCreating" class="size-4 mr-2 animate-spin" />
-              Create
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
 
     <div v-if="isLoading" class="flex justify-center py-8">
@@ -212,88 +163,98 @@ onMounted(() => {
       <p>No worktrees found (or not a git repository).</p>
     </div>
 
-    <div v-else class="border rounded-md">
-      <Table class="table-fixed">
-        <TableHeader>
-          <TableRow>
-            <TableHead class="w-[50%]">Directory</TableHead>
-            <TableHead class="w-[40%]">Branch</TableHead>
-            <TableHead class="w-[10%] text-right">Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          <TableRow
-            v-for="wt in worktrees"
-            :key="wt.id"
-            class="cursor-pointer"
-            :class="selectedWorktree?.path === wt.path ? 'bg-muted/40' : ''"
-            @click="selectWorktree(wt)"
-          >
-            <TableCell class="font-medium overflow-hidden">
-               <div class="flex flex-col min-w-0">
-                   <span class="truncate">{{ getWorktreeName(wt.path) }}</span>
-                   <span class="text-xs text-muted-foreground truncate" :title="wt.path">{{ wt.path }}</span>
-               </div>
-            </TableCell>
-            <TableCell class="overflow-hidden">
-                <div class="flex items-center gap-2 min-w-0">
-                    <span class="shrink-0">
-                      <GitBranch class="size-3 text-muted-foreground" />
-                    </span>
-                    <span class="truncate">{{ wt.branch }}</span>
-                </div>
-            </TableCell>
-            <TableCell class="text-right">
-              <Button 
-                v-if="!wt.isMain" 
-                variant="ghost" 
-                size="icon" 
-                class="text-destructive hover:text-destructive hover:bg-destructive/10"
-                @click.stop="removeWorktree(wt.path)"
-              >
-                <Trash2 class="size-4" />
-              </Button>
-            </TableCell>
-          </TableRow>
-        </TableBody>
-      </Table>
-    </div>
+    <template v-else>
+      <div v-if="selectedPaths.length > 0" class="flex items-center gap-2 bg-muted/40 p-2 rounded-md mb-2">
+        <span class="text-sm text-muted-foreground">{{ selectedPaths.length }} selected</span>
+        <div class="flex-1" />
+        <Button 
+          variant="destructive" 
+          size="sm"
+          @click="removeSelectedWorktrees"
+        >
+          <Trash2 class="size-4 mr-2" />
+          Delete Selected
+        </Button>
+      </div>
 
-    <div v-if="selectedWorktree" class="min-w-0">
-      <Card class="min-w-0">
-        <CardHeader>
-          <CardTitle class="flex items-center gap-2">
-            Micro-commit Log
-            <Badge variant="secondary" class="font-normal truncate max-w-[300px]" :title="selectedWorktree.branch">
-              {{ selectedWorktree.branch }}
-            </Badge>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div v-if="isDetailLoading" class="text-sm text-muted-foreground flex items-center gap-2">
-            <Loader2 class="size-4 animate-spin" />
-            Loading commits...
-          </div>
-          <div v-else-if="worktreeCommits.length" class="space-y-3">
-            <ScrollArea class="h-80 pr-2">
-              <div class="space-y-3">
-                <div v-for="commit in worktreeCommits" :key="commit.hash" class="rounded-md border p-3 min-w-0 overflow-hidden">
+      <div class="border rounded-md">
+        <Table class="table-fixed">
+          <TableHeader>
+            <TableRow>
+              <TableHead class="w-[50px]">
+                <Checkbox 
+                  :model-value="isAllSelected"
+                  @update:model-value="handleSelectAllToggle"
+                />
+              </TableHead>
+              <TableHead class="w-[35%]">Directory</TableHead>
+              <TableHead class="w-[25%]">Branch</TableHead>
+              <TableHead class="w-[25%]">Conversation</TableHead>
+              <TableHead class="w-[10%] text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            <TableRow
+              v-for="wt in worktrees"
+              :key="wt.id"
+              class="cursor-default"
+            >
+              <TableCell class="w-[50px]" @click.stop>
+                <Checkbox 
+                  :model-value="selectedPaths.includes(wt.path)"
+                  @update:model-value="(val: boolean | 'indeterminate') => toggleSelection(wt.path, val)"
+                  :disabled="wt.isMain"
+                />
+              </TableCell>
+              <TableCell class="font-medium overflow-hidden">
+                 <div class="flex flex-col min-w-0">
+                     <span class="truncate">{{ getWorktreeName(wt.path) }}</span>
+                     <span class="text-xs text-muted-foreground truncate" :title="wt.path">{{ wt.path }}</span>
+                 </div>
+              </TableCell>
+              <TableCell class="overflow-hidden">
                   <div class="flex items-center gap-2 min-w-0">
-                    <Badge variant="outline" class="shrink-0">{{ commit.shortHash }}</Badge>
-                    <span class="text-sm font-medium truncate" :title="commit.subject">{{ commit.subject }}</span>
+                      <span class="shrink-0">
+                        <GitBranch class="size-3 text-muted-foreground" />
+                      </span>
+                      <span class="truncate">{{ wt.branch }}</span>
                   </div>
-                  <div class="mt-1 text-xs text-muted-foreground truncate">
-                    {{ commit.author }} · {{ formatCommitDate(commit.date) }}
-                  </div>
+              </TableCell>
+              <TableCell class="overflow-hidden">
+                <div class="flex flex-col min-w-0">
+                  <span
+                    v-if="(wt.conversations?.length ?? 0) === 0"
+                    class="text-sm text-muted-foreground"
+                  >
+                    None
+                  </span>
+                  <button
+                    v-for="conv in wt.conversations ?? []"
+                    :key="conv.id"
+                    class="text-sm text-left truncate text-primary hover:underline"
+                    :title="conv.title || 'Untitled Session'"
+                    @click.stop="goToConversation(conv.id)"
+                  >
+                    {{ conv.title || "Untitled Session" }}
+                  </button>
                 </div>
-              </div>
-            </ScrollArea>
-          </div>
-          <div v-else class="text-sm text-muted-foreground">
-            No recent commits found.
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+              </TableCell>
+              <TableCell class="text-right">
+                <Button 
+                  v-if="!wt.isMain" 
+                  variant="ghost" 
+                  size="icon" 
+                  class="text-destructive hover:text-destructive hover:bg-destructive/10"
+                  @click.stop="removeWorktree(wt.path)"
+                >
+                  <Trash2 class="size-4" />
+                </Button>
+              </TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
+      </div>
+    </template>
+
   </div>
 </template>

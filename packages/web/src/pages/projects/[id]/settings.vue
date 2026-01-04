@@ -39,6 +39,14 @@ const gtrConfigDraft = ref<GtrConfig>({
 	hooks: { postCreate: [] },
 });
 const gtrConfigOriginal = ref<GtrConfig | null>(null);
+type CopyEntryType = "file" | "dir";
+type CopyEntry = { value: string; type: CopyEntryType };
+const includeEntries = ref<CopyEntry[]>([]);
+const excludeEntries = ref<CopyEntry[]>([]);
+const includeAddValue = ref("");
+const includeAddType = ref<CopyEntryType>("file");
+const excludeAddValue = ref("");
+const excludeAddType = ref<CopyEntryType>("file");
 
 // AutoConfig for automated project startup
 const autoConfigJsonDraft = ref<string>("");
@@ -174,6 +182,21 @@ const resetSettings = () => {
 	if (gtrConfigOriginal.value) {
 		gtrConfigDraft.value = JSON.parse(JSON.stringify(gtrConfigOriginal.value));
 	}
+	const draft = gtrConfigDraft.value;
+	includeEntries.value = [
+		...draft.copy.include.map((value) => ({ value, type: "file" as const })),
+		...draft.copy.includeDirs.map((value) => ({
+			value,
+			type: "dir" as const,
+		})),
+	];
+	excludeEntries.value = [
+		...draft.copy.exclude.map((value) => ({ value, type: "file" as const })),
+		...draft.copy.excludeDirs.map((value) => ({
+			value,
+			type: "dir" as const,
+		})),
+	];
 
 	// Reset AutoConfig
 	autoConfigOriginal.value = project.value?.autoConfig ?? null;
@@ -181,6 +204,201 @@ const resetSettings = () => {
 		? JSON.stringify(autoConfigOriginal.value, null, 2)
 		: "";
 	autoConfigParseError.value = null;
+};
+
+const syncIncludeConfig = () => {
+	const normalized = includeEntries.value
+		.map((entry) => ({ ...entry, value: entry.value.trim() }))
+		.filter((entry) => entry.value);
+	gtrConfigDraft.value.copy.include = normalized
+		.filter((entry) => entry.type === "file")
+		.map((entry) => entry.value);
+	gtrConfigDraft.value.copy.includeDirs = normalized
+		.filter((entry) => entry.type === "dir")
+		.map((entry) => entry.value);
+};
+
+const syncExcludeConfig = () => {
+	const normalized = excludeEntries.value
+		.map((entry) => ({ ...entry, value: entry.value.trim() }))
+		.filter((entry) => entry.value);
+	gtrConfigDraft.value.copy.exclude = normalized
+		.filter((entry) => entry.type === "file")
+		.map((entry) => entry.value);
+	gtrConfigDraft.value.copy.excludeDirs = normalized
+		.filter((entry) => entry.type === "dir")
+		.map((entry) => entry.value);
+};
+
+const splitList = (value: string) =>
+	value
+		.split(/[,\n]/)
+		.map((entry) => entry.trim())
+		.filter(Boolean);
+
+const appendEntries = (
+	entries: CopyEntry[],
+	values: string[],
+	type: CopyEntryType,
+) => {
+	const existing = new Set(entries.map((entry) => `${entry.type}::${entry.value}`));
+	const added = values
+		.map((value) => value.trim())
+		.filter(Boolean)
+		.filter((value) => {
+			const key = `${type}::${value}`;
+			if (existing.has(key)) return false;
+			existing.add(key);
+			return true;
+		})
+		.map((value) => ({ value, type }));
+	return [...entries, ...added];
+};
+
+const normalizeDialogPath = (value: string) => {
+	const root = rootPathDraft.value.trim().replace(/\/+$/, "");
+	if (!root) return value;
+	const prefix = `${root}/`;
+	if (value.startsWith(prefix)) {
+		return value.slice(prefix.length);
+	}
+	return value;
+};
+
+const addIncludeEntries = () => {
+	const values = splitList(includeAddValue.value);
+	if (values.length === 0) return;
+	includeEntries.value = appendEntries(
+		includeEntries.value,
+		values,
+		includeAddType.value,
+	);
+	includeAddValue.value = "";
+	syncIncludeConfig();
+};
+
+const addExcludeEntries = () => {
+	const values = splitList(excludeAddValue.value);
+	if (values.length === 0) return;
+	excludeEntries.value = appendEntries(
+		excludeEntries.value,
+		values,
+		excludeAddType.value,
+	);
+	excludeAddValue.value = "";
+	syncExcludeConfig();
+};
+
+const pickIncludeEntries = async () => {
+	if (!hasNativePicker.value) return;
+	const selected = await orpc.selectPaths({
+		type: includeAddType.value === "file" ? "file" : "dir",
+		multiple: true,
+	});
+	if (selected.length === 0) return;
+	const values = selected.map(normalizeDialogPath);
+	includeEntries.value = appendEntries(
+		includeEntries.value,
+		values,
+		includeAddType.value,
+	);
+	syncIncludeConfig();
+};
+
+const pickExcludeEntries = async () => {
+	if (!hasNativePicker.value) return;
+	const selected = await orpc.selectPaths({
+		type: excludeAddType.value === "file" ? "file" : "dir",
+		multiple: true,
+	});
+	if (selected.length === 0) return;
+	const values = selected.map(normalizeDialogPath);
+	excludeEntries.value = appendEntries(
+		excludeEntries.value,
+		values,
+		excludeAddType.value,
+	);
+	syncExcludeConfig();
+};
+
+const updateIncludeEntry = (index: number, patch: Partial<CopyEntry>) => {
+	const next = [...includeEntries.value];
+	if (!next[index]) return;
+	next[index] = { ...next[index], ...patch };
+	includeEntries.value = next;
+	syncIncludeConfig();
+};
+
+const updateExcludeEntry = (index: number, patch: Partial<CopyEntry>) => {
+	const next = [...excludeEntries.value];
+	if (!next[index]) return;
+	next[index] = { ...next[index], ...patch };
+	excludeEntries.value = next;
+	syncExcludeConfig();
+};
+
+const normalizeIncludeEntry = (index: number) => {
+	const entries = [...includeEntries.value];
+	const entry = entries[index];
+	if (!entry) return;
+	const trimmed = entry.value.trim();
+	if (!trimmed) {
+		entries.splice(index, 1);
+		includeEntries.value = entries;
+		syncIncludeConfig();
+		return;
+	}
+	const duplicateIndex = entries.findIndex(
+		(e, i) => i !== index && e.type === entry.type && e.value.trim() === trimmed,
+	);
+	if (duplicateIndex !== -1) {
+		entries.splice(index, 1);
+		includeEntries.value = entries;
+		syncIncludeConfig();
+		return;
+	}
+	entries[index] = { ...entry, value: trimmed };
+	includeEntries.value = entries;
+	syncIncludeConfig();
+};
+
+const normalizeExcludeEntry = (index: number) => {
+	const entries = [...excludeEntries.value];
+	const entry = entries[index];
+	if (!entry) return;
+	const trimmed = entry.value.trim();
+	if (!trimmed) {
+		entries.splice(index, 1);
+		excludeEntries.value = entries;
+		syncExcludeConfig();
+		return;
+	}
+	const duplicateIndex = entries.findIndex(
+		(e, i) => i !== index && e.type === entry.type && e.value.trim() === trimmed,
+	);
+	if (duplicateIndex !== -1) {
+		entries.splice(index, 1);
+		excludeEntries.value = entries;
+		syncExcludeConfig();
+		return;
+	}
+	entries[index] = { ...entry, value: trimmed };
+	excludeEntries.value = entries;
+	syncExcludeConfig();
+};
+
+const removeIncludeEntry = (index: number) => {
+	const next = [...includeEntries.value];
+	next.splice(index, 1);
+	includeEntries.value = next;
+	syncIncludeConfig();
+};
+
+const removeExcludeEntry = (index: number) => {
+	const next = [...excludeEntries.value];
+	next.splice(index, 1);
+	excludeEntries.value = next;
+	syncExcludeConfig();
 };
 
 const isSettingsDirty = computed(() => {
@@ -425,27 +643,139 @@ watch(projectId, loadProject, { immediate: true });
             <div class="space-y-6">
                <div>
                   <h3 class="text-sm font-medium mb-3">Copy Settings</h3>
-                  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <StringListInput 
-                          v-model="gtrConfigDraft.copy.include" 
-                          label="Include Files (Glob)" 
-                          placeholder="e.g. **/.env.example" 
-                      />
-                      <StringListInput 
-                          v-model="gtrConfigDraft.copy.exclude" 
-                          label="Exclude Files (Glob)" 
-                          placeholder="e.g. **/.env" 
-                      />
-                      <StringListInput 
-                          v-model="gtrConfigDraft.copy.includeDirs" 
-                          label="Include Directories" 
-                          placeholder="e.g. node_modules" 
-                      />
-                      <StringListInput 
-                          v-model="gtrConfigDraft.copy.excludeDirs" 
-                          label="Exclude Directories" 
-                          placeholder="e.g. node_modules/.cache" 
-                      />
+                  <div class="space-y-6">
+                      <div class="space-y-2 border rounded-lg p-4 bg-background/70">
+                          <label class="text-sm font-medium">Include (Files & Folders)</label>
+                          <div class="flex gap-2">
+                              <select
+                                  v-model="includeAddType"
+                                  class="h-9 rounded-md border border-input bg-transparent px-2 text-sm shadow-xs"
+                              >
+                                  <option value="file">File</option>
+                                  <option value="dir">Folder</option>
+                              </select>
+                              <Input
+                                  v-model="includeAddValue"
+                                  placeholder="Add paths or globs (comma/newline for multiple)"
+                                  class="flex-1"
+                                  @keydown.enter.prevent="addIncludeEntries"
+                              />
+                              <Button
+                                  variant="secondary"
+                                  type="button"
+                                  :disabled="!hasNativePicker"
+                                  @click="pickIncludeEntries"
+                              >
+                                  Pick
+                              </Button>
+                              <Button variant="secondary" type="button" @click="addIncludeEntries">
+                                  <Plus class="size-4 mr-1" />
+                                  Add
+                              </Button>
+                          </div>
+                          <p class="text-xs text-muted-foreground">
+                            Edit rows directly. Empty values are removed on blur.
+                          </p>
+                          <div v-if="includeEntries.length" class="space-y-2">
+                              <div
+                                  v-for="(entry, index) in includeEntries"
+                                  :key="`include-${index}`"
+                                  class="flex gap-2"
+                              >
+                                  <select
+                                      :value="entry.type"
+                                      class="h-9 rounded-md border border-input bg-transparent px-2 text-sm shadow-xs"
+                                      @change="updateIncludeEntry(index, { type: ($event.target as HTMLSelectElement).value as CopyEntryType })"
+                                  >
+                                      <option value="file">File</option>
+                                      <option value="dir">Folder</option>
+                                  </select>
+                                  <Input
+                                      :model-value="entry.value"
+                                      class="flex-1"
+                                      placeholder="e.g. **/.env.example or node_modules"
+                                      @update:model-value="(val: string) => updateIncludeEntry(index, { value: val })"
+                                      @blur="() => normalizeIncludeEntry(index)"
+                                  />
+                                  <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      type="button"
+                                      class="text-muted-foreground hover:text-destructive"
+                                      @click="removeIncludeEntry(index)"
+                                  >
+                                      <Trash2 class="size-4" />
+                                  </Button>
+                              </div>
+                          </div>
+                          <p v-else class="text-xs text-muted-foreground italic">No include rules defined.</p>
+                      </div>
+                      <div class="space-y-2 border rounded-lg p-4 bg-background/70">
+                          <label class="text-sm font-medium">Exclude (Files & Folders)</label>
+                          <div class="flex gap-2">
+                              <select
+                                  v-model="excludeAddType"
+                                  class="h-9 rounded-md border border-input bg-transparent px-2 text-sm shadow-xs"
+                              >
+                                  <option value="file">File</option>
+                                  <option value="dir">Folder</option>
+                              </select>
+                              <Input
+                                  v-model="excludeAddValue"
+                                  placeholder="Add paths or globs (comma/newline for multiple)"
+                                  class="flex-1"
+                                  @keydown.enter.prevent="addExcludeEntries"
+                              />
+                              <Button
+                                  variant="secondary"
+                                  type="button"
+                                  :disabled="!hasNativePicker"
+                                  @click="pickExcludeEntries"
+                              >
+                                  Pick
+                              </Button>
+                              <Button variant="secondary" type="button" @click="addExcludeEntries">
+                                  <Plus class="size-4 mr-1" />
+                                  Add
+                              </Button>
+                          </div>
+                          <p class="text-xs text-muted-foreground">
+                            Edit rows directly. Empty values are removed on blur.
+                          </p>
+                          <div v-if="excludeEntries.length" class="space-y-2">
+                              <div
+                                  v-for="(entry, index) in excludeEntries"
+                                  :key="`exclude-${index}`"
+                                  class="flex gap-2"
+                              >
+                                  <select
+                                      :value="entry.type"
+                                      class="h-9 rounded-md border border-input bg-transparent px-2 text-sm shadow-xs"
+                                      @change="updateExcludeEntry(index, { type: ($event.target as HTMLSelectElement).value as CopyEntryType })"
+                                  >
+                                      <option value="file">File</option>
+                                      <option value="dir">Folder</option>
+                                  </select>
+                                  <Input
+                                      :model-value="entry.value"
+                                      class="flex-1"
+                                      placeholder="e.g. **/.env or node_modules/.cache"
+                                      @update:model-value="(val: string) => updateExcludeEntry(index, { value: val })"
+                                      @blur="() => normalizeExcludeEntry(index)"
+                                  />
+                                  <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      type="button"
+                                      class="text-muted-foreground hover:text-destructive"
+                                      @click="removeExcludeEntry(index)"
+                                  >
+                                      <Trash2 class="size-4" />
+                                  </Button>
+                              </div>
+                          </div>
+                          <p v-else class="text-xs text-muted-foreground italic">No exclude rules defined.</p>
+                      </div>
                   </div>
                </div>
 
@@ -456,6 +786,7 @@ watch(projectId, loadProject, { immediate: true });
                           v-model="gtrConfigDraft.hooks.postCreate" 
                           label="Post Create Commands" 
                           placeholder="e.g. npm install" 
+                          help-text="Add multiple commands with commas or new lines."
                       />
                   </div>
                </div>

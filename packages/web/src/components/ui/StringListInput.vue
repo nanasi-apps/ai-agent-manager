@@ -8,6 +8,7 @@ const props = defineProps<{
 	modelValue: string[];
 	label?: string;
 	placeholder?: string;
+	helpText?: string;
 }>();
 
 const emit = defineEmits<{
@@ -16,10 +17,26 @@ const emit = defineEmits<{
 
 const inputValue = ref("");
 
+const splitValues = (raw: string) => {
+	return raw
+		.split(/[,\n]/)
+		.map((entry) => entry.trim())
+		.filter(Boolean);
+};
+
+const uniqueList = (list: string[]) => {
+	const seen = new Set<string>();
+	return list.filter((item) => {
+		if (seen.has(item)) return false;
+		seen.add(item);
+		return true;
+	});
+};
+
 const addItem = () => {
-	const val = inputValue.value.trim();
-	if (val && !props.modelValue.includes(val)) {
-		emit("update:modelValue", [...props.modelValue, val]);
+	const values = splitValues(inputValue.value);
+	if (values.length > 0) {
+		emit("update:modelValue", uniqueList([...props.modelValue, ...values]));
 		inputValue.value = "";
 	}
 };
@@ -28,6 +45,27 @@ const removeItem = (index: number) => {
 	const newValue = [...props.modelValue];
 	newValue.splice(index, 1);
 	emit("update:modelValue", newValue);
+};
+
+const updateItem = (index: number, value: string) => {
+	const newValue = [...props.modelValue];
+	newValue[index] = value;
+	emit("update:modelValue", newValue);
+};
+
+const normalizeItem = (index: number) => {
+	const newValue = [...props.modelValue];
+	const trimmed = newValue[index]?.trim() ?? "";
+	if (!trimmed) {
+		newValue.splice(index, 1);
+		emit("update:modelValue", newValue);
+		return;
+	}
+	newValue[index] = trimmed;
+	const deduped = newValue.filter(
+		(item, idx) => item !== trimmed || idx === index,
+	);
+	emit("update:modelValue", deduped);
 };
 
 const handleKeydown = (e: KeyboardEvent) => {
@@ -44,7 +82,7 @@ const handleKeydown = (e: KeyboardEvent) => {
     <div class="flex gap-2">
       <Input
         v-model="inputValue"
-        :placeholder="placeholder || 'Add item...'"
+        :placeholder="placeholder || 'Add item(s)...'"
         @keydown="handleKeydown"
         class="flex-1"
       />
@@ -52,20 +90,24 @@ const handleKeydown = (e: KeyboardEvent) => {
         <Plus class="size-4" />
       </Button>
     </div>
-    <div v-if="modelValue.length > 0" class="flex flex-wrap gap-2 mt-2">
-      <div
-        v-for="(item, index) in modelValue"
-        :key="index"
-        class="bg-secondary text-secondary-foreground px-2 py-1 rounded-md text-sm flex items-center gap-1 group"
-      >
-        <span>{{ item }}</span>
-        <button
+    <p v-if="helpText" class="text-xs text-muted-foreground">{{ helpText }}</p>
+    <div v-if="modelValue.length > 0" class="space-y-2 mt-2">
+      <div v-for="(item, index) in modelValue" :key="index" class="flex gap-2">
+        <Input
+          :model-value="item"
+          class="flex-1"
+          @update:model-value="(val: string) => updateItem(index, val)"
+          @blur="() => normalizeItem(index)"
+        />
+        <Button
+          variant="ghost"
+          size="icon"
           type="button"
-          class="opacity-50 group-hover:opacity-100 hover:text-destructive transition-opacity"
+          class="text-muted-foreground hover:text-destructive"
           @click="removeItem(index)"
         >
-          <X class="size-3" />
-        </button>
+          <X class="size-4" />
+        </Button>
       </div>
     </div>
     <p v-else class="text-xs text-muted-foreground italic">No items defined.</p>

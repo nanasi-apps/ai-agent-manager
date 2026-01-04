@@ -84,6 +84,22 @@ export const agentsRouter = {
 		if (!dialog) return null;
 		return dialog.selectDirectory();
 	}),
+	selectPaths: os
+		.input(
+			z.object({
+				type: z.enum(["file", "dir", "any"]),
+				multiple: z.boolean().optional(),
+			}),
+		)
+		.output(z.array(z.string()))
+		.handler(async ({ input }) => {
+			const dialog = getNativeDialog();
+			if (!dialog) return [];
+			return dialog.selectPaths({
+				type: input.type,
+				multiple: input.multiple,
+			});
+		}),
 
 	getCurrentBranch: os
 		.input(

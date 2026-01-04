@@ -63,6 +63,10 @@ export interface IAgentManager {
 
 export interface INativeDialog {
 	selectDirectory(): Promise<string | null>;
+	selectPaths(options: {
+		type: "file" | "dir" | "any";
+		multiple?: boolean;
+	}): Promise<string[]>;
 }
 
 // ... types

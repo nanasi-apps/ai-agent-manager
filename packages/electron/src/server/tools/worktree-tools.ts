@@ -1,7 +1,5 @@
 import { getStoreOrThrow } from "@agent-manager/shared";
-import { existsSync } from "fs";
 import * as fs from "fs/promises";
-import * as path from "path";
 import { z } from "zod";
 import { getAgentManager } from "../../agents/agent-manager";
 import {
@@ -258,10 +256,13 @@ export function registerWorktreeTools(registerTool: ToolRegistrar) {
 					await execFileAsync("git", ["merge", "--abort"], { cwd: repoPath });
 
 					// 2. Identify worktree
-					const worktreePath = path.join(repoPath, ".worktrees", branch);
-					if (!existsSync(worktreePath)) {
+					const worktrees = await worktreeManager.getWorktrees(repoPath);
+					const worktreePath = worktrees.find(
+						(worktree) => worktree.branch === branch && !worktree.prunable,
+					)?.path;
+					if (!worktreePath) {
 						throw new Error(
-							`Merge conflict detected and worktree ${worktreePath} not found to resolve it.`,
+							`Merge conflict detected and worktree for ${branch} not found to resolve it.`,
 						);
 					}
 

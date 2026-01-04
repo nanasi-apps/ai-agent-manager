@@ -5,6 +5,12 @@ export interface Worktree {
 	isMain: boolean; // is this the main worktree?
 	isLocked: boolean; // is it currently locked by "git worktree lock"?
 	prunable: string | null; // reason if prunable, null otherwise
+	conversations?: WorktreeConversation[];
+}
+
+export interface WorktreeConversation {
+	id: string;
+	title: string;
 }
 
 export interface WorktreeStatusEntry {

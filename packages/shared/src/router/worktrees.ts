@@ -17,6 +17,14 @@ export const worktreesRouter = {
 					isMain: z.boolean(),
 					isLocked: z.boolean(),
 					prunable: z.string().nullable(),
+					conversations: z
+						.array(
+							z.object({
+								id: z.string(),
+								title: z.string(),
+							}),
+						)
+						.optional(),
 				}),
 			),
 		)
@@ -24,7 +32,25 @@ export const worktreesRouter = {
 			const project = getStoreOrThrow().getProject(input.projectId);
 			if (!project || !project.rootPath)
 				throw new Error("Project has no root path");
-			return getWorktreeManagerOrThrow().getWorktrees(project.rootPath);
+			const worktrees =
+				await getWorktreeManagerOrThrow().getWorktrees(project.rootPath);
+			const conversations = getStoreOrThrow().listConversations(input.projectId);
+			const byPath = new Map<string, { id: string; title: string }[]>();
+
+			for (const conversation of conversations) {
+				if (!conversation.cwd) continue;
+				const list = byPath.get(conversation.cwd) ?? [];
+				list.push({
+					id: conversation.id,
+					title: conversation.title || "Untitled Session",
+				});
+				byPath.set(conversation.cwd, list);
+			}
+
+			return worktrees.map((worktree) => ({
+				...worktree,
+				conversations: byPath.get(worktree.path) ?? [],
+			}));
 		}),
 
 	createWorktree: os

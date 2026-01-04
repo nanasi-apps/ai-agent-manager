@@ -1,5 +1,4 @@
 import { exec } from "node:child_process";
-import * as path from "node:path";
 import { promisify } from "node:util";
 import type {
 	Worktree,
@@ -30,53 +29,46 @@ async function runGit(cwd: string, args: string[]): Promise<string> {
 	return stdout.trim();
 }
 
+/**
+ * Run a git gtr command and return stdout.
+ */
+async function runGtr(cwd: string, args: string[]): Promise<string> {
+	const { stdout } = await execAsync(`git gtr ${args.join(" ")}`, { cwd });
+	return stdout.trim();
+}
+
 export class WorktreeManager {
 	async getWorktrees(projectRoot: string): Promise<Worktree[]> {
 		try {
-			const { stdout } = await execAsync("git worktree list --porcelain", {
-				cwd: projectRoot,
-			});
-			return this.parseWorktreeList(stdout);
+			const output = await runGtr(projectRoot, ["list", "--porcelain"]);
+			return this.parseWorktreeList(output, projectRoot);
 		} catch (error) {
 			console.error("[WorktreeManager] Failed to list worktrees:", error);
 			throw error;
 		}
 	}
 
-	private parseWorktreeList(output: string): Worktree[] {
+	private parseWorktreeList(output: string, projectRoot: string): Worktree[] {
 		const worktrees: Worktree[] = [];
-		const blocks = output.trim().split("\n\n");
+		const lines = output
+			.split("\n")
+			.map((line) => line.trim())
+			.filter(Boolean);
 
-		for (const block of blocks) {
-			const lines = block.split("\n");
-			const data: any = {};
+		for (const line of lines) {
+			const [worktreePath, branch, status] = line.split("\t");
+			if (!worktreePath || !branch || !status) continue;
+			if (status === "missing") continue;
 
-			for (const line of lines) {
-				const [key, ...values] = line.split(" ");
-				const value = values.join(" ");
-				data[key] = value;
-			}
-
-			if (data.worktree) {
-				worktrees.push({
-					id: data.worktree,
-					path: data.worktree,
-					branch: data.branch
-						? data.branch.replace("refs/heads/", "")
-						: data.HEAD || "detached",
-					isMain: false, // logic to determine main? usually the first one but not guaranteed by porcelain?
-					// usually the one matching the repo root is main
-					// We'll update isMain logic later if needed
-					isLocked: !!data.locked,
-					prunable: data.prunable || null,
-				});
-			}
-		}
-
-		// Basic heuristic: Shortest path is usually main? Or check .git folder vs file?
-		// For now, let's assume the first one listed is main (git behavior)
-		if (worktrees.length > 0) {
-			worktrees[0].isMain = true;
+			const isMain = worktreePath === projectRoot;
+			worktrees.push({
+				id: worktreePath,
+				path: worktreePath,
+				branch,
+				isMain,
+				isLocked: status === "locked",
+				prunable: status === "prunable" ? status : null,
+			});
 		}
 
 		return worktrees;
@@ -127,36 +119,24 @@ export class WorktreeManager {
 		branch: string,
 		relativePath?: string,
 	): Promise<Worktree> {
-		// default path: .worktrees/<branch>
-		const targetPath = relativePath || `.worktrees/${branch}`;
-		const absolutePath = path.resolve(projectRoot, targetPath);
-
-		// Check if branch exists
-		let createBranchFlag = "";
 		try {
-			await execAsync(`git rev-parse --verify ${branch}`, { cwd: projectRoot });
-			// Branch exists, checkout it
-			createBranchFlag = "";
-		} catch (_e) {
-			// Branch does not exist, create it (-b)
-			createBranchFlag = `-b ${branch}`;
-		}
-
-		try {
-			const cmd = `git worktree add ${createBranchFlag} "${targetPath}" ${branch}`;
+			if (relativePath) {
+				console.warn(
+					"[WorktreeManager] relativePath is ignored when using git gtr.",
+				);
+			}
+			const cmd = `git gtr new ${branch}`;
 			console.log(`[WorktreeManager] Executing: ${cmd}`);
-			await execAsync(cmd, { cwd: projectRoot });
+			await runGtr(projectRoot, ["new", branch]);
 
-			// Return the new worktree object
-			// We can fetch list again or construct it manually
-			return {
-				id: absolutePath,
-				path: absolutePath,
-				branch: branch,
-				isMain: false,
-				isLocked: false,
-				prunable: null,
-			};
+			const worktrees = await this.getWorktrees(projectRoot);
+			const created = worktrees.find(
+				(worktree) => worktree.branch === branch && !worktree.prunable,
+			);
+			if (!created) {
+				throw new Error(`Worktree for branch ${branch} not found after create.`);
+			}
+			return created;
 		} catch (error) {
 			console.error("[WorktreeManager] Failed to create worktree:", error);
 			throw error;
@@ -169,9 +149,20 @@ export class WorktreeManager {
 		force: boolean = false,
 	): Promise<void> {
 		try {
-			const cmd = `git worktree remove ${force ? "--force" : ""} "${worktreePath}"`;
-			console.log(`[WorktreeManager] Executing: ${cmd}`);
-			await execAsync(cmd, { cwd: projectRoot });
+			const worktrees = await this.getWorktrees(projectRoot);
+			const target = worktrees.find((worktree) => worktree.path === worktreePath);
+			if (!target) {
+				throw new Error(`Worktree not found for path: ${worktreePath}`);
+			}
+			if (target.isMain) {
+				throw new Error("Cannot remove the main repository worktree.");
+			}
+			const cmdArgs = ["rm", target.branch];
+			if (force) cmdArgs.push("--force");
+			console.log(
+				`[WorktreeManager] Executing: git gtr ${cmdArgs.join(" ")}`,
+			);
+			await runGtr(projectRoot, cmdArgs);
 		} catch (error) {
 			console.error("[WorktreeManager] Failed to remove worktree:", error);
 			throw error;
@@ -180,7 +171,7 @@ export class WorktreeManager {
 
 	async pruneWorktrees(projectRoot: string): Promise<void> {
 		try {
-			await execAsync("git worktree prune", { cwd: projectRoot });
+			await runGtr(projectRoot, ["clean"]);
 		} catch (error) {
 			console.error("[WorktreeManager] Failed to prune worktrees:", error);
 			throw error;

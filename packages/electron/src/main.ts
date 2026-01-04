@@ -46,6 +46,18 @@ setNativeDialog({
 		if (result.canceled) return null;
 		return result.filePaths[0] ?? null;
 	},
+	selectPaths: async ({ type, multiple }) => {
+		const properties: Array<
+			"openFile" | "openDirectory" | "multiSelections"
+		> = [];
+		if (type === "file") properties.push("openFile");
+		if (type === "dir") properties.push("openDirectory");
+		if (type === "any") properties.push("openFile", "openDirectory");
+		if (multiple) properties.push("multiSelections");
+		const result = await dialog.showOpenDialog({ properties });
+		if (result.canceled) return [];
+		return result.filePaths;
+	},
 });
 
 function createWindow() {
