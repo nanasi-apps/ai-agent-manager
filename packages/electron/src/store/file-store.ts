@@ -38,46 +38,170 @@ export class FileStore implements IStore {
 	private approvals: Map<string, ApprovalRequest> = new Map();
 	private apiSettings: ApiSettings = {};
 	private appSettings: AppSettings = {};
-	private dataPath: string | null = null;
+	private dataDir: string | null = null;
+	private conversationsPath: string | null = null;
+	private projectsPath: string | null = null;
+	private locksPath: string | null = null;
+	private approvalsPath: string | null = null;
+	private settingsPath: string | null = null;
 	private saveTimeout: ReturnType<typeof setTimeout> | null = null;
 
 	setDataPath(dirPath: string) {
-		this.dataPath = path.join(dirPath, "conversations.json");
+		this.dataDir = dirPath;
+		this.conversationsPath = path.join(dirPath, "conversations.json");
+		this.projectsPath = path.join(dirPath, "projects.json");
+		this.locksPath = path.join(dirPath, "locks.json");
+		this.approvalsPath = path.join(dirPath, "approvals.json");
+		this.settingsPath = path.join(dirPath, "settings.json");
 		this.load();
 	}
 
 	private load() {
-		if (!this.dataPath) return;
+		if (!this.dataDir) return;
 
 		try {
-			if (fs.existsSync(this.dataPath)) {
-				const raw = fs.readFileSync(this.dataPath, "utf-8");
-				const data: StoreData = JSON.parse(raw);
-				this.conversations.clear();
+			const {
+				conversationsPath,
+				projectsPath,
+				locksPath,
+				approvalsPath,
+				settingsPath,
+			} = this;
+			if (!conversationsPath) return;
 
-				for (const conv of data.conversations) {
-					// Normalize existing messages by merging fragments
-					if (conv.messages) {
-						conv.messages = normalizeMessages(conv.messages);
-					} else {
-						conv.messages = [];
+			this.conversations.clear();
+			this.projects.clear();
+			this.locks.clear();
+			this.approvals.clear();
+			this.apiSettings = {};
+			this.appSettings = {};
+
+			let loadedLegacy = false;
+
+			if (fs.existsSync(conversationsPath)) {
+				const raw = fs.readFileSync(conversationsPath, "utf-8");
+				const data: unknown = JSON.parse(raw);
+
+				if (
+					data &&
+					typeof data === "object" &&
+					"conversations" in data
+				) {
+					const legacy = data as StoreData;
+					for (const conv of legacy.conversations) {
+						// Normalize existing messages by merging fragments
+						if (conv.messages) {
+							conv.messages = normalizeMessages(conv.messages);
+						} else {
+							conv.messages = [];
+						}
+
+						this.conversations.set(conv.id, conv);
 					}
 
-					this.conversations.set(conv.id, conv);
-				}
+					if (legacy.projects) {
+						for (const proj of legacy.projects) {
+							this.projects.set(proj.id, proj);
+						}
+					}
 
-				if (data.projects) {
-					this.projects.clear();
-					for (const proj of data.projects) {
+					if (legacy.locks) {
+						const now = Date.now();
+						for (const lock of legacy.locks) {
+							// Filter out expired locks on load
+							if (lock.expiresAt && lock.expiresAt < now) {
+								continue;
+							}
+							this.locks.set(lock.resourceId, lock);
+						}
+					}
+
+					if (legacy.apiSettings) {
+						const {
+							openaiApiKey,
+							openaiBaseUrl,
+							geminiApiKey,
+							geminiBaseUrl,
+						} = legacy.apiSettings;
+						this.apiSettings = {
+							openaiApiKey,
+							openaiBaseUrl,
+							geminiApiKey,
+							geminiBaseUrl,
+						};
+					}
+
+					if (legacy.appSettings) {
+						this.appSettings = legacy.appSettings;
+					}
+
+					const legacyAppSettings = legacy.apiSettings as
+						| (ApiSettings & Partial<AppSettings>)
+						| undefined;
+					const migratedSettings: Partial<AppSettings> = {};
+					if (
+						this.appSettings.language === undefined &&
+						typeof legacyAppSettings?.language === "string"
+					) {
+						migratedSettings.language = legacyAppSettings.language;
+					}
+					if (
+						this.appSettings.notifyOnAgentComplete === undefined &&
+						typeof legacyAppSettings?.notifyOnAgentComplete === "boolean"
+					) {
+						migratedSettings.notifyOnAgentComplete =
+							legacyAppSettings.notifyOnAgentComplete;
+					}
+					if (
+						this.appSettings.approvalNotificationChannels === undefined &&
+						Array.isArray(legacyAppSettings?.approvalNotificationChannels)
+					) {
+						migratedSettings.approvalNotificationChannels =
+							legacyAppSettings.approvalNotificationChannels.filter(
+								isApprovalChannel,
+							);
+					}
+					if (Object.keys(migratedSettings).length > 0) {
+						this.appSettings = { ...this.appSettings, ...migratedSettings };
+					}
+
+					if (legacy.approvals) {
+						for (const approval of legacy.approvals) {
+							this.approvals.set(approval.id, approval);
+						}
+					}
+
+					loadedLegacy = true;
+				} else if (Array.isArray(data)) {
+					for (const conv of data as Conversation[]) {
+						// Normalize existing messages by merging fragments
+						if (conv.messages) {
+							conv.messages = normalizeMessages(conv.messages);
+						} else {
+							conv.messages = [];
+						}
+
+						this.conversations.set(conv.id, conv);
+					}
+				}
+			}
+
+			if (!loadedLegacy) {
+				if (projectsPath && fs.existsSync(projectsPath)) {
+					const projects = JSON.parse(
+						fs.readFileSync(projectsPath, "utf-8"),
+					) as Project[];
+					for (const proj of projects) {
 						this.projects.set(proj.id, proj);
 					}
 				}
 
-				if (data.locks) {
-					this.locks.clear();
+				if (locksPath && fs.existsSync(locksPath)) {
+					const locks = JSON.parse(
+						fs.readFileSync(locksPath, "utf-8"),
+					) as ResourceLock[];
 					const now = Date.now();
-					for (const lock of data.locks) {
-						// Filter out expired locks on load
+					for (const lock of locks) {
 						if (lock.expiresAt && lock.expiresAt < now) {
 							continue;
 						}
@@ -85,70 +209,50 @@ export class FileStore implements IStore {
 					}
 				}
 
-				if (data.apiSettings) {
-					const { openaiApiKey, openaiBaseUrl, geminiApiKey, geminiBaseUrl } =
-						data.apiSettings;
-					this.apiSettings = {
-						openaiApiKey,
-						openaiBaseUrl,
-						geminiApiKey,
-						geminiBaseUrl,
-					};
-				}
-
-				if (data.appSettings) {
-					this.appSettings = data.appSettings;
-				}
-
-				const legacyAppSettings = data.apiSettings as
-					| (ApiSettings & Partial<AppSettings>)
-					| undefined;
-				const migratedSettings: Partial<AppSettings> = {};
-				if (
-					this.appSettings.language === undefined &&
-					typeof legacyAppSettings?.language === "string"
-				) {
-					migratedSettings.language = legacyAppSettings.language;
-				}
-				if (
-					this.appSettings.notifyOnAgentComplete === undefined &&
-					typeof legacyAppSettings?.notifyOnAgentComplete === "boolean"
-				) {
-					migratedSettings.notifyOnAgentComplete =
-						legacyAppSettings.notifyOnAgentComplete;
-				}
-				if (
-					this.appSettings.approvalNotificationChannels === undefined &&
-					Array.isArray(legacyAppSettings?.approvalNotificationChannels)
-				) {
-					migratedSettings.approvalNotificationChannels =
-						legacyAppSettings.approvalNotificationChannels.filter(
-							isApprovalChannel,
-						);
-				}
-				if (Object.keys(migratedSettings).length > 0) {
-					this.appSettings = { ...this.appSettings, ...migratedSettings };
-				}
-
-				if (data.approvals) {
-					this.approvals.clear();
-					for (const approval of data.approvals) {
+				if (approvalsPath && fs.existsSync(approvalsPath)) {
+					const approvals = JSON.parse(
+						fs.readFileSync(approvalsPath, "utf-8"),
+					) as ApprovalRequest[];
+					for (const approval of approvals) {
 						this.approvals.set(approval.id, approval);
 					}
 				}
 
-				console.log(
-					`[FileStore] Loaded ${this.conversations.size} conversations, ${this.projects.size} projects, ${this.locks.size} locks, and ${this.approvals.size} approvals from ${this.dataPath}`,
-				);
-				this.scheduleSave();
+				if (settingsPath && fs.existsSync(settingsPath)) {
+					const settings = JSON.parse(
+						fs.readFileSync(settingsPath, "utf-8"),
+					) as { apiSettings?: ApiSettings; appSettings?: AppSettings };
+					if (settings.apiSettings) {
+						const {
+							openaiApiKey,
+							openaiBaseUrl,
+							geminiApiKey,
+							geminiBaseUrl,
+						} = settings.apiSettings;
+						this.apiSettings = {
+							openaiApiKey,
+							openaiBaseUrl,
+							geminiApiKey,
+							geminiBaseUrl,
+						};
+					}
+					if (settings.appSettings) {
+						this.appSettings = settings.appSettings;
+					}
+				}
 			}
+
+			console.log(
+				`[FileStore] Loaded ${this.conversations.size} conversations, ${this.projects.size} projects, ${this.locks.size} locks, and ${this.approvals.size} approvals from ${this.dataDir}`,
+			);
+			this.scheduleSave();
 		} catch (err) {
 			console.error("[FileStore] Failed to load data:", err);
 		}
 	}
 
 	private scheduleSave() {
-		if (!this.dataPath) return;
+		if (!this.dataDir) return;
 
 		if (this.saveTimeout) {
 			clearTimeout(this.saveTimeout);
@@ -159,25 +263,64 @@ export class FileStore implements IStore {
 	}
 
 	private saveSync() {
-		if (!this.dataPath) return;
+		if (!this.dataDir) return;
+		const {
+			conversationsPath,
+			projectsPath,
+			locksPath,
+			approvalsPath,
+			settingsPath,
+		} = this;
+		if (
+			!conversationsPath ||
+			!projectsPath ||
+			!locksPath ||
+			!approvalsPath ||
+			!settingsPath
+		) {
+			return;
+		}
 
 		try {
-			const dir = path.dirname(this.dataPath);
+			const dir = path.dirname(conversationsPath);
 			if (!fs.existsSync(dir)) {
 				fs.mkdirSync(dir, { recursive: true });
 			}
 
-			const data: StoreData = {
-				conversations: Array.from(this.conversations.values()),
-				projects: Array.from(this.projects.values()),
-				locks: Array.from(this.locks.values()),
-				approvals: Array.from(this.approvals.values()),
-				apiSettings: this.apiSettings,
-				appSettings: this.appSettings,
-			};
-			fs.writeFileSync(this.dataPath, JSON.stringify(data, null, 2), "utf-8");
+			fs.writeFileSync(
+				conversationsPath,
+				JSON.stringify(Array.from(this.conversations.values()), null, 2),
+				"utf-8",
+			);
+			fs.writeFileSync(
+				projectsPath,
+				JSON.stringify(Array.from(this.projects.values()), null, 2),
+				"utf-8",
+			);
+			fs.writeFileSync(
+				locksPath,
+				JSON.stringify(Array.from(this.locks.values()), null, 2),
+				"utf-8",
+			);
+			fs.writeFileSync(
+				approvalsPath,
+				JSON.stringify(Array.from(this.approvals.values()), null, 2),
+				"utf-8",
+			);
+			fs.writeFileSync(
+				settingsPath,
+				JSON.stringify(
+					{
+						apiSettings: this.apiSettings,
+						appSettings: this.appSettings,
+					},
+					null,
+					2,
+				),
+				"utf-8",
+			);
 			console.log(
-				`[FileStore] Saved ${this.conversations.size} conversations to ${this.dataPath}`,
+				`[FileStore] Saved ${this.conversations.size} conversations, ${this.projects.size} projects, ${this.locks.size} locks, and ${this.approvals.size} approvals to ${this.dataDir}`,
 			);
 		} catch (err) {
 			console.error("[FileStore] Failed to save data:", err);
