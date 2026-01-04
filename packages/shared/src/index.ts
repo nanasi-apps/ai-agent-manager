@@ -1,6 +1,6 @@
 // Types
 
-export type { AppRouter, IAgentManager, IGtrConfigService } from "./router";
+export type { AppRouter, IAgentManager, IGtrConfigService, IWebServerService, IWebServerStatus } from "./router";
 export type { McpServerEntry } from "./router/mcp";
 
 // Router
@@ -22,6 +22,7 @@ export {
 	setStore,
 	setWorktreeManager,
 	setDevServerService,
+	setWebServerService,
 } from "./router";
 export * from "./types/index";
 export * from "./types/launch-config";

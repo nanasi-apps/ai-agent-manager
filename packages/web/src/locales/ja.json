@@ -131,6 +131,20 @@
       "page": "ページ",
       "dialog": "ダイアログ"
     },
+    "webServer": {
+      "title": "Webサーバー",
+      "desc": "内蔵Webサーバーを操作してリモートアクセスを有効にします。",
+      "status": "ステータス",
+      "running": "稼働中",
+      "stopped": "停止中",
+      "statusDesc": "サーバーの起動・停止とURLの確認ができます。",
+      "host": "ホスト",
+      "port": "ポート",
+      "start": "Webサーバーを起動",
+      "stop": "Webサーバーを停止",
+      "autoStart": "起動時にWebサーバーを開始",
+      "autoOpen": "自動起動時にブラウザを開く"
+    },
     "apiSettings": "API設定",
     "loading": "API設定を読み込み中...",
     "openai": {

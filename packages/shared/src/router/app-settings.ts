@@ -14,6 +14,10 @@ export const appSettingsRouter = {
 				notifyOnAgentComplete: z.boolean().optional(),
 				approvalNotificationChannels: z.array(approvalChannelSchema).optional(),
 				newConversionOpenMode: z.enum(["page", "dialog"]).optional(),
+				webServerAutoStart: z.boolean().optional(),
+				webServerAutoOpenBrowser: z.boolean().optional(),
+				webServerHost: z.string().optional(),
+				webServerPort: z.number().optional(),
 			}),
 		)
 		.handler(async () => {
@@ -23,6 +27,10 @@ export const appSettingsRouter = {
 				notifyOnAgentComplete: settings.notifyOnAgentComplete,
 				approvalNotificationChannels: settings.approvalNotificationChannels,
 				newConversionOpenMode: settings.newConversionOpenMode,
+				webServerAutoStart: settings.webServerAutoStart,
+				webServerAutoOpenBrowser: settings.webServerAutoOpenBrowser,
+				webServerHost: settings.webServerHost,
+				webServerPort: settings.webServerPort,
 			};
 		}),
 
@@ -33,6 +41,10 @@ export const appSettingsRouter = {
 				notifyOnAgentComplete: z.boolean().optional(),
 				approvalNotificationChannels: z.array(approvalChannelSchema).optional(),
 				newConversionOpenMode: z.enum(["page", "dialog"]).optional(),
+				webServerAutoStart: z.boolean().optional(),
+				webServerAutoOpenBrowser: z.boolean().optional(),
+				webServerHost: z.string().optional(),
+				webServerPort: z.number().optional(),
 			}),
 		)
 		.output(z.object({ success: z.boolean() }))
@@ -50,6 +62,18 @@ export const appSettingsRouter = {
 			}
 			if (input.newConversionOpenMode !== undefined) {
 				updates.newConversionOpenMode = input.newConversionOpenMode;
+			}
+			if (input.webServerAutoStart !== undefined) {
+				updates.webServerAutoStart = input.webServerAutoStart;
+			}
+			if (input.webServerAutoOpenBrowser !== undefined) {
+				updates.webServerAutoOpenBrowser = input.webServerAutoOpenBrowser;
+			}
+			if (input.webServerHost !== undefined) {
+				updates.webServerHost = input.webServerHost || undefined;
+			}
+			if (input.webServerPort !== undefined) {
+				updates.webServerPort = input.webServerPort;
 			}
 			getStoreOrThrow().updateAppSettings(updates);
 			return { success: true };

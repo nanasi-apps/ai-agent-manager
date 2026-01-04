@@ -48,6 +48,19 @@ export interface WorktreeCreateOptions {
 	directoryName?: string; // folder name for the worktree
 }
 
+export type BranchNameRequestStatus = "pending" | "resolved" | "cancelled";
+
+export interface BranchNameRequest {
+	id: string;
+	repoPath: string;
+	projectId?: string;
+	sessionId?: string;
+	suggestedBranch?: string;
+	summary?: string;
+	createdAt: number;
+	status: BranchNameRequestStatus;
+}
+
 export interface IWorktreeManager {
 	getWorktrees(projectRoot: string): Promise<Worktree[]>;
 	createWorktree(

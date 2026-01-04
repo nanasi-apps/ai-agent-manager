@@ -111,6 +111,10 @@ export interface AppSettings {
 	notifyOnAgentComplete?: boolean;
 	approvalNotificationChannels?: ApprovalChannel[];
 	newConversionOpenMode?: "page" | "dialog";
+	webServerAutoStart?: boolean;
+	webServerAutoOpenBrowser?: boolean;
+	webServerHost?: string;
+	webServerPort?: number;
 	slackWebhookUrl?: string;
 	discordWebhookUrl?: string;
 }

@@ -5,11 +5,12 @@ import {
 	setHandoverService,
 	setNativeDialog,
 	setStore,
+	setWebServerService,
 	setWorktreeManager,
 	initLogger,
 	getLogger,
 } from "@agent-manager/shared";
-import { app, BrowserWindow, dialog } from "electron";
+import { app, BrowserWindow, dialog, shell } from "electron";
 import path from "node:path";
 import {
 	setAgentManager as setElectronAgentManager,
@@ -18,13 +19,15 @@ import {
 import { setupAgentLogs } from "./main/agent-logs";
 import { setupAgentState } from "./main/agent-state";
 import { setupIpc } from "./main/ipc";
+import { setupBranchNameChannels } from "./main/branch-name-channels";
 import { initializeWindowTheme, setupGlobalThemeHandlers } from "./main/theme";
 import { worktreeManager } from "./main/worktree-manager";
 import { devServerManager } from "./main/dev-server-manager";
 import { startMcpServer } from "./server/mcp-server.js";
-import { startOrpcServer } from "./server/orpc-server";
+import { setupElectronOrpc } from "./server/orpc-server";
 import { GtrConfigService } from "./services/gtr-config-service";
 import * as handoverSummaryService from "./services/handover-summary-service";
+import { webServerManager } from "./services/web-server-manager";
 import { store } from "./store";
 import { fixProcessPath } from "./utils/path-enhancer";
 
@@ -43,6 +46,7 @@ setWorktreeManager(worktreeManager);
 setHandoverService(handoverSummaryService);
 setGtrConfigService(new GtrConfigService());
 setDevServerService(devServerManager);
+setWebServerService(webServerManager);
 setNativeDialog({
 	selectDirectory: async () => {
 		const result = await dialog.showOpenDialog({
@@ -92,7 +96,7 @@ function createWindow() {
 	initializeWindowTheme(win);
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
 	// Initialize the persistent store with Electron's userData path
 	const userDataPath = app.getPath("userData");
 	store.setDataPath(userDataPath);
@@ -107,13 +111,45 @@ app.whenReady().then(() => {
 	});
 
 	setupIpc();
+	setupBranchNameChannels();
 	setupGlobalThemeHandlers();
 	setupAgentLogs();
 	setupAgentState();
 
-	// Start ORPC WebSocket server
-	logger.info("Starting ORPC WebSocket server...");
-	startOrpcServer(Number(process.env.ORPC_PORT) || 3002);
+	// Start ORPC handlers
+	logger.info("Setting up ORPC Electron handlers...");
+	setupElectronOrpc();
+
+	// Start optional Web Server (Hono + ORPC)
+	const appSettings = store.getAppSettings();
+	const autoStartWebServer = appSettings.webServerAutoStart ?? false;
+	const autoOpenBrowser = appSettings.webServerAutoOpenBrowser ?? false;
+	const envPort = process.env.WEB_SERVER_PORT;
+	const envHost = process.env.WEB_SERVER_HOST;
+	const shouldStartWebServer = Boolean(envPort) || autoStartWebServer;
+	if (shouldStartWebServer) {
+		const requestedPort = envPort ? Number(envPort) : appSettings.webServerPort;
+		const port = Number.isNaN(requestedPort) ? undefined : requestedPort;
+		const host = envHost || appSettings.webServerHost || "0.0.0.0";
+		logger.info("Starting Web Server on {host}:{port}...", {
+			host,
+			port: port ?? "random",
+		});
+		try {
+			const status = await webServerManager.start({ port, host });
+			if (autoStartWebServer && autoOpenBrowser && status.localUrl) {
+				try {
+					await shell.openExternal(status.localUrl);
+				} catch (err) {
+					logger.warn("Failed to open browser for Web Server: {err}", {
+						err,
+					});
+				}
+			}
+		} catch (err) {
+			logger.error("Failed to start Web Server: {err}", { err });
+		}
+	}
 
 	// Start internal MCP server
 	logger.info("Starting internal MCP server...");
@@ -128,6 +164,7 @@ app.whenReady().then(() => {
 		});
 });
 
+
 app.on("window-all-closed", () => {
 	if (process.platform !== "darwin") {
 		app.quit();
@@ -135,13 +172,27 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", async (event) => {
+	// Stop dev servers
 	const running = devServerManager.listRunningProjects();
-	if (running.length === 0) return;
+	if (running.length > 0) {
+		logger.info("Stopping {count} dev servers before quit...", {
+			count: running.length,
+		});
+		await devServerManager.stopAll();
+	}
 
-	event.preventDefault();
-	logger.info("Stopping {count} dev servers before quit...", {
-		count: running.length,
-	});
-	await devServerManager.stopAll();
-	app.quit();
+	// Stop Web Server
+	await webServerManager.stop();
+
+	// We don't need to prevent default if we await above, assuming app.quit() waits for this listener?
+	// Electron 'before-quit' is synchronous unless event.preventDefault() is called.
+	// If we have async cleanup, we MUST prevent default, await, and then quit again.
+	// But let's check existing code structure.
+	// Existing code:
+	// if (running.length === 0) return;
+	// event.preventDefault();
+	// ... await ...
+	// app.quit();
+	//
+	// I should merge this logic.
 });

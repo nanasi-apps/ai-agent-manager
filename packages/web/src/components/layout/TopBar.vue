@@ -55,7 +55,8 @@ watch(() => launchConfigs.value, (newConfigs) => {
         const currentSelected = selectedConfig.value;
         const exists = safeConfigs.some((c) => c && c.value === currentSelected);
         if (!currentSelected || !exists) {
-            selectedConfig.value = safeConfigs[0].value;
+            const firstConfig = safeConfigs[0];
+            selectedConfig.value = firstConfig ? firstConfig.value : '';
         }
     } else {
         selectedConfig.value = '';

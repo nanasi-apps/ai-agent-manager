@@ -133,6 +133,20 @@
       "page": "Page",
       "dialog": "Dialog"
     },
+    "webServer": {
+      "title": "Web Server",
+      "desc": "Control the built-in web server for remote access.",
+      "status": "Status",
+      "running": "Running",
+      "stopped": "Stopped",
+      "statusDesc": "Start or stop the server and copy its URLs.",
+      "host": "Host",
+      "port": "Port",
+      "start": "Start Web Server",
+      "stop": "Stop Web Server",
+      "autoStart": "Start on launch",
+      "autoOpen": "Open browser when auto-starting"
+    },
     "apiSettings": "API Settings",
     "loading": "Loading API settings...",
     "openai": {

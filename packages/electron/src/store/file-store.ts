@@ -384,6 +384,7 @@ export class FileStore implements IStore {
 	}
 
 	updateApiSettings(settings: Partial<ApiSettings>): void {
+		console.log("Updating API settings:", settings);
 		this.apiSettings = { ...this.apiSettings, ...settings };
 		this.scheduleSave();
 	}

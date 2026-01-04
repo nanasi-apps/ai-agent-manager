@@ -1,4 +1,8 @@
-import type { AgentLogPayload, AgentStatePayload } from "@agent-manager/shared";
+import type {
+	AgentLogPayload,
+	AgentStatePayload,
+	BranchNameRequest,
+} from "@agent-manager/shared";
 
 /**
  * Electron API exposed via preload script
@@ -13,6 +17,21 @@ export interface ElectronAPI {
 		callback: (payload: AgentStatePayload) => void,
 	) => () => void;
 	getOrpcPort: () => number;
+	listBranchNameRequests: () => Promise<BranchNameRequest[]>;
+	onBranchNameRequest: (callback: (payload: BranchNameRequest) => void) => () => void;
+	onBranchNameOpen: (
+		callback: (payload: { requestId: string }) => void,
+	) => () => void;
+	onBranchNameResolved: (
+		callback: (payload: { requestId: string; branchName?: string; cancelled?: boolean }) => void,
+	) => () => void;
+	submitBranchName: (
+		requestId: string,
+		branchName: string,
+	) => Promise<{ success: boolean; error?: string; request?: BranchNameRequest }>;
+	generateBranchName: (
+		requestId: string,
+	) => Promise<{ success: boolean; error?: string; suggestion?: string }>;
 }
 
 declare global {

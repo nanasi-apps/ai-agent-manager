@@ -16,6 +16,10 @@ export interface AppSettings {
     notifyOnAgentComplete?: boolean;
     approvalNotificationChannels?: ApprovalChannel[];
     newConversionOpenMode?: "page" | "dialog";
+    webServerAutoStart?: boolean;
+    webServerAutoOpenBrowser?: boolean;
+    webServerHost?: string;
+    webServerPort?: number;
     slackWebhookUrl?: string;
     discordWebhookUrl?: string;
 }
@@ -126,6 +130,18 @@ export const useSettingsStore = defineStore("settings", () => {
             }
             if (updates.newConversionOpenMode !== undefined) {
                 appSettings.value.newConversionOpenMode = updates.newConversionOpenMode;
+            }
+            if (updates.webServerAutoStart !== undefined) {
+                appSettings.value.webServerAutoStart = updates.webServerAutoStart;
+            }
+            if (updates.webServerAutoOpenBrowser !== undefined) {
+                appSettings.value.webServerAutoOpenBrowser = updates.webServerAutoOpenBrowser;
+            }
+            if (updates.webServerHost !== undefined) {
+                appSettings.value.webServerHost = updates.webServerHost;
+            }
+            if (updates.webServerPort !== undefined) {
+                appSettings.value.webServerPort = updates.webServerPort;
             }
             if (updates.slackWebhookUrl !== undefined) {
                 appSettings.value.slackWebhookUrl = updates.slackWebhookUrl;

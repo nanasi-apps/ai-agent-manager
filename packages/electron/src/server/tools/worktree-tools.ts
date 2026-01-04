@@ -8,6 +8,7 @@ import {
 } from "../../agents/context-builder";
 import { splitCommand } from "../../agents/drivers/interface";
 import { worktreeManager } from "../../main/worktree-manager";
+import { branchNamePromptService } from "../../services/branch-name-service";
 import {
 	execFileAsync,
 	getConflictedFiles,
@@ -44,7 +45,38 @@ export function registerWorktreeTools(registerTool: ToolRegistrar) {
 			console.log(
 				`[McpServer] worktree_create called: branch=${branch}, sessionId=${sessionId}, resume=${resume}`,
 			);
-			const normalizedBranch = branch.replace(/^refs\/heads\//, "");
+			let normalizedBranch = branch.replace(/^refs\/heads\//, "");
+
+			try {
+				const selectedBranch = await branchNamePromptService.promptForBranchName(
+					{
+						repoPath,
+						projectId: context?.projectId,
+						sessionId,
+						suggestedBranch: normalizedBranch,
+						summary: resumeMessage,
+					},
+				);
+				normalizedBranch = selectedBranch.replace(/^refs\/heads\//, "");
+				console.log(
+					`[McpServer] Branch name selected by user: ${normalizedBranch}`,
+				);
+			} catch (error: any) {
+				const message = error?.message || String(error);
+				console.error(
+					`[McpServer] Branch selection cancelled or failed: ${message}`,
+				);
+				return {
+					content: [
+						{
+							type: "text",
+							text: `Branch selection cancelled or failed: ${message}`,
+						},
+					],
+					isError: true,
+				};
+			}
+
 			let createOutput = "";
 			let createError: string | null = null;
 
@@ -155,6 +187,9 @@ export function registerWorktreeTools(registerTool: ToolRegistrar) {
 					}
 				}
 			}
+
+			const selectionNote = `Branch name selected: ${normalizedBranch}`;
+			createOutput = [selectionNote, createOutput].filter(Boolean).join("\n");
 
 			const resultText = buildWorktreeCreateResultMessage({
 				createOutput: createOutput || undefined,

@@ -218,3 +218,32 @@ export function getDevServerServiceOrThrow(): IDevServerService {
 	}
 	return devServerService;
 }
+
+export interface IWebServerStatus {
+	isRunning: boolean;
+	port?: number;
+	localUrl?: string;
+	networkUrl?: string;
+}
+
+export interface IWebServerService {
+	start(options?: { port?: number; host?: string }): Promise<IWebServerStatus>;
+	stop(): Promise<boolean>;
+	getStatus(): Promise<IWebServerStatus>;
+}
+
+let webServerService: IWebServerService | null = null;
+
+export function setWebServerService(service: IWebServerService): void {
+	webServerService = service;
+	console.log("[DependencyContainer] WebServer service set");
+}
+
+export function getWebServerServiceOrThrow(): IWebServerService {
+	if (!webServerService) {
+		throw new Error(
+			"WebServer service not initialized. Call setWebServerService first.",
+		);
+	}
+	return webServerService;
+}

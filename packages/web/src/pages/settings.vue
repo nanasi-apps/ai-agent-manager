@@ -3,6 +3,7 @@ import { Check, Eye, EyeOff, Key, Loader2, Globe } from "lucide-vue-next";
 import { onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { watchDebounced } from "@vueuse/core";
+import { useQuery } from "@tanstack/vue-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,9 +17,58 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useSettingsStore, type ApprovalChannel } from "@/stores/settings";
+import { orpcQuery, orpc } from "@/services/orpc";
 
 const { t, locale } = useI18n();
 const settingsStore = useSettingsStore();
+
+// Web Server State
+const { data: webServerStatus, refetch: refetchWebServerStatus } = useQuery(
+	orpcQuery.webServer.getStatus.queryOptions({})
+);
+const webServerHost = ref("0.0.0.0");
+const webServerPort = ref<number | undefined>();
+const webServerAutoStart = ref(false);
+const webServerAutoOpenBrowser = ref(false);
+const isStartingWebServer = ref(false);
+const isStoppingWebServer = ref(false);
+
+const normalizePort = (value: string | number | undefined) => {
+	if (value === undefined || value === null || value === "") return undefined;
+	const parsed = typeof value === "number" ? value : Number(value);
+	return Number.isNaN(parsed) ? undefined : parsed;
+};
+
+async function startWebServer() {
+	if (isStartingWebServer.value) return;
+	isStartingWebServer.value = true;
+	try {
+		const port = normalizePort(webServerPort.value);
+		const host = webServerHost.value?.trim() || "0.0.0.0";
+		await orpc.webServer.start({
+			port,
+			host,
+		});
+		await refetchWebServerStatus();
+	} catch (error) {
+		console.error("Failed to start web server:", error);
+	} finally {
+		isStartingWebServer.value = false;
+	}
+}
+
+async function stopWebServer() {
+	if (isStoppingWebServer.value) return;
+	isStoppingWebServer.value = true;
+	try {
+		await orpc.webServer.stop();
+		await refetchWebServerStatus();
+	} catch (error) {
+		console.error("Failed to stop web server:", error);
+	} finally {
+		isStoppingWebServer.value = false;
+	}
+}
 
 // Form values for editing (local inputs that get synced to store)
 const openaiApiKeyInput = ref("");
@@ -65,6 +115,12 @@ function syncFromStore() {
 	newConversionOpenMode.value = settingsStore.newConversionOpenMode;
 	slackWebhookUrl.value = settingsStore.appSettings.slackWebhookUrl || "";
 	discordWebhookUrl.value = settingsStore.appSettings.discordWebhookUrl || "";
+
+	webServerAutoStart.value = settingsStore.appSettings.webServerAutoStart ?? false;
+	webServerAutoOpenBrowser.value =
+		settingsStore.appSettings.webServerAutoOpenBrowser ?? false;
+	webServerHost.value = settingsStore.appSettings.webServerHost || "0.0.0.0";
+	webServerPort.value = settingsStore.appSettings.webServerPort;
 }
 
 async function loadSettings() {
@@ -110,6 +166,28 @@ async function saveSettings(isAutoSave = false) {
 	if (newConversionOpenMode.value !== settingsStore.newConversionOpenMode) {
 		appUpdates.newConversionOpenMode = newConversionOpenMode.value;
 	}
+	if (
+		webServerAutoStart.value !==
+		(settingsStore.appSettings.webServerAutoStart ?? false)
+	) {
+		appUpdates.webServerAutoStart = webServerAutoStart.value;
+	}
+	if (
+		webServerAutoOpenBrowser.value !==
+		(settingsStore.appSettings.webServerAutoOpenBrowser ?? false)
+	) {
+		appUpdates.webServerAutoOpenBrowser = webServerAutoOpenBrowser.value;
+	}
+	if (
+		webServerHost.value !==
+		(settingsStore.appSettings.webServerHost || "0.0.0.0")
+	) {
+		appUpdates.webServerHost = webServerHost.value || undefined;
+	}
+	const normalizedWebServerPort = normalizePort(webServerPort.value);
+	if (normalizedWebServerPort !== settingsStore.appSettings.webServerPort) {
+		appUpdates.webServerPort = normalizedWebServerPort;
+	}
 	if (slackWebhookUrl.value !== (settingsStore.appSettings.slackWebhookUrl || "")) {
 		appUpdates.slackWebhookUrl = slackWebhookUrl.value || undefined;
 	}
@@ -151,6 +229,10 @@ watchDebounced(
 		notifyOnAgentComplete,
 		approvalNotificationChannels,
 		newConversionOpenMode,
+		webServerAutoStart,
+		webServerAutoOpenBrowser,
+		webServerHost,
+		webServerPort,
 		slackWebhookUrl,
 		discordWebhookUrl,
 	],
@@ -350,6 +432,101 @@ watch(
           </CardContent>
         </Card>
       </div>
+    </div>
+
+    <!-- Web Server Section -->
+    <div class="space-y-4">
+      <div class="flex items-center gap-2">
+        <Globe class="size-5" />
+        <h2 class="text-xl font-semibold">{{ t('settings.webServer.title') }}</h2>
+      </div>
+      <p class="text-sm text-muted-foreground">
+        {{ t('settings.webServer.desc') }}
+      </p>
+
+      <Card>
+        <CardHeader>
+           <div class="flex items-center justify-between">
+              <CardTitle class="text-base">{{ t('settings.webServer.status') }}</CardTitle>
+              <Badge v-if="webServerStatus?.isRunning" variant="secondary" class="text-green-600">
+                <Check class="size-3 mr-1" />
+                {{ t('settings.webServer.running') }}
+              </Badge>
+              <Badge v-else variant="outline">{{ t('settings.webServer.stopped') }}</Badge>
+            </div>
+          <CardDescription>
+             {{ t('settings.webServer.statusDesc') }}
+          </CardDescription>
+        </CardHeader>
+        <CardContent class="space-y-4">
+           <div class="space-y-2">
+             <div class="flex items-center gap-3">
+               <Checkbox
+                 id="webserver-auto-start"
+                 :checked="webServerAutoStart"
+                 @update:checked="(checked: boolean | 'indeterminate') => {
+                   webServerAutoStart = checked === true;
+                 }"
+               />
+               <Label
+                 for="webserver-auto-start"
+                 class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer select-none"
+               >
+                 {{ t('settings.webServer.autoStart') }}
+               </Label>
+             </div>
+             <div class="flex items-center gap-3 pl-6">
+               <Checkbox
+                 id="webserver-auto-open"
+                 :checked="webServerAutoOpenBrowser"
+                 :disabled="!webServerAutoStart"
+                 @update:checked="(checked: boolean | 'indeterminate') => {
+                   webServerAutoOpenBrowser = checked === true;
+                 }"
+               />
+               <Label
+                 for="webserver-auto-open"
+                 :class="['text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer select-none', { 'opacity-60': !webServerAutoStart }]"
+               >
+                 {{ t('settings.webServer.autoOpen') }}
+               </Label>
+             </div>
+           </div>
+
+           <div v-if="webServerStatus?.isRunning" class="space-y-2">
+              <div v-if="webServerStatus.localUrl" class="flex items-center gap-2">
+                <span class="text-sm font-medium">Local:</span>
+                <a :href="webServerStatus.localUrl" target="_blank" class="text-sm text-blue-500 hover:underline">{{ webServerStatus.localUrl }}</a>
+              </div>
+              <div v-if="webServerStatus.networkUrl" class="flex items-center gap-2">
+                <span class="text-sm font-medium">Network:</span>
+                 <a :href="webServerStatus.networkUrl" target="_blank" class="text-sm text-blue-500 hover:underline">{{ webServerStatus.networkUrl }}</a>
+              </div>
+           </div>
+
+           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+             <div class="space-y-2">
+               <Label>{{ t('settings.webServer.host') }}</Label>
+               <Input v-model="webServerHost" placeholder="0.0.0.0" :disabled="webServerStatus?.isRunning" />
+             </div>
+             <div class="space-y-2">
+               <Label>{{ t('settings.webServer.port') }} (Optional)</Label>
+               <Input type="number" v-model="webServerPort" placeholder="Random" :disabled="webServerStatus?.isRunning" />
+             </div>
+           </div>
+
+           <div class="flex items-center gap-2">
+              <Button v-if="!webServerStatus?.isRunning" @click="startWebServer" :disabled="isStartingWebServer">
+                <Loader2 v-if="isStartingWebServer" class="size-4 mr-2 animate-spin" />
+                {{ t('settings.webServer.start') }}
+              </Button>
+              <Button v-else variant="destructive" @click="stopWebServer" :disabled="isStoppingWebServer">
+                <Loader2 v-if="isStoppingWebServer" class="size-4 mr-2 animate-spin" />
+                 {{ t('settings.webServer.stop') }}
+              </Button>
+           </div>
+        </CardContent>
+      </Card>
     </div>
 
     <!-- API Settings Section -->

@@ -14,6 +14,7 @@ import { projectsRouter } from "./projects";
 // Import all sub-routers
 import { rulesRouter } from "./rules";
 import { worktreesRouter } from "./worktrees";
+import { webServerRouter } from "./web-server";
 import { devServerRouter } from "./dev-server";
 
 // Re-export services for external use
@@ -34,6 +35,10 @@ export {
 	setStore,
 	setWorktreeManager,
 	setDevServerService,
+	setWebServerService,
+	getWebServerServiceOrThrow,
+	type IWebServerService,
+	type IWebServerStatus,
 } from "../services/dependency-container";
 // Re-export model utilities
 export { buildModelId, HARDCODED_MODELS, parseModelId } from "../services/model-fetcher";
@@ -91,6 +96,9 @@ export const appRouter = os.router({
 
 	// Dev Server
 	...devServerRouter,
+
+	// Web Server
+	...webServerRouter,
 });
 
 export type AppRouter = typeof appRouter;

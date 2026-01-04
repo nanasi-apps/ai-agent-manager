@@ -4,7 +4,7 @@
 	"private": true,
 	"main": "dist/main.js",
 	"scripts": {
-		"dev": "npm run copy:templates && concurrently -k \"tsc -w\" \"npm run start:electron\"",
+		"dev": "NODE_ENV=development npm run copy:templates && NODE_ENV=development concurrently -k \"tsc -w\" \"NODE_ENV=development npm run start:electron\"",
 		"start:electron": "wait-on dist/main.js tcp:${WEB_PORT:-5173} && ELECTRON_DISABLE_SECURITY_WARNINGS=true nodemon --watch dist --watch ../shared/dist --exec electron .",
 		"prebuild": "rm -rf dist",
 		"build": "tsc && npm run copy:templates && npm run copy:web && electron-builder --mac --win --linux",

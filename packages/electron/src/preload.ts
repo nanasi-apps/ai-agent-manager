@@ -1,4 +1,8 @@
-import type { AgentLogPayload, AgentStatePayload } from "@agent-manager/shared";
+import type {
+	AgentLogPayload,
+	AgentStatePayload,
+	BranchNameRequest,
+} from "@agent-manager/shared";
 import { contextBridge, ipcRenderer } from "electron";
 
 contextBridge.exposeInMainWorld("electronAPI", {
@@ -23,6 +27,35 @@ contextBridge.exposeInMainWorld("electronAPI", {
 		return () => ipcRenderer.removeListener("agent:state-changed", listener);
 	},
 	getOrpcPort: () => Number(process.env.ORPC_PORT) || 3002,
+	listBranchNameRequests: () => ipcRenderer.invoke("branch-name:list"),
+	onBranchNameRequest: (callback: (payload: BranchNameRequest) => void) => {
+		const listener = (_event: unknown, payload: BranchNameRequest) =>
+			callback(payload);
+		ipcRenderer.on("branch-name:request", listener);
+		return () => ipcRenderer.removeListener("branch-name:request", listener);
+	},
+	onBranchNameOpen: (
+		callback: (payload: { requestId: string }) => void,
+	) => {
+		const listener = (_event: unknown, payload: { requestId: string }) =>
+			callback(payload);
+		ipcRenderer.on("branch-name:open", listener);
+		return () => ipcRenderer.removeListener("branch-name:open", listener);
+	},
+	onBranchNameResolved: (
+		callback: (payload: { requestId: string; branchName?: string; cancelled?: boolean }) => void,
+	) => {
+		const listener = (
+			_event: unknown,
+			payload: { requestId: string; branchName?: string; cancelled?: boolean },
+		) => callback(payload);
+		ipcRenderer.on("branch-name:resolved", listener);
+		return () => ipcRenderer.removeListener("branch-name:resolved", listener);
+	},
+	submitBranchName: (requestId: string, branchName: string) =>
+		ipcRenderer.invoke("branch-name:submit", { requestId, branchName }),
+	generateBranchName: (requestId: string) =>
+		ipcRenderer.invoke("branch-name:generate", { requestId }),
 });
 
 window.addEventListener("message", (event) => {

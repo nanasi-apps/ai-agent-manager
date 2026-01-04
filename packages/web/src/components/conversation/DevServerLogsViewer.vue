@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue';
+import { ref, onUnmounted, watch, nextTick } from 'vue';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useConversationStore } from '@/stores/conversation';
@@ -18,7 +18,6 @@ const emit = defineEmits<{
 const conversation = useConversationStore();
 const logs = ref<string[]>([]);
 const polling = ref<NodeJS.Timeout | null>(null);
-const scrollViewport = ref<HTMLElement | null>(null);
 
 const fetchLogs = async () => {
     try {
@@ -29,27 +28,13 @@ const fetchLogs = async () => {
     }
 };
 
-const scrollToBottom = async () => {
-    await nextTick();
-    // Using a simple data attribute selector typically used by Radix/shadcn ScrollArea
-    const el = document.querySelector('[data-radix-scroll-area-viewport]');
-    if (el) {
-        // This selects the FIRST viewport in the document which might be wrong if multiple scroll areas exist.
-        // Better to scope it to this component.
-        // However, shadcn ScrollArea doesn't easily expose the viewport ref.
-        // We'll rely on native scroll behavior of the inner content container if possible,
-        // or try to find it within the dialog.
-    }
-};
-
-// Alternative scroll approach: use a ref on the last element
 const logsEndRef = ref<HTMLElement | null>(null);
-const scrollToBottomV2 = async () => {
+const scrollToBottom = async () => {
     await nextTick();
     if (logsEndRef.value) {
         logsEndRef.value.scrollIntoView({ behavior: 'smooth' });
     }
-}
+};
 
 
 watch(() => props.open, (isOpen) => {

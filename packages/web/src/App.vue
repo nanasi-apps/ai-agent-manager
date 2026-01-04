@@ -3,13 +3,16 @@ import { onMounted, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { storeToRefs } from "pinia";
 import NewProjectDialog from "@/components/dialogs/NewProjectDialog.vue";
+import BranchNameDialog from "@/components/dialogs/BranchNameDialog.vue";
 import { useNewProjectDialogStore } from "@/stores/newProjectDialog";
 import { useSettingsStore } from "@/stores/settings";
+import { useBranchNameDialogStore } from "@/stores/branchNameDialog";
 import DashboardLayout from "@/layouts/DashboardLayout.vue";
 
 const projectStore = useNewProjectDialogStore();
 const { isOpen } = storeToRefs(projectStore);
 const settingsStore = useSettingsStore();
+const branchDialogStore = useBranchNameDialogStore();
 const { locale } = useI18n();
 
 // Watch for language changes from settings store
@@ -28,6 +31,7 @@ onMounted(async () => {
 	if (settingsStore.language) {
 		locale.value = settingsStore.language;
 	}
+	branchDialogStore.setupListeners();
 
 	const electronAPI = window.electronAPI;
 
@@ -58,4 +62,5 @@ onMounted(async () => {
     <router-view />
   </DashboardLayout>
   <NewProjectDialog v-model:open="isOpen" />
+  <BranchNameDialog />
 </template>
