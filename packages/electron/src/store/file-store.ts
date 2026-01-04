@@ -3,7 +3,6 @@ import * as path from "node:path";
 import type {
 	AppSettings,
 	ApiSettings,
-	ApprovalChannel,
 	ApprovalRequest,
 	ApprovalStatus,
 	Conversation,
@@ -12,20 +11,7 @@ import type {
 	Project,
 	ResourceLock,
 } from "@agent-manager/shared";
-import {
-	normalizeMessages,
-	type StoreData,
-	tryMergeMessage,
-} from "./serialization";
-
-const approvalChannelSet = new Set<ApprovalChannel>([
-	"inbox",
-	"slack",
-	"discord",
-]);
-
-const isApprovalChannel = (value: unknown): value is ApprovalChannel =>
-	typeof value === "string" && approvalChannelSet.has(value as ApprovalChannel);
+import { normalizeMessages, tryMergeMessage } from "./serialization";
 
 /**
  * File-based persistent store
@@ -76,169 +62,72 @@ export class FileStore implements IStore {
 			this.apiSettings = {};
 			this.appSettings = {};
 
-			let loadedLegacy = false;
-
 			if (fs.existsSync(conversationsPath)) {
 				const raw = fs.readFileSync(conversationsPath, "utf-8");
-				const data: unknown = JSON.parse(raw);
-
-				if (
-					data &&
-					typeof data === "object" &&
-					"conversations" in data
-				) {
-					const legacy = data as StoreData;
-					for (const conv of legacy.conversations) {
-						// Normalize existing messages by merging fragments
-						if (conv.messages) {
-							conv.messages = normalizeMessages(conv.messages);
-						} else {
-							conv.messages = [];
-						}
-
-						this.conversations.set(conv.id, conv);
+				const data = JSON.parse(raw) as Conversation[];
+				for (const conv of data) {
+					// Normalize existing messages by merging fragments
+					if (conv.messages) {
+						conv.messages = normalizeMessages(conv.messages);
+					} else {
+						conv.messages = [];
 					}
 
-					if (legacy.projects) {
-						for (const proj of legacy.projects) {
-							this.projects.set(proj.id, proj);
-						}
-					}
-
-					if (legacy.locks) {
-						const now = Date.now();
-						for (const lock of legacy.locks) {
-							// Filter out expired locks on load
-							if (lock.expiresAt && lock.expiresAt < now) {
-								continue;
-							}
-							this.locks.set(lock.resourceId, lock);
-						}
-					}
-
-					if (legacy.apiSettings) {
-						const {
-							openaiApiKey,
-							openaiBaseUrl,
-							geminiApiKey,
-							geminiBaseUrl,
-						} = legacy.apiSettings;
-						this.apiSettings = {
-							openaiApiKey,
-							openaiBaseUrl,
-							geminiApiKey,
-							geminiBaseUrl,
-						};
-					}
-
-					if (legacy.appSettings) {
-						this.appSettings = legacy.appSettings;
-					}
-
-					const legacyAppSettings = legacy.apiSettings as
-						| (ApiSettings & Partial<AppSettings>)
-						| undefined;
-					const migratedSettings: Partial<AppSettings> = {};
-					if (
-						this.appSettings.language === undefined &&
-						typeof legacyAppSettings?.language === "string"
-					) {
-						migratedSettings.language = legacyAppSettings.language;
-					}
-					if (
-						this.appSettings.notifyOnAgentComplete === undefined &&
-						typeof legacyAppSettings?.notifyOnAgentComplete === "boolean"
-					) {
-						migratedSettings.notifyOnAgentComplete =
-							legacyAppSettings.notifyOnAgentComplete;
-					}
-					if (
-						this.appSettings.approvalNotificationChannels === undefined &&
-						Array.isArray(legacyAppSettings?.approvalNotificationChannels)
-					) {
-						migratedSettings.approvalNotificationChannels =
-							legacyAppSettings.approvalNotificationChannels.filter(
-								isApprovalChannel,
-							);
-					}
-					if (Object.keys(migratedSettings).length > 0) {
-						this.appSettings = { ...this.appSettings, ...migratedSettings };
-					}
-
-					if (legacy.approvals) {
-						for (const approval of legacy.approvals) {
-							this.approvals.set(approval.id, approval);
-						}
-					}
-
-					loadedLegacy = true;
-				} else if (Array.isArray(data)) {
-					for (const conv of data as Conversation[]) {
-						// Normalize existing messages by merging fragments
-						if (conv.messages) {
-							conv.messages = normalizeMessages(conv.messages);
-						} else {
-							conv.messages = [];
-						}
-
-						this.conversations.set(conv.id, conv);
-					}
+					this.conversations.set(conv.id, conv);
 				}
 			}
 
-			if (!loadedLegacy) {
-				if (projectsPath && fs.existsSync(projectsPath)) {
-					const projects = JSON.parse(
-						fs.readFileSync(projectsPath, "utf-8"),
-					) as Project[];
-					for (const proj of projects) {
-						this.projects.set(proj.id, proj);
-					}
+			if (projectsPath && fs.existsSync(projectsPath)) {
+				const projects = JSON.parse(
+					fs.readFileSync(projectsPath, "utf-8"),
+				) as Project[];
+				for (const proj of projects) {
+					this.projects.set(proj.id, proj);
 				}
+			}
 
-				if (locksPath && fs.existsSync(locksPath)) {
-					const locks = JSON.parse(
-						fs.readFileSync(locksPath, "utf-8"),
-					) as ResourceLock[];
-					const now = Date.now();
-					for (const lock of locks) {
-						if (lock.expiresAt && lock.expiresAt < now) {
-							continue;
-						}
-						this.locks.set(lock.resourceId, lock);
+			if (locksPath && fs.existsSync(locksPath)) {
+				const locks = JSON.parse(
+					fs.readFileSync(locksPath, "utf-8"),
+				) as ResourceLock[];
+				const now = Date.now();
+				for (const lock of locks) {
+					if (lock.expiresAt && lock.expiresAt < now) {
+						continue;
 					}
+					this.locks.set(lock.resourceId, lock);
 				}
+			}
 
-				if (approvalsPath && fs.existsSync(approvalsPath)) {
-					const approvals = JSON.parse(
-						fs.readFileSync(approvalsPath, "utf-8"),
-					) as ApprovalRequest[];
-					for (const approval of approvals) {
-						this.approvals.set(approval.id, approval);
-					}
+			if (approvalsPath && fs.existsSync(approvalsPath)) {
+				const approvals = JSON.parse(
+					fs.readFileSync(approvalsPath, "utf-8"),
+				) as ApprovalRequest[];
+				for (const approval of approvals) {
+					this.approvals.set(approval.id, approval);
 				}
+			}
 
-				if (settingsPath && fs.existsSync(settingsPath)) {
-					const settings = JSON.parse(
-						fs.readFileSync(settingsPath, "utf-8"),
-					) as { apiSettings?: ApiSettings; appSettings?: AppSettings };
-					if (settings.apiSettings) {
-						const {
-							openaiApiKey,
-							openaiBaseUrl,
-							geminiApiKey,
-							geminiBaseUrl,
-						} = settings.apiSettings;
-						this.apiSettings = {
-							openaiApiKey,
-							openaiBaseUrl,
-							geminiApiKey,
-							geminiBaseUrl,
-						};
-					}
-					if (settings.appSettings) {
-						this.appSettings = settings.appSettings;
-					}
+			if (settingsPath && fs.existsSync(settingsPath)) {
+				const settings = JSON.parse(
+					fs.readFileSync(settingsPath, "utf-8"),
+				) as { apiSettings?: ApiSettings; appSettings?: AppSettings };
+				if (settings.apiSettings) {
+					const {
+						openaiApiKey,
+						openaiBaseUrl,
+						geminiApiKey,
+						geminiBaseUrl,
+					} = settings.apiSettings;
+					this.apiSettings = {
+						openaiApiKey,
+						openaiBaseUrl,
+						geminiApiKey,
+						geminiBaseUrl,
+					};
+				}
+				if (settings.appSettings) {
+					this.appSettings = settings.appSettings;
 				}
 			}
 
