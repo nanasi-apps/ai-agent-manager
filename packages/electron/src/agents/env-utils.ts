@@ -241,43 +241,55 @@ async function ensureGeminiSettings(
 		}
 	}
 
-	// Plan or Ask mode: exclude prohibited tools (cognitive control)
+	const planModeExcludedTools = [
+		// Gemini CLI built-in tools (correct names)
+		"write_file",
+		"replace",
+		"run_shell_command",
+		"codeExecution",
+		// MCP server tool names (for our agents-manager-mcp)
+		"replace_file_content",
+		"pre_file_edit",
+		"post_file_edit",
+		"git_add",
+		"git_commit",
+		"git_checkout",
+		"worktree_create",
+		"worktree_remove",
+		"worktree_complete",
+		"worktree_run",
+	];
+
 	// Plan or Ask mode: exclude prohibited tools (cognitive control)
 	if (mode === "plan" || mode === "ask") {
 		if (!settings.tools) settings.tools = {};
 
-		// Gemini CLI built-in tool names (from official docs):
-		// - write_file: creates/overwrites files
-		// - replace: edits files by replacing text
-		// - run_shell_command: executes shell commands
-		// Also include MCP tool variants for compatibility
-		const toolsToExclude = [
-			// Gemini CLI built-in tools (correct names)
-			"write_file",
-			"replace",
-			"run_shell_command",
-			"codeExecution",
-			// MCP server tool names (for our agents-manager-mcp)
-			"replace_file_content",
-			"pre_file_edit",
-			"post_file_edit",
-			"git_add",
-			"git_commit",
-			"git_checkout",
-			"worktree_create",
-			"worktree_remove",
-			"worktree_complete",
-			"worktree_run",
-		];
-
 		const currentExcludes = settings.tools.exclude || [];
 		settings.tools.exclude = Array.from(
-			new Set([...currentExcludes, ...toolsToExclude]),
+			new Set([...currentExcludes, ...planModeExcludedTools]),
 		);
 
 		console.log(
-			`[EnvUtils] ${mode} Mode: excluding tools in settings.json: ${toolsToExclude.join(", ")}`,
+			`[EnvUtils] ${mode} Mode: excluding tools in settings.json: ${planModeExcludedTools.join(", ")}`,
 		);
+	} else if (settings.tools?.exclude?.length) {
+		const nextExcludes = settings.tools.exclude.filter(
+			(tool) => !planModeExcludedTools.includes(tool),
+		);
+
+		if (nextExcludes.length !== settings.tools.exclude.length) {
+			settings.tools.exclude = nextExcludes;
+			if (nextExcludes.length === 0) {
+				delete settings.tools.exclude;
+			}
+			if (settings.tools && Object.keys(settings.tools).length === 0) {
+				delete settings.tools;
+			}
+
+			console.log(
+				"[EnvUtils] Regular mode: removed plan/ask tool exclusions from settings.json",
+			);
+		}
 	}
 
 	await fs.writeFile(settingsFile, JSON.stringify(settings, null, 2));
