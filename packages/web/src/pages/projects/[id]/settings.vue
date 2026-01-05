@@ -20,7 +20,7 @@ const project = ref<{
 	id: string;
 	name: string;
 	rootPath?: string;
-	activeGlobalRules?: string[];
+	disabledGlobalRules?: string[];
 	projectRules?: ProjectRule[];
 	autoConfig?: AutoConfig;
 } | null>(null);
@@ -34,7 +34,7 @@ const hasNativePicker = computed(() => {
 	return typeof window !== "undefined" && !!window.electronAPI;
 });
 const globalRules = ref<{ id: string; name: string }[]>([]);
-const activeGlobalRulesDraft = ref<string[]>([]);
+const disabledGlobalRulesDraft = ref<string[]>([]);
 const projectRulesDraft = ref<ProjectRule[]>([]);
 const gtrConfigDraft = ref<GtrConfig>({
 	copy: { include: [], exclude: [], includeDirs: [], excludeDirs: [] },
@@ -198,8 +198,8 @@ const loadProject = async () => {
 const resetSettings = () => {
 	nameDraft.value = project.value?.name || "";
 	rootPathDraft.value = project.value?.rootPath || "";
-	activeGlobalRulesDraft.value = project.value?.activeGlobalRules
-		? [...project.value.activeGlobalRules]
+	disabledGlobalRulesDraft.value = project.value?.disabledGlobalRules
+		? [...project.value.disabledGlobalRules]
 		: [];
 	// Deep copy project rules
 	projectRulesDraft.value = project.value?.projectRules
@@ -263,6 +263,33 @@ const splitList = (value: string) =>
 		.split(/[,\n]/)
 		.map((entry) => entry.trim())
 		.filter(Boolean);
+
+const toggleGlobalRule = (ruleId: string, enabled: boolean) => {
+	const next = new Set(disabledGlobalRulesDraft.value);
+	if (enabled) {
+		next.delete(ruleId);
+	} else {
+		next.add(ruleId);
+	}
+	disabledGlobalRulesDraft.value = Array.from(next);
+};
+
+const isAllSelected = computed(() => {
+	return (
+		globalRules.value.length > 0 &&
+		disabledGlobalRulesDraft.value.length === 0
+	);
+});
+
+const handleSelectAllToggle = (checked: boolean | "indeterminate") => {
+	if (checked === true) {
+		// 全選択: disabled リストを空にする（全て有効）
+		disabledGlobalRulesDraft.value = [];
+	} else {
+		// 全解除: 全ルールを disabled リストに追加（全て無効）
+		disabledGlobalRulesDraft.value = globalRules.value.map((r) => r.id);
+	}
+};
 
 const appendEntries = (
 	entries: CopyEntry[],
@@ -434,8 +461,8 @@ const isSettingsDirty = computed(() => {
 	return (
 		nameDraft.value !== project.value.name ||
 		rootPathDraft.value !== (project.value.rootPath || "") ||
-		JSON.stringify(activeGlobalRulesDraft.value.sort()) !==
-			JSON.stringify((project.value.activeGlobalRules || []).sort()) ||
+		JSON.stringify([...disabledGlobalRulesDraft.value].sort()) !==
+			JSON.stringify([...(project.value.disabledGlobalRules || [])].sort()) ||
 		projectRulesDraft.value.length !==
 			(project.value.projectRules || []).length ||
 		JSON.stringify(
@@ -473,7 +500,7 @@ const saveProjectSettings = async () => {
 				projectId: id,
 				name: trimmedName,
 				rootPath: trimmedRoot ? trimmedRoot : null,
-				activeGlobalRules: activeGlobalRulesDraft.value,
+				disabledGlobalRules: disabledGlobalRulesDraft.value,
 				projectRules: projectRulesDraft.value,
 				autoConfig: autoConfigJsonDraft.value.trim()
 					? validateAutoConfigJson(autoConfigJsonDraft.value)
@@ -490,7 +517,7 @@ const saveProjectSettings = async () => {
 				...project.value,
 				name: trimmedName,
 				rootPath: trimmedRoot || undefined,
-				activeGlobalRules: activeGlobalRulesDraft.value,
+				disabledGlobalRules: disabledGlobalRulesDraft.value,
 				projectRules: JSON.parse(JSON.stringify(projectRulesDraft.value)),
 				autoConfig: autoConfigJsonDraft.value.trim()
 					? (validateAutoConfigJson(autoConfigJsonDraft.value) ?? undefined)
@@ -578,19 +605,28 @@ watch(projectId, loadProject, { immediate: true });
              <div class="space-y-6">
                  <!-- Global Rules Section -->
                  <div>
-                     <h3 class="text-sm font-medium mb-3">Global Rules</h3>
+                     <div class="flex items-center justify-between mb-3">
+                         <h3 class="text-sm font-medium">Global Rules</h3>
+                         <div class="flex items-center space-x-2" v-if="globalRules.length > 0">
+                             <Checkbox 
+                                 id="select-all-global-rules" 
+                                 :model-value="isAllSelected"
+                                 @update:model-value="handleSelectAllToggle"
+                             />
+                             <label
+                                 for="select-all-global-rules"
+                                 class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer select-none"
+                             >
+                                 Select All
+                             </label>
+                         </div>
+                     </div>
                      <div v-if="globalRules.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                          <div v-for="rule in globalRules" :key="rule.id" class="flex items-center space-x-2 border p-3 rounded-md bg-background">
                              <Checkbox 
                                  :id="`rule-${rule.id}`" 
-                                 :checked="activeGlobalRulesDraft.includes(rule.id)"
-                                 @update:checked="(checked: any) => {
-                                     if (checked) {
-                                         activeGlobalRulesDraft.push(rule.id)
-                                     } else {
-                                         activeGlobalRulesDraft = activeGlobalRulesDraft.filter(id => id !== rule.id)
-                                     }
-                                 }"
+                                 :model-value="!disabledGlobalRulesDraft.includes(rule.id)"
+                                 @update:model-value="(val: boolean | 'indeterminate') => toggleGlobalRule(rule.id, val === true)"
                              />
                              <label
                                  :for="`rule-${rule.id}`"

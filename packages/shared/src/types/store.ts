@@ -62,7 +62,8 @@ export interface Project {
 	rootPath?: string;
 	createdAt: number;
 	updatedAt: number;
-	activeGlobalRules?: string[];
+	/** List of disabled global rule IDs. If undefined/empty, all global rules are enabled. */
+	disabledGlobalRules?: string[];
 	projectRules?: ProjectRule[];
 	// Use the new structured config
 	autoConfig?: AgentConfigJson;

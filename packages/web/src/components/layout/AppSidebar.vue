@@ -285,7 +285,7 @@ function handleMouseUp() {
                        <Loader2 v-if="project.conversations.some(c => c.isRunning)" class="size-3 animate-spin shrink-0 text-muted-foreground mr-1" />
                      </div>
                    </SidebarMenuButton>
-                   <SidebarMenuAction @click.stop="openNewConversion(project.id)">
+                   <SidebarMenuAction class="absolute right-1 top-1.5" @click.stop="openNewConversion(project.id)">
                       <Plus /> <span class="sr-only">{{ t('sidebar.newConversion') }}</span>
                    </SidebarMenuAction>
                  </div>

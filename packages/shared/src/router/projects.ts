@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { os } from "@orpc/server";
 import { z } from "zod";
@@ -120,7 +120,7 @@ export const projectsRouter = {
 					rootPath: z.string().optional(),
 					createdAt: z.number(),
 					updatedAt: z.number(),
-					activeGlobalRules: z.array(z.string()).optional(),
+					disabledGlobalRules: z.array(z.string()).optional(),
 					projectRules: z
 						.array(
 							z.object({
@@ -144,7 +144,7 @@ export const projectsRouter = {
 				rootPath: project.rootPath,
 				createdAt: project.createdAt,
 				updatedAt: project.updatedAt,
-				activeGlobalRules: project.activeGlobalRules,
+				disabledGlobalRules: project.disabledGlobalRules,
 				projectRules: project.projectRules,
 				autoConfig: project.autoConfig,
 			};
@@ -156,7 +156,7 @@ export const projectsRouter = {
 				projectId: z.string(),
 				name: z.string().min(1).optional(),
 				rootPath: z.string().nullable().optional(),
-				activeGlobalRules: z.array(z.string()).optional(),
+				disabledGlobalRules: z.array(z.string()).optional(),
 				projectRules: z
 					.array(
 						z.object({
@@ -182,8 +182,8 @@ export const projectsRouter = {
 			if ("rootPath" in input) {
 				updates.rootPath = input.rootPath ?? undefined;
 			}
-			if (input.activeGlobalRules !== undefined) {
-				updates.activeGlobalRules = input.activeGlobalRules;
+			if (input.disabledGlobalRules !== undefined) {
+				updates.disabledGlobalRules = input.disabledGlobalRules;
 			}
 			if (input.projectRules !== undefined) {
 				updates.projectRules = input.projectRules;
@@ -198,21 +198,20 @@ export const projectsRouter = {
 			const updatedProject = storeInstance.getProject(input.projectId);
 			if (updatedProject && updatedProject.rootPath) {
 				try {
+					const disabledSet = new Set(updatedProject.disabledGlobalRules ?? []);
 					let globalRulesContent = "";
-					if (
-						updatedProject.activeGlobalRules &&
-						updatedProject.activeGlobalRules.length > 0
-					) {
-						for (const ruleId of updatedProject.activeGlobalRules) {
-							try {
-								const ruleContent = await readFile(
-									join(RULES_DIR, ruleId),
-									"utf-8",
-								);
-								globalRulesContent += `\n\n<!-- Rule: ${ruleId} -->\n${ruleContent}`;
-							} catch (e) {
-								console.warn(`Failed to read rule ${ruleId}`, e);
-							}
+					const files = await readdir(RULES_DIR).catch(() => [] as string[]);
+					for (const file of files) {
+						if (!file.endsWith(".md")) continue;
+						if (disabledSet.has(file)) continue;
+						try {
+							const ruleContent = await readFile(
+								join(RULES_DIR, file),
+								"utf-8",
+							);
+							globalRulesContent += `\n\n<!-- Rule: ${file} -->\n${ruleContent}`;
+						} catch (e) {
+							console.warn(`Failed to read rule ${file}`, e);
 						}
 					}
 

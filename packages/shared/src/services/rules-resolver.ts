@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { getStoreOrThrow } from "./dependency-container";
@@ -10,16 +10,23 @@ export async function resolveProjectRules(projectId: string): Promise<string> {
 	const project = storeInstance.getProject(projectId);
 	if (!project) return "";
 
+	const disabledSet = new Set(project.disabledGlobalRules ?? []);
+
 	let globalRulesContent = "";
-	if (project.activeGlobalRules && project.activeGlobalRules.length > 0) {
-		for (const ruleId of project.activeGlobalRules) {
+	try {
+		const files = await readdir(RULES_DIR);
+		for (const file of files) {
+			if (!file.endsWith(".md")) continue;
+			if (disabledSet.has(file)) continue;
 			try {
-				const ruleContent = await readFile(join(RULES_DIR, ruleId), "utf-8");
-				globalRulesContent += `\n\n<!-- Rule: ${ruleId} -->\n${ruleContent}`;
+				const ruleContent = await readFile(join(RULES_DIR, file), "utf-8");
+				globalRulesContent += `\n\n<!-- Rule: ${file} -->\n${ruleContent}`;
 			} catch (e) {
-				console.warn(`Failed to read rule ${ruleId}`, e);
+				console.warn(`Failed to read rule ${file}`, e);
 			}
 		}
+	} catch (e) {
+		console.warn("Failed to read rules directory", e);
 	}
 
 	let projectRulesContent = "";
