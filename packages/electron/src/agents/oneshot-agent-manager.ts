@@ -41,6 +41,7 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
 			streamJson: config?.streamJson ?? false,
 			oneShotMode: config?.oneShotMode ?? true,
 			rulesContent: config?.rulesContent,
+			provider: config?.provider,
 		};
 
 		const persistedState = store.getConversation(sessionId)?.agentState;

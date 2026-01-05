@@ -17,7 +17,7 @@ const ensurePort = () => {
 	}
 
 	const channel = new MessageChannel();
-	window.postMessage("start-orpc-client", "*", [channel.port1]);
+	window.postMessage("start-agent-state", "*", [channel.port1]);
 	channel.port2.start();
 	port = channel.port2;
 	return port;

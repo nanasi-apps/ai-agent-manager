@@ -102,6 +102,7 @@ export const conversationsRouter = {
 			const now = Date.now();
 			const storeInstance = getStoreOrThrow();
 			const agentManagerInstance = getAgentManagerOrThrow();
+			console.log(`Creating conversation session ${sessionId} for project ${input.projectId}`);
 
 			// Verify project exists
 			const project = storeInstance.getProject(input.projectId);
@@ -123,6 +124,7 @@ export const conversationsRouter = {
 				input.reasoning,
 			);
 			const resolvedMode = input.mode ?? DEFAULT_AGENT_MODE;
+			const resolvedProvider = parsedModel?.providerId;
 
 			// Build session config using the shared utility
 			const sessionConfig = await buildSessionConfig({
@@ -131,6 +133,7 @@ export const conversationsRouter = {
 				model: resolvedModel,
 				mode: resolvedMode,
 				reasoning: resolvedReasoning,
+				provider: resolvedProvider,
 			});
 
 			// Save to store with initialMessage and messages array
@@ -145,6 +148,7 @@ export const conversationsRouter = {
 				agentModel: resolvedModel,
 				agentReasoning: resolvedReasoning,
 				agentMode: resolvedMode,
+				agentProvider: resolvedProvider,
 				cwd: sessionConfig.cwd,
 				messages: [
 					{
@@ -185,6 +189,7 @@ export const conversationsRouter = {
 					agentModel: z.string().optional(),
 					agentReasoning: reasoningLevelSchema.optional(),
 					agentMode: agentModeSchema.optional(),
+					agentProvider: z.string().optional(),
 					cwd: z.string().optional(),
 					disabledMcpTools: z.array(z.string()).optional(),
 				})
@@ -255,6 +260,7 @@ export const conversationsRouter = {
 					mode: conv.agentMode,
 					reasoning: resolvedReasoning,
 					cwd: conv.cwd,
+					provider: conv.agentProvider,
 				});
 
 				console.warn(
@@ -438,6 +444,7 @@ export const conversationsRouter = {
 				: undefined;
 			const resolvedModel =
 				parsedModel?.model || input.agentModel || conv.agentModel;
+			const resolvedProvider = parsedModel?.providerId || conv.agentProvider;
 			const resolvedReasoning = resolveReasoning(
 				nextTemplate.agent.type,
 				resolvedModel,
@@ -457,9 +464,11 @@ export const conversationsRouter = {
 
 			const agentChanged = conv.agentType !== resolvedAgentType;
 			const modelChanged = conv.agentModel !== resolvedModel;
+			const providerChanged = conv.agentProvider !== resolvedProvider;
 			const reasoningChanged = conv.agentReasoning !== resolvedReasoning;
 			const modeChanged = input.mode && input.mode !== conv.agentMode;
-			const agentOrModelChanged = agentChanged || modelChanged || modeChanged;
+			const agentOrModelChanged =
+				agentChanged || modelChanged || modeChanged || providerChanged;
 			if (!agentOrModelChanged && !reasoningChanged) {
 				return { success: true, message: "Agent settings unchanged." };
 			}
@@ -477,6 +486,7 @@ export const conversationsRouter = {
 				agentType: resolvedAgentType,
 				agentModel: resolvedModel,
 				agentReasoning: resolvedReasoning,
+				agentProvider: resolvedProvider,
 			});
 
 			storeInstance.addMessage(input.sessionId, {
@@ -561,6 +571,7 @@ export const conversationsRouter = {
 					mode: resolvedMode,
 					cwd,
 					rulesContent,
+					provider: resolvedProvider,
 				},
 			);
 

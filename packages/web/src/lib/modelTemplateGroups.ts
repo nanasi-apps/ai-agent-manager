@@ -1,21 +1,36 @@
+import type { ModelProvider } from "@/stores/settings";
 import type { ModelTemplate } from "@/stores/conversation";
 
 export interface ModelTemplateGroup {
 	agentType: string;
 	isCustomApi: boolean;
+	providerId?: string;
 	label: string;
 	models: ModelTemplate[];
 }
 
 interface GroupOptions {
 	codexLabel?: string;
+	providers?: ModelProvider[];
 }
 
 const getGroupLabel = (template: ModelTemplate, options?: GroupOptions) => {
+	let base = template.agentName || template.agentType;
 	if (options?.codexLabel && template.agentType === "codex") {
-		return options.codexLabel;
+		base = options.codexLabel;
 	}
-	return template.agentName || template.agentType;
+
+	if (template.providerId && options?.providers) {
+		const provider = options.providers.find((p) => p.id === template.providerId);
+		if (provider) {
+			// Avoid duplication if the backend-provided name already includes the provider name
+			if (base.includes(provider.name)) {
+				return base;
+			}
+			return `${base} - ${provider.name}`;
+		}
+	}
+	return base;
 };
 
 const isCustomApiTemplate = (template: ModelTemplate) =>
@@ -26,21 +41,26 @@ export const groupModelTemplates = (
 	options?: GroupOptions,
 ): ModelTemplateGroup[] => {
 	const groups: ModelTemplateGroup[] = [];
-	const byAgentType = new Map<string, ModelTemplateGroup>();
+	const byGroupKey = new Map<string, ModelTemplateGroup>();
 
 	for (const template of templates) {
 		const customApi = isCustomApiTemplate(template);
-		const groupKey = `${template.agentType}:${customApi ? "custom" : "default"}`;
-		let group = byAgentType.get(groupKey);
+		// Group by agentType AND providerId
+		// Treat undefined providerId as 'default'
+		const providerId = template.providerId || 'default';
+		const groupKey = `${template.agentType}:${customApi ? "custom" : "default"}:${providerId}`;
+
+		let group = byGroupKey.get(groupKey);
 		if (!group) {
 			const baseLabel = getGroupLabel(template, options);
 			group = {
 				agentType: template.agentType,
 				isCustomApi: customApi,
+				providerId: template.providerId,
 				label: customApi ? `${baseLabel} - Custom API` : baseLabel,
 				models: [],
 			};
-			byAgentType.set(groupKey, group);
+			byGroupKey.set(groupKey, group);
 			groups.push(group);
 		}
 		group.models.push(template);

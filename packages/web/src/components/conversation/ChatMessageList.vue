@@ -418,7 +418,7 @@ const getItemByIndex = (index: number): DisplayItem | { type: "typing-indicator"
 					if (el) virtualizer.measureElement(el as HTMLElement)
 				}"
 				:data-index="virtualRow.index"
-				class="absolute top-0 left-0 w-full p-4 max-w-3xl mx-auto"
+				class="absolute top-0 left-1/2 -translate-x-1/2 w-full p-4 max-w-3xl"
 				:style="{ transform: `translateY(${virtualRow.start}px)` }"
 			>
 				<!-- Typing Indicator -->

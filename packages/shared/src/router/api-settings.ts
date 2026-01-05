@@ -3,57 +3,94 @@ import { z } from "zod";
 import { getStoreOrThrow } from "../services/dependency-container";
 import { modelListCache } from "../services/model-fetcher";
 
+const MASKED_API_KEY = "********************";
+
 export const apiSettingsRouter = {
 	getApiSettings: os
 		.output(
 			z.object({
-				openaiApiKey: z.string().optional(),
-				openaiBaseUrl: z.string().optional(),
-				geminiApiKey: z.string().optional(),
-				geminiBaseUrl: z.string().optional(),
+				providers: z.array(
+					z.union([
+						z.object({
+							id: z.string(),
+							name: z.string(),
+							type: z.literal("gemini"),
+							baseUrl: z.string().optional(),
+							apiKey: z.string().optional(),
+							disabledModels: z.array(z.string()).optional(),
+						}),
+						z.object({
+							id: z.string(),
+							name: z.string(),
+							type: z.enum(["codex", "openai", "openai_compatible"]),
+							baseUrl: z.string().optional(),
+							apiKey: z.string().optional(),
+							envKey: z.string().optional(),
+							disabledModels: z.array(z.string()).optional(),
+						}),
+					]),
+				),
 			}),
 		)
 		.handler(async () => {
 			const settings = getStoreOrThrow().getApiSettings();
-			// Mask API keys for security (return only existence, not full key)
-			return {
-				openaiApiKey: settings.openaiApiKey ? "***" : undefined,
-				openaiBaseUrl: settings.openaiBaseUrl,
-				geminiApiKey: settings.geminiApiKey ? "***" : undefined,
-				geminiBaseUrl: settings.geminiBaseUrl,
-			};
+			// Mask API keys for security
+			const providers = (settings.providers || []).map((p) => {
+				if (p.apiKey) {
+					return { ...p, apiKey: MASKED_API_KEY };
+				}
+				return p;
+			});
+			return { providers };
 		}),
 
 	updateApiSettings: os
 		.input(
 			z.object({
-				openaiApiKey: z.string().optional(),
-				openaiBaseUrl: z.string().optional(),
-				geminiApiKey: z.string().optional(),
-				geminiBaseUrl: z.string().optional(),
+				providers: z.array(
+					z.union([
+						z.object({
+							id: z.string(),
+							name: z.string(),
+							type: z.literal("gemini"),
+							baseUrl: z.string().optional(),
+							apiKey: z.string().optional(),
+							disabledModels: z.array(z.string()).optional(),
+						}),
+						z.object({
+							id: z.string(),
+							name: z.string(),
+							type: z.enum(["codex", "openai", "openai_compatible"]),
+							baseUrl: z.string().optional(),
+							apiKey: z.string().optional(),
+							envKey: z.string().optional(),
+							disabledModels: z.array(z.string()).optional(),
+						}),
+					]),
+				).optional(),
 			}),
 		)
 		.output(z.object({ success: z.boolean() }))
 		.handler(async ({ input }) => {
-			const updates: {
-				openaiApiKey?: string;
-				openaiBaseUrl?: string;
-				geminiApiKey?: string;
-				geminiBaseUrl?: string;
-			} = {};
-			if (input.openaiApiKey !== undefined) {
-				updates.openaiApiKey = input.openaiApiKey || undefined;
+			if (input.providers) {
+				const store = getStoreOrThrow();
+				const existingSettings = store.getApiSettings();
+				const existingProviders = existingSettings.providers || [];
+
+				const resolvedProviders = input.providers.map((p) => {
+					// If apiKey is masked, try to find existing key
+					if (p.apiKey === MASKED_API_KEY) {
+						const existing = existingProviders.find((ep) => ep.id === p.id);
+						if (existing && existing.apiKey) {
+							return { ...p, apiKey: existing.apiKey };
+						}
+						return p;
+					}
+					return p;
+				});
+
+				store.updateApiSettings({ providers: resolvedProviders });
 			}
-			if (input.openaiBaseUrl !== undefined) {
-				updates.openaiBaseUrl = input.openaiBaseUrl || undefined;
-			}
-			if (input.geminiApiKey !== undefined) {
-				updates.geminiApiKey = input.geminiApiKey || undefined;
-			}
-			if (input.geminiBaseUrl !== undefined) {
-				updates.geminiBaseUrl = input.geminiBaseUrl || undefined;
-			}
-			getStoreOrThrow().updateApiSettings(updates);
 			modelListCache.clear();
 			return { success: true };
 		}),

@@ -2,7 +2,7 @@ import { getModePrompt } from "../templates/mode-prompts";
 import type { AgentMode, ReasoningLevel } from "../types/agent";
 import { getAgentTemplate, type ProjectConfig } from "../types/project";
 import { getStoreOrThrow } from "./dependency-container";
-import { shouldUseOpenAIBaseUrl } from "./model-fetcher";
+
 import { resolveProjectRules } from "./rules-resolver";
 
 export interface SessionBuildParams {
@@ -12,6 +12,7 @@ export interface SessionBuildParams {
 	mode?: AgentMode;
 	reasoning?: ReasoningLevel;
 	cwd?: string;
+	provider?: string;
 }
 
 export interface SessionConfig {
@@ -22,6 +23,7 @@ export interface SessionConfig {
 	model?: string;
 	reasoning?: ReasoningLevel;
 	mode?: AgentMode;
+	provider?: string;
 }
 
 /**
@@ -33,7 +35,8 @@ export async function buildSessionConfig(
 ): Promise<SessionConfig> {
 	const storeInstance = getStoreOrThrow();
 
-	// Get Agent Template
+	// Build environment variables with API credentials
+	// Note: API keys are now injected at runtime by EnvBuilder to ensure they are up-to-date
 	const agentTemplate = getAgentTemplate(params.agentType);
 	if (!agentTemplate) {
 		throw new Error(`Agent type not found: ${params.agentType}`);
@@ -47,29 +50,8 @@ export async function buildSessionConfig(
 		? `${modePrompt}\n\n${projectRules}`
 		: projectRules;
 
-	// Build environment variables with API credentials
-	const apiSettings = storeInstance.getApiSettings();
-	const agentEnv: Record<string, string> = {};
-
-	// For Codex/OpenAI CLI
-	if (agentTemplate.agent.type === "codex") {
-		if (apiSettings.openaiApiKey) {
-			agentEnv.OPENAI_API_KEY = apiSettings.openaiApiKey;
-		}
-		if (shouldUseOpenAIBaseUrl(params.model, apiSettings.openaiBaseUrl)) {
-			agentEnv.OPENAI_BASE_URL = apiSettings.openaiBaseUrl!;
-		}
-	}
-
-	// For Gemini CLI
-	if (agentTemplate.agent.type === "gemini") {
-		if (apiSettings.geminiApiKey) {
-			agentEnv.GEMINI_API_KEY = apiSettings.geminiApiKey;
-		}
-		if (apiSettings.geminiBaseUrl) {
-			agentEnv.GOOGLE_GEMINI_BASE_URL = apiSettings.geminiBaseUrl;
-		}
-	}
+	// Keep existing logic for basic env if any from template
+	const agentEnv: Record<string, string> = { ...agentTemplate.agent.env };
 
 	// Determine cwd
 	const project = storeInstance.getProject(params.projectId);
@@ -83,6 +65,7 @@ export async function buildSessionConfig(
 		model: params.model,
 		reasoning: params.reasoning,
 		mode: resolvedMode,
+		provider: params.provider,
 	};
 }
 
@@ -108,5 +91,6 @@ export function startAgentSession(
 		cwd: config.cwd,
 		rulesContent: config.rulesContent,
 		env: config.env,
+		provider: config.provider,
 	});
 }

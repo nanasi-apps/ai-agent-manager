@@ -30,6 +30,7 @@ export const modelsRouter = {
 		}),
 
 	listModelTemplates: os
+		.input(z.object({ includeDisabled: z.boolean().optional() }).optional())
 		.output(
 			z.array(
 				z.object({
@@ -38,21 +39,26 @@ export const modelsRouter = {
 					agentType: z.string(),
 					agentName: z.string(),
 					model: z.string().optional(),
+					providerId: z.string().optional(),
 				}),
 			),
 		)
-		.handler(async () => {
+		.handler(async ({ input }) => {
 			const storeInstance = getStoreOrThrow();
 			const apiSettings = storeInstance.getApiSettings();
+			// Use configured providers list
+			const providers = apiSettings.providers || [];
+			const includeDisabled = input?.includeDisabled ?? false;
 
-			// Check which API keys are configured
-			const hasOpenaiKey = !!apiSettings.openaiApiKey;
-			const hasGeminiApiKey = !!apiSettings.geminiApiKey;
-			const openaiBaseUrl = apiSettings.openaiBaseUrl ?? "";
-			const geminiBaseUrl = apiSettings.geminiBaseUrl ?? "";
-
-			// Skip cache if we need to check API settings dynamically
-			const cacheKey = `all:openai=${hasOpenaiKey}:${openaiBaseUrl}:gemini=${hasGeminiApiKey}:${geminiBaseUrl}`;
+			// Create a cache key based on providers configuration AND includeDisabled flag
+			// Hash disabledModels too
+			const cacheKey = `models:v2:${includeDisabled}:${JSON.stringify(providers.map(p => ({
+				id: p.id,
+				type: p.type,
+				baseUrl: p.baseUrl,
+				apiKey: p.apiKey ? 'set' : 'unset',
+				disabledModels: p.disabledModels
+			})))}`;
 			const cached = modelListCache.get(cacheKey);
 			const now = Date.now();
 			if (cached && cached.expiresAt > now) {
@@ -61,103 +67,98 @@ export const modelsRouter = {
 
 			const results: ModelTemplate[] = [];
 
+			// 1. Add Default/Hardcoded Models for each CLI Agent Type
 			for (const agent of availableAgents) {
 				const agentType = agent.id;
 				const agentName = agent.name;
 				const cliType = agent.agent.type;
 
-				// For CLI agents with API keys configured, try to fetch models dynamically
-				// Otherwise use hardcoded model lists
-				let models: string[] = [];
-				let isCustomEndpoint = false;
-
-				if (cliType === "codex" && hasOpenaiKey) {
-					models = await fetchOpenAIModels(
-						apiSettings.openaiApiKey!,
-						apiSettings.openaiBaseUrl,
-					);
-					// Check if using a custom endpoint (not standard OpenAI)
-					isCustomEndpoint = !!(
-						apiSettings.openaiBaseUrl &&
-						!apiSettings.openaiBaseUrl.includes("openai.com")
-					);
-				} else if (cliType === "gemini" && hasGeminiApiKey) {
-					models = await fetchGeminiModels(
-						apiSettings.geminiApiKey!,
-						apiSettings.geminiBaseUrl,
-					);
-					// Check if using a custom endpoint (not standard Google)
-					isCustomEndpoint = !!(
-						apiSettings.geminiBaseUrl &&
-						!apiSettings.geminiBaseUrl.includes("googleapis.com") &&
-						!apiSettings.geminiBaseUrl.includes("google.com")
-					);
-				} else {
-					models = getModelsForCliType(cliType);
-				}
-
-				const modelEntries: { model: string; isCustom: boolean }[] = [];
 				const hardcodedModels = getModelsForCliType(cliType);
-				if (isCustomEndpoint) {
-					const customModels = models.filter(
-						(model) => !hardcodedModels.includes(model),
-					);
-					const seen = new Set<string>();
-
-					if (customModels.length === 0) {
-						const fallbackModels = models.length > 0 ? models : hardcodedModels;
-						for (const model of fallbackModels) {
-							if (seen.has(model)) continue;
-							seen.add(model);
-							modelEntries.push({ model, isCustom: true });
-						}
-					} else {
-						for (const model of hardcodedModels) {
-							if (seen.has(model)) continue;
-							seen.add(model);
-							modelEntries.push({ model, isCustom: false });
-						}
-						for (const model of customModels) {
-							if (seen.has(model)) continue;
-							seen.add(model);
-							modelEntries.push({ model, isCustom: true });
-						}
+				if (hardcodedModels.length > 0) {
+					for (const model of hardcodedModels) {
+						results.push({
+							id: buildModelId(agentType, model),
+							name: model,
+							agentType,
+							agentName, // e.g. "OpenAI Codex"
+							model,
+						});
+					}
+				} else if (cliType !== "cat") {
+					if (hardcodedModels.length === 0) {
+						const defaultName = agentName;
+						results.push({
+							id: buildModelId(agentType),
+							name: defaultName,
+							agentType,
+							agentName: defaultName,
+						});
 					}
 				} else {
-					for (const model of models) {
-						modelEntries.push({ model, isCustom: false });
-					}
-				}
-
-				// Only add default entry if there are no hardcoded models
-				if (modelEntries.length === 0) {
-					const defaultName = agentName.toLowerCase().includes("default")
-						? agentName
-						: `${agentName} (Default)`;
+					// cat agent
 					results.push({
 						id: buildModelId(agentType),
-						name: defaultName,
+						name: agentName,
 						agentType,
 						agentName,
 					});
-				} else {
-					// Add all models
-					for (const entry of modelEntries) {
-						// For custom endpoints, add suffix to show it's from custom API
-						const displayName = entry.isCustom
-							? `${entry.model} - Custom API (${agentName})`
-							: entry.model;
+				}
+			}
+
+			// 2. Add Models from Configured Providers
+			for (const provider of providers) {
+				let targetAgentId = "";
+				if (provider.type === "gemini") targetAgentId = "gemini";
+				// 'openai' and 'openai_compatible' map to 'codex' driver
+				else if (["codex", "openai", "openai_compatible"].includes(provider.type)) targetAgentId = "codex";
+
+				const agentTemplate = availableAgents.find((a) => a.id === targetAgentId);
+				if (!agentTemplate) continue;
+
+				let models: string[] = [];
+				const apiKey = provider.apiKey;
+
+				try {
+					if (provider.type === "gemini" && apiKey) {
+						models = await fetchGeminiModels(apiKey, provider.baseUrl);
+					} else if (["codex", "openai", "openai_compatible"].includes(provider.type)) {
+						const p = provider as any;
+						if (apiKey) {
+							models = await fetchOpenAIModels(apiKey, p.baseUrl);
+						}
+					}
+				} catch (e) {
+					console.error(`Failed to fetch models for provider ${provider.name}`, e);
+				}
+
+				if (models.length > 0) {
+					const groupName = `${agentTemplate.name} - ${provider.name}`;
+					const disabledModels = provider.disabledModels || [];
+
+					for (const model of models) {
+						// Filter out disabled models unless requested
+						if (!includeDisabled && disabledModels.includes(model)) {
+							continue;
+						}
 
 						results.push({
-							id: buildModelId(agentType, entry.model),
-							name: displayName,
-							agentType,
-							agentName,
-							model: entry.model,
+							id: `${buildModelId(targetAgentId, model)}::${provider.id}`,
+							name: model,
+							agentType: targetAgentId,
+							agentName: groupName,
+							model,
+							providerId: provider.id,
 						});
 					}
 				}
 			}
+
+			// Sort: Group by AgentName, then Model Name
+			results.sort((a, b) => {
+				const nameCompare = a.agentName.localeCompare(b.agentName);
+				if (nameCompare !== 0) return nameCompare;
+				return (a.model || "").localeCompare(b.model || "");
+			});
 
 			modelListCache.set(cacheKey, {
 				expiresAt: now + MODEL_CACHE_TTL_MS,

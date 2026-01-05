@@ -33,6 +33,9 @@ export interface AgentConfig {
 	oneShotMode?: boolean;
 	/** Content of rules to inject into the session */
 	rulesContent?: string;
+	
+	/** Optional provider identifier */
+	provider?: string; 
 }
 
 /**

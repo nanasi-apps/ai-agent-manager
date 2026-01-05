@@ -1,4 +1,4 @@
-import { getSessionMcpServersLogic, HARDCODED_MODELS } from "@agent-manager/shared";
+import { getSessionMcpServersLogic, HARDCODED_MODELS, ModelProviderCodex } from "@agent-manager/shared";
 import { store } from "../store/file-store";
 import { getEnhancedEnv } from "../utils/path-enhancer";
 import { prepareClaudeEnv, prepareGeminiEnv } from "./env-utils";
@@ -48,7 +48,32 @@ export const EnvBuilder = {
 		if (configType && currentModel && HARDCODED_MODELS[configType]) {
 			isStandardModel = HARDCODED_MODELS[configType].includes(currentModel);
 		}
-		const hasGeminiApiSettings = !!apiSettings.geminiApiKey;
+
+		// Find relevant providers
+		const providers = apiSettings.providers || [];
+
+		let geminiProvider = providers.find((p) => p.type === "gemini");
+		let openaiProvider = providers.find(
+			(p) => p.type === "openai" || p.type === "openai_compatible" || p.type === "codex",
+		) as ModelProviderCodex;
+
+		// If a specific provider is configured (Custom API), use it
+		if (state.config.provider) {
+			const activeProvider = providers.find(
+				(p) => p.id === state.config.provider,
+			);
+			if (activeProvider) {
+				if (activeProvider.type === "gemini") {
+					geminiProvider = activeProvider;
+				} else if (
+					activeProvider.type === "openai" ||
+					activeProvider.type === "openai_compatible" ||
+					activeProvider.type === "codex"
+				) {
+					openaiProvider = activeProvider as ModelProviderCodex;
+				}
+			}
+		}
 
 		// Gemini
 		let geminiHome: string | undefined;
@@ -57,11 +82,8 @@ export const EnvBuilder = {
 			const geminiEnv = await prepareGeminiEnv({
 				mcpServerUrl,
 				existingHome: state.geminiHome,
-				apiKey: hasGeminiApiSettings ? apiSettings.geminiApiKey : undefined,
-				baseUrl:
-					hasGeminiApiSettings && apiSettings.geminiBaseUrl
-						? apiSettings.geminiBaseUrl
-						: undefined,
+				apiKey: geminiProvider?.apiKey,
+				baseUrl: geminiProvider?.baseUrl,
 				mode: options.mode,
 			});
 			Object.assign(env, geminiEnv);
@@ -85,11 +107,16 @@ export const EnvBuilder = {
 
 		// OpenAI / Codex
 		if (options.isCodex && !isStandardModel) {
-			if (apiSettings.openaiApiKey) {
-				env.OPENAI_API_KEY = apiSettings.openaiApiKey;
-			}
-			if (apiSettings.openaiBaseUrl) {
-				env.OPENAI_BASE_URL = apiSettings.openaiBaseUrl;
+			console.log("[EnvBuilder] Using custom OpenAI / Codex provider settings");
+			console.log("openaiProvider: ",openaiProvider)
+			if (openaiProvider) {
+				console.log("openaiProvider: ",openaiProvider)
+				if (openaiProvider.apiKey && openaiProvider.envKey) {
+					console.log("openaiEnvkey: ",openaiProvider.envKey)
+					env[openaiProvider.envKey] = openaiProvider.apiKey;
+				} else if (openaiProvider.apiKey) {
+					env.OPENAI_API_KEY = openaiProvider.apiKey;
+				}
 			}
 		}
 

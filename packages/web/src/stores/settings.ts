@@ -1,15 +1,13 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
-import { orpcQuery } from "@/services/orpc";
+import { orpc } from "@/services/orpc";
+import type { ApiSettings as SharedApiSettings, ModelProvider } from "@agent-manager/shared";
+
+export type { ModelProvider };
 
 export type ApprovalChannel = "inbox" | "slack" | "discord";
 
-export interface ApiSettings {
-    openaiApiKey?: string;
-    openaiBaseUrl?: string;
-    geminiApiKey?: string;
-    geminiBaseUrl?: string;
-}
+export type ApiSettings = SharedApiSettings;
 
 export interface AppSettings {
     language?: string;
@@ -28,7 +26,7 @@ const DEFAULT_NOTIFY_ON_AGENT_COMPLETE = true;
 
 export const useSettingsStore = defineStore("settings", () => {
     // State
-    const apiSettings = ref<ApiSettings>({});
+    const apiSettings = ref<ApiSettings>({ providers: [] });
     const appSettings = ref<AppSettings>({});
     const isLoading = ref(false);
     const isSaving = ref(false);
@@ -36,8 +34,6 @@ export const useSettingsStore = defineStore("settings", () => {
     const isLoaded = ref(false);
 
     // Computed
-    const hasOpenaiKey = computed(() => apiSettings.value.openaiApiKey === "***");
-    const hasGeminiKey = computed(() => apiSettings.value.geminiApiKey === "***");
     const language = computed(() => appSettings.value.language ?? "en");
     const notifyOnAgentComplete = computed(
         () => appSettings.value.notifyOnAgentComplete ?? DEFAULT_NOTIFY_ON_AGENT_COMPLETE,
@@ -48,6 +44,8 @@ export const useSettingsStore = defineStore("settings", () => {
     const newConversionOpenMode = computed(
         () => appSettings.value.newConversionOpenMode ?? "page",
     );
+
+    const providers = computed(() => apiSettings.value.providers || []);
 
     // Helpers
     const normalizeChannels = (channels: ApprovalChannel[] | undefined) =>
@@ -68,8 +66,8 @@ export const useSettingsStore = defineStore("settings", () => {
         isLoading.value = true;
         try {
             const [apiData, appData] = await Promise.all([
-                orpcQuery.getApiSettings.call(),
-                orpcQuery.getAppSettings.call(),
+                orpc.getApiSettings(),
+                orpc.getAppSettings(),
             ]);
             apiSettings.value = apiData;
             appSettings.value = appData;
@@ -87,16 +85,12 @@ export const useSettingsStore = defineStore("settings", () => {
         isSaving.value = true;
         saveSuccess.value = false;
         try {
-            await orpcQuery.updateApiSettings.call(updates);
+            await orpc.updateApiSettings(updates);
 
-            // Update local state
-            if (updates.openaiApiKey) apiSettings.value.openaiApiKey = "***";
-            if (updates.geminiApiKey) apiSettings.value.geminiApiKey = "***";
-            if (updates.openaiBaseUrl !== undefined) {
-                apiSettings.value.openaiBaseUrl = updates.openaiBaseUrl;
-            }
-            if (updates.geminiBaseUrl !== undefined) {
-                apiSettings.value.geminiBaseUrl = updates.geminiBaseUrl;
+            // Update local state - assuming full replacement of updated fields for now or merge
+            // Since providers is an array, usually we replace it.
+            if (updates.providers) {
+                apiSettings.value.providers = updates.providers;
             }
 
             saveSuccess.value = true;
@@ -115,7 +109,7 @@ export const useSettingsStore = defineStore("settings", () => {
         isSaving.value = true;
         saveSuccess.value = false;
         try {
-            await orpcQuery.updateAppSettings.call(updates);
+            await orpc.updateAppSettings(updates);
 
             // Update local state
             if (updates.language !== undefined) {
@@ -160,23 +154,8 @@ export const useSettingsStore = defineStore("settings", () => {
         }
     }
 
-    async function clearApiKey(key: "openai" | "gemini") {
-        isSaving.value = true;
-        try {
-            if (key === "openai") {
-                await orpcQuery.updateApiSettings.call({ openaiApiKey: "" });
-                apiSettings.value.openaiApiKey = undefined;
-            } else {
-                await orpcQuery.updateApiSettings.call({ geminiApiKey: "" });
-                apiSettings.value.geminiApiKey = undefined;
-            }
-        } finally {
-            isSaving.value = false;
-        }
-    }
-
     function $reset() {
-        apiSettings.value = {};
+        apiSettings.value = { providers: [] };
         appSettings.value = {};
         isLoading.value = false;
         isSaving.value = false;
@@ -194,12 +173,11 @@ export const useSettingsStore = defineStore("settings", () => {
         isLoaded,
 
         // Computed
-        hasOpenaiKey,
-        hasGeminiKey,
         language,
         notifyOnAgentComplete,
         approvalNotificationChannels,
         newConversionOpenMode,
+        providers,
 
         // Helpers
         normalizeChannels,
@@ -210,7 +188,6 @@ export const useSettingsStore = defineStore("settings", () => {
         loadSettings,
         updateApiSettings,
         updateAppSettings,
-        clearApiKey,
         $reset,
     };
 });

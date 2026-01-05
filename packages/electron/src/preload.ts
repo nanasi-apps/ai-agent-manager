@@ -65,5 +65,11 @@ window.addEventListener("message", (event) => {
 		);
 		const [serverPort] = event.ports;
 		ipcRenderer.postMessage("start-orpc-server", null, [serverPort]);
+	} else if (event.data === "start-agent-state") {
+		console.log(
+			"Preload: Received start-agent-state message, forwarding to Main...",
+		);
+		const [statePort] = event.ports;
+		ipcRenderer.postMessage("start-agent-state", null, [statePort]);
 	}
 });

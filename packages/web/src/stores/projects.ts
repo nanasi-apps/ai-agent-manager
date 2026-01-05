@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
-import { orpcQuery } from "@/services/orpc";
+import { orpc } from "@/services/orpc";
 
 export interface Project {
     id: string;
@@ -71,8 +71,8 @@ export const useProjectsStore = defineStore("projects", () => {
         isLoading.value = true;
         try {
             const [projectsData, conversationsData] = await Promise.all([
-                orpcQuery.listProjects.call({}),
-                orpcQuery.listConversations.call({}),
+                orpc.listProjects({}),
+                orpc.listConversations({}),
             ]);
             projects.value = projectsData;
             conversations.value = conversationsData;
@@ -87,7 +87,7 @@ export const useProjectsStore = defineStore("projects", () => {
 
     async function loadProjects() {
         try {
-            projects.value = await orpcQuery.listProjects.call({});
+            projects.value = await orpc.listProjects({});
         } catch (err) {
             console.error("Failed to load projects:", err);
         }
@@ -95,7 +95,7 @@ export const useProjectsStore = defineStore("projects", () => {
 
     async function loadConversations() {
         try {
-            conversations.value = await orpcQuery.listConversations.call({});
+            conversations.value = await orpc.listConversations({});
         } catch (err) {
             console.error("Failed to load conversations:", err);
         }
@@ -103,7 +103,7 @@ export const useProjectsStore = defineStore("projects", () => {
 
     async function createProject(name: string, rootPath: string, description?: string) {
         try {
-            const result = await orpcQuery.createProject.call({ name, rootPath, description });
+            const result = await orpc.createProject({ name, rootPath, description });
             if (result.id) {
                 await loadProjects();
                 return result;

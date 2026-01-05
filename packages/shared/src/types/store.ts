@@ -39,6 +39,7 @@ export interface Conversation {
 	agentModel?: string;
 	agentReasoning?: ReasoningLevel;
 	agentMode?: AgentMode;
+	agentProvider?: string;
 	/** Current working directory for the agent */
 	cwd?: string;
 	/** List of disabled MCP tools for this conversation */
@@ -119,11 +120,29 @@ export interface AppSettings {
 	discordWebhookUrl?: string;
 }
 
+export interface ModelProviderBase {
+	id: string;
+	name: string;
+	disabledModels?: string[];
+}
+
+export interface ModelProviderSimple extends ModelProviderBase {
+	type: "gemini";
+	baseUrl?: string;
+	apiKey?: string;
+}
+
+export interface ModelProviderCodex extends ModelProviderBase {
+	type: "codex" | "openai" | "openai_compatible";
+	baseUrl?: string;
+	envKey?: string;
+	apiKey?: string;
+}
+
+export type ModelProvider = ModelProviderSimple | ModelProviderCodex;
+
 export interface ApiSettings {
-	openaiApiKey?: string;
-	openaiBaseUrl?: string;
-	geminiApiKey?: string;
-	geminiBaseUrl?: string;
+	providers: ModelProvider[];
 }
 
 /**

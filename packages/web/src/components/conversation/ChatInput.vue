@@ -6,10 +6,12 @@ import { ChevronDown, Loader2, Send, Square } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useConversationStore } from "@/stores/conversation";
+import { useSettingsStore } from "@/stores/settings";
 import { groupModelTemplates } from "@/lib/modelTemplateGroups";
 
 const { t } = useI18n();
 const conversation = useConversationStore();
+const settingsStore = useSettingsStore();
 
 const emit = defineEmits<{
 	(e: "send"): void;
@@ -30,7 +32,9 @@ const modeOptions: { label: string; value: AgentMode }[] = [
 ];
 
 const groupedModelTemplates = computed(() =>
-	groupModelTemplates(conversation.modelTemplates),
+	groupModelTemplates(conversation.modelTemplates, {
+		providers: settingsStore.providers,
+	}),
 );
 
 const isSelectorDisabled = computed(() =>
@@ -38,6 +42,7 @@ const isSelectorDisabled = computed(() =>
 );
 
 const handleKeydown = (e: KeyboardEvent) => {
+    if (e.isComposing) return;
 	if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
 		e.preventDefault();
 		emit("send");
@@ -50,7 +55,7 @@ const handleKeydown = (e: KeyboardEvent) => {
 		class="border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shrink-0"
 	>
 		<div class="max-w-3xl mx-auto p-4 flex flex-col gap-2">
-			<form @submit.prevent="emit('send')">
+			<div>
 				<div class="flex items-center gap-2">
 						<Textarea
 							v-model="conversation.input"
@@ -75,11 +80,12 @@ const handleKeydown = (e: KeyboardEvent) => {
 					<!-- Send Button (shown when not generating) -->
 					<Button
 						v-else
-						type="submit"
+						type="button"
 						size="icon"
 						class="h-11 w-11 shrink-0 rounded-xl bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-600/20 transition-all text-white border-0"
 						:class="{ 'opacity-50 cursor-not-allowed': !conversation.input.trim() || conversation.isLoading }"
 						:disabled="!conversation.input.trim() || conversation.isLoading"
+						@click="emit('send')"
 					>
 						<Loader2 v-if="conversation.isLoading" class="size-5 animate-spin" />
 						<Send v-else class="size-5" />
@@ -157,7 +163,7 @@ const handleKeydown = (e: KeyboardEvent) => {
 						</div>
 					</div>
 				</div>
-			</form>
+			</div>
 		</div>
 	</div>
 </template>

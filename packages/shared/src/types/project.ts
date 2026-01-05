@@ -15,6 +15,7 @@ export interface ModelTemplate {
 	agentType: string;
 	agentName: string;
 	model?: string;
+	providerId?: string;
 }
 
 /**

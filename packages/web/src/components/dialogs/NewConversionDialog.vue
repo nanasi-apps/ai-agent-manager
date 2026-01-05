@@ -273,7 +273,7 @@ const handleKeydown = (e: KeyboardEvent) => {
                     Close
                 </Button>
                 <Button 
-                    type="submit" 
+                    type="button" 
                     @click="handleStart" 
                     :disabled="isLoading || !input.trim() || !selectedProjectId || !selectedModelId" 
                     class="bg-blue-600 hover:bg-blue-500 text-white"

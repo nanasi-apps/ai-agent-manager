@@ -37,12 +37,29 @@ export function buildModelId(agentType: string, model?: string): string {
 
 export function parseModelId(
 	modelId: string,
-): { agentType: string; model?: string } | null {
+): { agentType: string; model?: string; providerId?: string } | null {
 	if (!modelId) return null;
-	const [agentType, ...rest] = modelId.split(MODEL_ID_SEPARATOR);
-	if (!agentType) return null;
-	const model = rest.join(MODEL_ID_SEPARATOR);
-	return { agentType, model: model || undefined };
+	const parts = modelId.split(MODEL_ID_SEPARATOR);
+
+	// Handle legacy/simple format: "agentType" or "agentType::model"
+	if (parts.length <= 2) {
+		return { agentType: parts[0], model: parts[1] || undefined };
+	}
+
+	// Handle format with provider: "agentType::model::providerId"
+	// We assume the LAST part is providerId if there are 3 or more parts, 
+	// BUT we need to be careful if model name itself contains "::" (unlikely but possible if we just join rest)
+	// The previous implementation did rest.join(SEPARATOR) which implies model could contain separators.
+
+	// However, listModelTemplates constructs it as `${buildModelId}::${provider.id}`.
+	// So distinct segments. 
+
+	// If we assume model name doesn't contain "::", then:
+	const agentType = parts[0];
+	const providerId = parts[parts.length - 1];
+	const model = parts.slice(1, -1).join(MODEL_ID_SEPARATOR);
+
+	return { agentType, model, providerId };
 }
 
 export function getModelsForCliType(cliType: string): string[] {

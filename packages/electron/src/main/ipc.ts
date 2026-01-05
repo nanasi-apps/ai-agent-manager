@@ -1,18 +1,17 @@
-import { appRouter } from "@agent-manager/shared";
-import { RPCHandler } from "@orpc/server/message-port";
 import { ipcMain } from "electron";
 import { registerAgentStatePort } from "./agent-state-port";
 
 export function setupIpc() {
-	// Setup ORPC handler
-	ipcMain.on("start-orpc-server", (event) => {
-		const [serverPort] = event.ports;
-		if (serverPort) {
-			console.log("Main: Received ORPC port");
-			const handler = new RPCHandler(appRouter);
-			handler.upgrade(serverPort);
-			registerAgentStatePort(serverPort);
-			serverPort.start();
+	// NOTE: ORPC handler is registered in setupElectronOrpc() (orpc-server.ts)
+	// Do NOT register it here to avoid duplicate request processing.
+
+	// Setup Agent State port (separate from ORPC)
+	ipcMain.on("start-agent-state", (event) => {
+		const [statePort] = event.ports;
+		if (statePort) {
+			console.log("Main: Received Agent State port");
+			registerAgentStatePort(statePort);
+			statePort.start();
 		}
 	});
 }

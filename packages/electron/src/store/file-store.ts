@@ -22,7 +22,7 @@ export class FileStore implements IStore {
 	private projects: Map<string, Project> = new Map();
 	private locks: Map<string, ResourceLock> = new Map();
 	private approvals: Map<string, ApprovalRequest> = new Map();
-	private apiSettings: ApiSettings = {};
+	private apiSettings: ApiSettings = { providers: [] };
 	private appSettings: AppSettings = {};
 	private dataDir: string | null = null;
 	private conversationsPath: string | null = null;
@@ -59,7 +59,7 @@ export class FileStore implements IStore {
 			this.projects.clear();
 			this.locks.clear();
 			this.approvals.clear();
-			this.apiSettings = {};
+			this.apiSettings = { providers: [] };
 			this.appSettings = {};
 
 			if (fs.existsSync(conversationsPath)) {
@@ -113,18 +113,14 @@ export class FileStore implements IStore {
 					fs.readFileSync(settingsPath, "utf-8"),
 				) as { apiSettings?: ApiSettings; appSettings?: AppSettings };
 				if (settings.apiSettings) {
-					const {
-						openaiApiKey,
-						openaiBaseUrl,
-						geminiApiKey,
-						geminiBaseUrl,
-					} = settings.apiSettings;
-					this.apiSettings = {
-						openaiApiKey,
-						openaiBaseUrl,
-						geminiApiKey,
-						geminiBaseUrl,
-					};
+					// Migration: If we find legacy settings during load, we should probably ignore them or migrate them?
+					// User said: "existing ones are discardable without migration".
+					// So we just load providers if they exist.
+					if (settings.apiSettings.providers) {
+						this.apiSettings = {
+							providers: settings.apiSettings.providers
+						};
+					}
 				}
 				if (settings.appSettings) {
 					this.appSettings = settings.appSettings;
@@ -302,7 +298,36 @@ export class FileStore implements IStore {
 	}
 
 	deleteProject(id: string) {
+		// Delete the project itself
 		this.projects.delete(id);
+
+		// Get all conversation IDs associated with this project to clean up locks/approvals
+		const associatedConversationIds = new Set<string>();
+
+		// Delete any conversations associated with this project
+		const conversationsToDelete = Array.from(this.conversations.values()).filter(
+			(c) => c.projectId === id,
+		);
+		for (const conv of conversationsToDelete) {
+			associatedConversationIds.add(conv.id);
+			this.conversations.delete(conv.id);
+		}
+
+		// Delete any approvals associated with this project
+		const approvalsToDelete = Array.from(this.approvals.values()).filter(
+			(a) => a.projectId === id,
+		);
+		for (const approval of approvalsToDelete) {
+			this.approvals.delete(approval.id);
+		}
+
+		// Release any locks associated with these conversations
+		for (const [lockId, lock] of this.locks) {
+			if (associatedConversationIds.has(lock.agentId)) {
+				this.locks.delete(lockId);
+			}
+		}
+
 		this.scheduleSave();
 	}
 

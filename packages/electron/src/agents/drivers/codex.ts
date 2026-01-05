@@ -9,6 +9,8 @@ import type {
 	AgentDriverContext,
 } from "./interface";
 import { buildFullMessage, shellEscape, splitCommand } from "./interface";
+import { detectAgentType } from "../agent-type-utils";
+import { store } from "../../store";
 
 export class CodexDriver implements AgentDriver {
 	getCommand(
@@ -49,6 +51,8 @@ export class CodexDriver implements AgentDriver {
 		// This is Codex's equivalent of Gemini's tools.exclude feature
 		const modeArgs = buildModeArgs(config.mode);
 
+		const customApiArgs = buildCustomApiArgs(config);
+
 		if (context.messageCount === 0) {
 			// First message: start fresh
 			// Usage: codex exec [OPTIONS] [PROMPT]
@@ -62,6 +66,7 @@ export class CodexDriver implements AgentDriver {
 				...reasoningArgs,
 				...modeArgs,
 				...mcpArgs,
+				...customApiArgs,
 				escapedMessage,
 			];
 		} else if (context.codexSessionId || context.codexThreadId) {
@@ -79,6 +84,7 @@ export class CodexDriver implements AgentDriver {
 				...reasoningArgs,
 				...modeArgs,
 				...mcpArgs,
+				...customApiArgs,
 				resumeId!,
 				escapedMessage,
 			];
@@ -139,6 +145,43 @@ function buildModeArgs(mode?: AgentMode): string[] {
 		// Use read-only sandbox to disable file writes and command execution
 		// This is the closest equivalent to Gemini's tools.exclude feature
 		return ["--sandbox", "read-only"];
+	}
+	return [];
+}
+
+/**
+ * Build custom API provider arguments for Codex CLI
+ * 
+ * @param config
+ */
+function buildCustomApiArgs(config?: AgentConfig): string[] {
+	console.log(config)
+	if (!config) return [];
+	const apiSettings = store.getApiSettings();
+
+	const modelType = detectAgentType(config)
+	if (config.provider && modelType.isCodex) {
+		const provider = apiSettings.providers?.find((provider) => provider.id === config.provider);
+
+		if (!provider) return [];
+		const providerKey = `model_providers.${provider.id}`;
+		const args = [
+			'-c', `${providerKey}.name="${provider.name}"`,
+			'-c', `model_provider=${provider.id}`,
+		];
+
+		if (provider.type === "codex" || provider.type === "openai" || provider.type === "openai_compatible")  {
+			// Codex / OpenAI / OpenAI Compatible
+			// These are now flattened in ModelProviderCodex
+			if (provider.baseUrl) {
+				args.push('-c', `${providerKey}.base_url="${provider.baseUrl}"`);
+			}
+			if (provider.envKey) {
+				args.push('-c', `${providerKey}.env_key="${provider.envKey}"`);
+			}
+		}
+
+		return args;
 	}
 	return [];
 }

@@ -83,13 +83,19 @@ const modeOptions: { label: string; value: AgentMode }[] = [
 ];
 
 const isSessionReady = ref(false);
+const isInitializingSession = ref(false);
 
 // Session initialization
 async function initSession(id: string) {
+    // Prevent duplicate concurrent calls
+    if (isInitializingSession.value) {
+        return;
+    }
     if (conversation.sessionId === id && conversation.messages.length > 0) {
         return;
     }
     
+    isInitializingSession.value = true;
     conversation.initSession(id);
 	isSessionReady.value = false;
 
@@ -103,6 +109,7 @@ async function initSession(id: string) {
 		await conversation.loadConversation(id);
 	} finally {
 		conversation.isLoading = false;
+		isInitializingSession.value = false;
 		setTimeout(() => {
 			isSessionReady.value = true;
 		}, 100);
@@ -149,7 +156,7 @@ onMounted(async () => {
     loadProjects();
 	await conversation.loadModelTemplates();
 	conversation.setupWatchers();
-	await initSession(props.sessionId);
+	// Note: initSession is called by watch with immediate: true, so we don't call it here again
 
 	if (window.electronAPI) {
 		conversation.isConnected = true;
