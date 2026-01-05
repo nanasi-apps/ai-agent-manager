@@ -28,6 +28,8 @@ const nameDraft = ref("");
 const rootPathDraft = ref("");
 const isLoading = ref(true);
 const isSavingProject = ref(false);
+const isDeletingProject = ref(false);
+
 const hasNativePicker = computed(() => {
 	return typeof window !== "undefined" && !!window.electronAPI;
 });
@@ -100,6 +102,32 @@ const validateAutoConfigJson = (json: string): AutoConfig | null => {
 		autoConfigParseError.value =
 			e instanceof Error ? e.message : "Invalid JSON";
 		return null;
+	}
+};
+
+const deleteProject = async () => {
+	const id = projectId.value;
+	if (!id) return;
+
+	if (
+		!confirm(
+			"Are you sure you want to delete this project? This will also delete all associated conversations and data. This action cannot be undone.",
+		)
+	) {
+		return;
+	}
+
+	isDeletingProject.value = true;
+	try {
+		const result = await orpcQuery.deleteProject.call({ projectId: id });
+		if (result.success) {
+			window.dispatchEvent(new Event("agent-manager:data-change"));
+			router.push("/");
+		}
+	} catch (e) {
+		console.error("Failed to delete project:", e);
+	} finally {
+		isDeletingProject.value = false;
 	}
 };
 
@@ -846,6 +874,28 @@ watch(projectId, loadProject, { immediate: true });
                      </div>
                   </details>
                </div>
+            </div>
+        </div>
+
+        <!-- Danger Zone Section -->
+        <div class="mt-12 border border-destructive/30 rounded-lg p-4 bg-destructive/5">
+            <h2 class="text-lg font-semibold text-destructive mb-2">Danger Zone</h2>
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium">Delete this project</p>
+                    <p class="text-sm text-muted-foreground">
+                        Once you delete a project, there is no going back. Please be certain.
+                    </p>
+                </div>
+                <Button 
+                    variant="destructive" 
+                    :disabled="isDeletingProject || isSavingProject"
+                    @click="deleteProject"
+                >
+                    <Loader2 v-if="isDeletingProject" class="w-4 h-4 mr-2 animate-spin" />
+                    <Trash2 v-else class="w-4 h-4 mr-2" />
+                    Delete Project
+                </Button>
             </div>
         </div>
       </div>

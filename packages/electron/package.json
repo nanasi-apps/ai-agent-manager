@@ -7,7 +7,7 @@
 		"dev": "NODE_ENV=development npm run copy:templates && NODE_ENV=development concurrently -k \"tsc -w\" \"NODE_ENV=development npm run start:electron\"",
 		"start:electron": "wait-on dist/main.js tcp:${WEB_PORT:-5173} && ELECTRON_DISABLE_SECURITY_WARNINGS=true nodemon --watch dist --watch ../shared/dist --exec electron .",
 		"prebuild": "rm -rf dist",
-		"build": "tsc && npm run copy:templates && npm run copy:web && electron-builder --mac --win --linux",
+		"build": "node esbuild.config.mjs && npm run copy:templates && npm run copy:web && electron-builder --mac --win --linux",
 		"copy:templates": "mkdir -p dist/agents && cp -r src/agents/templates dist/agents/",
 		"copy:web": "mkdir -p dist/renderer && cp -r ../web/dist/* dist/renderer/",
 		"typecheck": "tsc --noEmit"
@@ -78,6 +78,7 @@
 		"concurrently": "^9.2.1",
 		"electron": "latest",
 		"electron-builder": "^26.0.12",
+		"esbuild": "^0.27.2",
 		"nodemon": "^3.1.11",
 		"typescript": "latest",
 		"wait-on": "^9.0.3"

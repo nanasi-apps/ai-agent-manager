@@ -43,7 +43,9 @@ export function parseModelId(
 
 	// Handle legacy/simple format: "agentType" or "agentType::model"
 	if (parts.length <= 2) {
-		return { agentType: parts[0], model: parts[1] || undefined };
+		const agentType = parts[0];
+		if (!agentType) return null;
+		return { agentType, model: parts[1] || undefined };
 	}
 
 	// Handle format with provider: "agentType::model::providerId"
@@ -56,10 +58,11 @@ export function parseModelId(
 
 	// If we assume model name doesn't contain "::", then:
 	const agentType = parts[0];
+	if (!agentType) return null;
 	const providerId = parts[parts.length - 1];
 	const model = parts.slice(1, -1).join(MODEL_ID_SEPARATOR);
 
-	return { agentType, model, providerId };
+	return { agentType, model: model || undefined, providerId: providerId || undefined };
 }
 
 export function getModelsForCliType(cliType: string): string[] {

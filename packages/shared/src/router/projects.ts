@@ -238,4 +238,16 @@ export const projectsRouter = {
 
 			return { success: true };
 		}),
+
+	deleteProject: os
+		.input(z.object({ projectId: z.string() }))
+		.output(z.object({ success: z.boolean() }))
+		.handler(async ({ input }) => {
+			const storeInstance = getStoreOrThrow();
+			const project = storeInstance.getProject(input.projectId);
+			if (!project) return { success: false };
+
+			storeInstance.deleteProject(input.projectId);
+			return { success: true };
+		}),
 };
