@@ -81,7 +81,7 @@ export function shouldUseOpenAIBaseUrl(
 	const isCustomEndpoint = !baseUrl.includes("openai.com");
 	if (!isCustomEndpoint) return true;
 	if (!model) return true;
-	return !(HARDCODED_MODELS["codex"] ?? []).includes(model);
+	return !(HARDCODED_MODELS.codex ?? []).includes(model);
 }
 
 /**
@@ -95,7 +95,7 @@ export async function fetchOpenAIModels(
 	// Use codex hardcoded models as fallback for standard OpenAI
 	// For custom endpoints, we want to return what the API provides
 	const isCustomEndpoint = baseUrl && !baseUrl.includes("openai.com");
-	const fallback = isCustomEndpoint ? [] : (HARDCODED_MODELS["codex"] ?? []);
+	const fallback = isCustomEndpoint ? [] : (HARDCODED_MODELS.codex ?? []);
 
 	const fetchModels = async (): Promise<string[]> => {
 		console.log(
@@ -146,7 +146,7 @@ export async function fetchGeminiModels(
 	apiKey: string,
 	baseUrl?: string,
 ): Promise<string[]> {
-	const fallback = HARDCODED_MODELS["gemini"] ?? [];
+	const fallback = HARDCODED_MODELS.gemini ?? [];
 
 	const fetchModels = async (): Promise<string[]> => {
 		console.log(
@@ -179,7 +179,7 @@ export async function fetchGeminiModels(
 		models.sort((a, b) => {
 			const getVersion = (s: string) => {
 				const match = s.match(/gemini-(\d+\.?\d*)/);
-				return match && match[1] ? parseFloat(match[1]) : 0;
+				return match?.[1] ? parseFloat(match[1]) : 0;
 			};
 			return getVersion(b) - getVersion(a);
 		});

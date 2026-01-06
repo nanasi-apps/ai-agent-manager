@@ -25,11 +25,6 @@ export class FileStore implements IStore {
 	private apiSettings: ApiSettings = { providers: [] };
 	private appSettings: AppSettings = {};
 	private dataDir: string | null = null;
-	private conversationsPath: string | null = null;
-	private projectsPath: string | null = null;
-	private locksPath: string | null = null;
-	private approvalsPath: string | null = null;
-	private settingsPath: string | null = null;
 	private saveTimeout: ReturnType<typeof setTimeout> | null = null;
 
 	setDataPath(dirPath: string) {
@@ -338,7 +333,7 @@ export class FileStore implements IStore {
 		const now = Date.now();
 
 		// Check if existing lock is expired
-		if (existing && existing.expiresAt && existing.expiresAt < now) {
+		if (existing?.expiresAt && existing.expiresAt < now) {
 			this.locks.delete(lock.resourceId);
 			// Proceed to acquire
 		} else if (existing) {
@@ -369,7 +364,7 @@ export class FileStore implements IStore {
 
 	getLock(resourceId: string): ResourceLock | undefined {
 		const existing = this.locks.get(resourceId);
-		if (existing && existing.expiresAt && existing.expiresAt < Date.now()) {
+		if (existing?.expiresAt && existing.expiresAt < Date.now()) {
 			this.locks.delete(resourceId);
 			this.scheduleSave();
 			return undefined;

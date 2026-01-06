@@ -79,84 +79,92 @@ watch(projectId, loadData, { immediate: true });
 </script>
 
 <template>
-  <div class="p-6">
-    <router-view v-if="isSubRoute" />
-    <Transition v-else name="fade" mode="out-in">
-      <div v-if="isLoading" class="flex items-center justify-center py-20">
-        <Loader2 class="size-8 animate-spin text-muted-foreground" />
-      </div>
+	<div class="p-6">
+		<router-view v-if="isSubRoute"/>
+		<Transition v-else name="fade" mode="out-in">
+			<div v-if="isLoading" class="flex items-center justify-center py-20">
+				<Loader2 class="size-8 animate-spin text-muted-foreground"/>
+			</div>
 
-      <div v-else>
-        <div class="flex items-center justify-between mb-8">
-           <div class="min-w-0 flex-1">
-             <h1 class="text-2xl font-bold truncate">Project Viewer</h1>
-             <p class="text-muted-foreground truncate">
-               Viewing project: <span class="font-medium text-foreground">{{ project?.name || projectId }}</span>
-             </p>
-           </div>
-           <div class="flex items-center gap-2 shrink-0 ml-4">
-             <TooltipProvider :delay-duration="0">
-                <Tooltip>
-                  <TooltipTrigger as-child>
-                    <Button variant="secondary" size="icon" @click="goWorktrees(projectId)">
-                      <GitBranch class="size-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    Worktrees
-                  </TooltipContent>
-                </Tooltip>
+			<div v-else>
+				<div class="flex items-center justify-between mb-8">
+					<div class="min-w-0 flex-1">
+						<h1 class="text-2xl font-bold truncate">Project Viewer</h1>
+						<p class="text-muted-foreground truncate">
+							Viewing project:
+							<span class="font-medium text-foreground"
+								>{{ project?.name || projectId }}</span
+							>
+						</p>
+					</div>
+					<div class="flex items-center gap-2 shrink-0 ml-4">
+						<TooltipProvider :delay-duration="0">
+							<Tooltip>
+								<TooltipTrigger as-child>
+									<Button
+										variant="secondary"
+										size="icon"
+										@click="goWorktrees(projectId)"
+									>
+										<GitBranch class="size-4"/>
+									</Button>
+								</TooltipTrigger>
+								<TooltipContent>Worktrees</TooltipContent>
+							</Tooltip>
 
-                <Tooltip>
-                  <TooltipTrigger as-child>
-                    <Button variant="secondary" size="icon" @click="goSettings(projectId)">
-                      <Settings class="size-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    Settings
-                  </TooltipContent>
-                </Tooltip>
+							<Tooltip>
+								<TooltipTrigger as-child>
+									<Button
+										variant="secondary"
+										size="icon"
+										@click="goSettings(projectId)"
+									>
+										<Settings class="size-4"/>
+									</Button>
+								</TooltipTrigger>
+								<TooltipContent>Settings</TooltipContent>
+							</Tooltip>
 
-                <Tooltip>
-                  <TooltipTrigger as-child>
-                    <Button size="icon" @click="() => open(projectId)">
-                      <Plus class="size-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    New Conversion
-                  </TooltipContent>
-                </Tooltip>
-             </TooltipProvider>
-           </div>
-        </div>
+							<Tooltip>
+								<TooltipTrigger as-child>
+									<Button size="icon" @click="() => open(projectId)">
+										<Plus class="size-4"/>
+									</Button>
+								</TooltipTrigger>
+								<TooltipContent>New Conversion</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
+					</div>
+				</div>
 
-        <!-- Conversations List -->
-        <div class="space-y-4">
-          <h2 class="text-xl font-semibold">Conversations</h2>
-          
-          <div v-if="conversations.length > 0" class="space-y-2">
-            <ConversionCard
-              v-for="conv in conversations"
-              :key="conv.id"
-              :title="conv.title"
-              :project-name="project?.name"
-              :updated-at="conv.updatedAt"
-              :is-running="conv.isProcessing"
-              @click="openConversation(conv.id)"
-            />
-          </div>
+				<!-- Conversations List -->
+				<div class="space-y-4">
+					<h2 class="text-xl font-semibold">Conversations</h2>
 
-          <div v-else class="text-center py-12 text-muted-foreground border rounded-lg border-dashed">
-            <MessageSquare class="size-12 mx-auto mb-4 opacity-20" />
-            <p>No conversations in this project yet.</p>
-            <Button variant="link" @click="() => open(projectId)" class="mt-2">
-              Start your first conversation
-            </Button>
-          </div>
-        </div>
-      </div>
-    </Transition>
-  </div>
+					<div v-if="conversations.length > 0" class="space-y-2">
+						<ConversionCard
+							v-for="conv in conversations"
+							:key="conv.id"
+							:title="conv.title"
+							:project-name="project?.name"
+							:updated-at="conv.updatedAt"
+							:is-running="conv.isProcessing"
+							@click="openConversation(conv.id)"
+						/>
+					</div>
+
+					<div
+						v-else
+						class="text-center py-12 text-muted-foreground border rounded-lg border-dashed"
+					>
+						<MessageSquare class="size-12 mx-auto mb-4 opacity-20"/>
+						<p>No conversations in this project yet.</p>
+						<Button variant="link" @click="() => open(projectId)" class="mt-2">
+							Start your first conversation
+						</Button>
+					</div>
+				</div>
+			</div>
+		</Transition>
+	</div>
 </template>

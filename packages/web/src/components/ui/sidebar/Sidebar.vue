@@ -17,27 +17,27 @@ const { state, isResizing } = useSidebar();
 </script>
 
 <template>
-  <div
-    v-if="collapsible === 'none'"
-    data-slot="sidebar"
-    :class="cn('bg-sidebar text-sidebar-foreground flex h-full w-(--sidebar-width) flex-col', props.class)"
-    v-bind="$attrs"
-  >
-    <slot />
-  </div>
+	<div
+		v-if="collapsible === 'none'"
+		data-slot="sidebar"
+		:class="cn('bg-sidebar text-sidebar-foreground flex h-full w-(--sidebar-width) flex-col', props.class)"
+		v-bind="$attrs"
+	>
+		<slot/>
+	</div>
 
-  <div
-    v-else
-    class="group peer text-sidebar-foreground"
-    data-slot="sidebar"
-    :data-state="state"
-    :data-collapsible="state === 'collapsed' ? collapsible : ''"
-    :data-variant="variant"
-    :data-side="side"
-  >
-    <!-- This is what handles the sidebar gap on desktop  -->
-    <div
-      :class="cn(
+	<div
+		v-else
+		class="group peer text-sidebar-foreground"
+		data-slot="sidebar"
+		:data-state="state"
+		:data-collapsible="state === 'collapsed' ? collapsible : ''"
+		:data-variant="variant"
+		:data-side="side"
+	>
+		<!-- This is what handles the sidebar gap on desktop  -->
+		<div
+			:class="cn(
         'relative w-(--sidebar-width) bg-transparent transition-[width] duration-200 ease-linear',
         'group-data-[collapsible=offcanvas]:w-0',
         'group-data-[side=right]:rotate-180',
@@ -46,9 +46,9 @@ const { state, isResizing } = useSidebar();
           : 'group-data-[collapsible=icon]:w-(--sidebar-width-icon)',
         isResizing && '!transition-none',
       )"
-    />
-    <div
-      :class="cn(
+		/>
+		<div
+			:class="cn(
         'fixed inset-y-0 z-10 flex h-svh w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear',
         side === 'left'
           ? 'left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]'
@@ -60,14 +60,14 @@ const { state, isResizing } = useSidebar();
         isResizing && '!transition-none',
         props.class,
       )"
-      v-bind="$attrs"
-    >
-      <div
-        data-sidebar="sidebar"
-        class="bg-sidebar group-data-[variant=floating]:border-sidebar-border flex h-full w-full flex-col group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:shadow-sm"
-      >
-        <slot />
-      </div>
-    </div>
-  </div>
+			v-bind="$attrs"
+		>
+			<div
+				data-sidebar="sidebar"
+				class="bg-sidebar group-data-[variant=floating]:border-sidebar-border flex h-full w-full flex-col group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:shadow-sm"
+			>
+				<slot/>
+			</div>
+		</div>
+	</div>
 </template>

@@ -169,7 +169,7 @@ app.on("window-all-closed", () => {
 	}
 });
 
-app.on("before-quit", async (event) => {
+app.on("before-quit", async (_event) => {
 	// Stop dev servers
 	const running = devServerManager.listRunningProjects();
 	if (running.length > 0) {

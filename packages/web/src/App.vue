@@ -58,9 +58,9 @@ onMounted(async () => {
 </script>
 
 <template>
-  <DashboardLayout>
-    <router-view />
-  </DashboardLayout>
-  <NewProjectDialog v-model:open="isOpen" />
-  <BranchNameDialog />
+	<DashboardLayout>
+		<router-view/>
+	</DashboardLayout>
+	<NewProjectDialog v-model:open="isOpen"/>
+	<BranchNameDialog/>
 </template>

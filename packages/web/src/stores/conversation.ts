@@ -263,12 +263,12 @@ export const useConversationStore = defineStore("conversation", () => {
 		if (!clean) return "_No content_";
 
 		if (logType === "tool_call") {
-			return "```json\n" + clean + "\n```";
+			return `\`\`\`json\n${clean}\n\`\`\``;
 		}
 
 		if (logType === "tool_result") {
 			if (clean.startsWith("```")) return clean;
-			return "```\n" + clean + "\n```";
+			return `\`\`\`\n${clean}\n\`\`\``;
 		}
 
 		return clean;
@@ -326,7 +326,7 @@ export const useConversationStore = defineStore("conversation", () => {
 		const preferred = modelTemplates.value.find(
 			(model) => model.agentType !== "default",
 		);
-		const nextId = match?.id || preferred?.id || modelTemplates.value[0]!.id;
+		const nextId = match?.id || preferred?.id || modelTemplates.value[0]?.id;
 		currentModelId.value = nextId;
 		modelIdDraft.value = nextId;
 	};

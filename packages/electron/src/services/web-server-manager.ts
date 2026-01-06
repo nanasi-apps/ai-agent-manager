@@ -1,10 +1,10 @@
+import { networkInterfaces } from "node:os";
 import type {
 	IWebServerService,
 	IWebServerStatus,
 } from "@agent-manager/shared";
 import { getLogger } from "@agent-manager/shared";
 import getPort from "get-port";
-import { networkInterfaces } from "os";
 import { startWebServer } from "../server/web-server";
 
 const logger = getLogger(["electron", "web-server-manager"]);

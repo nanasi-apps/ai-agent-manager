@@ -20,13 +20,13 @@ const { as = "button", variant, size, asChild } = defineProps<Props>();
 </script>
 
 <template>
-  <Primitive
-    data-slot="button"
-    :as="as"
-    :as-child="asChild"
-    :class="cn(buttonVariants({ variant, size }), $props.class)"
-    v-bind="$attrs"
-  >
-    <slot />
-  </Primitive>
+	<Primitive
+		data-slot="button"
+		:as="as"
+		:as-child="asChild"
+		:class="cn(buttonVariants({ variant, size }), $props.class)"
+		v-bind="$attrs"
+	>
+		<slot/>
+	</Primitive>
 </template>

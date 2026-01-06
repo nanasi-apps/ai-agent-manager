@@ -31,7 +31,7 @@ function generatePlanSummary(planContent: string): string {
 		.replace(/\n+/g, " ")
 		.trim();
 	if (clean.length <= 200) return clean;
-	return clean.slice(0, 200) + "...";
+	return `${clean.slice(0, 200)}...`;
 }
 
 function resolveNotificationChannels(

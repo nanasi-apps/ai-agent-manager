@@ -87,22 +87,22 @@ provideSidebarContext({
 </script>
 
 <template>
-  <TooltipProvider :delay-duration="0">
-    <div
-      data-slot="sidebar-wrapper"
-      :data-resizing="isResizing"
-      :style="{
+	<TooltipProvider :delay-duration="0">
+		<div
+			data-slot="sidebar-wrapper"
+			:data-resizing="isResizing"
+			:style="{
         '--sidebar-width': sidebarWidth,
         '--sidebar-width-icon': SIDEBAR_WIDTH_ICON,
       }"
-      :class="cn(
+			:class="cn(
         'group/sidebar-wrapper has-data-[variant=inset]:bg-sidebar flex min-h-svh w-full',
         isResizing && '!transition-none',
         props.class
       )"
-      v-bind="$attrs"
-    >
-      <slot />
-    </div>
-  </TooltipProvider>
+			v-bind="$attrs"
+		>
+			<slot/>
+		</div>
+	</TooltipProvider>
 </template>

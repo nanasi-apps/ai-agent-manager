@@ -80,7 +80,7 @@ const loadData = async () => {
 			const preferred = modelTemplates.value.find(
 				(model) => model.agentType !== "default",
 			);
-			selectedModelId.value = preferred?.id || modelTemplates.value[0]!.id;
+			selectedModelId.value = preferred?.id || modelTemplates.value[0]?.id;
 		}
 
 		// Auto-select project logic
@@ -106,7 +106,7 @@ const loadData = async () => {
 		) {
 			selectedProjectId.value = routeProjectId;
 		} else if (projects.value.length > 0 && !selectedProjectId.value) {
-			selectedProjectId.value = projects.value[0]!.id;
+			selectedProjectId.value = projects.value[0]?.id;
 		}
 	} catch (e) {
 		console.error("Failed to load initial data", e);
@@ -167,121 +167,197 @@ const handleKeydown = (e: KeyboardEvent) => {
 </script>
 
 <template>
-    <Dialog :open="isOpen" @update:open="(val) => !val && close()">
-        <DialogContent class="overflow-x-hidden">
-            <DialogHeader>
-                <DialogTitle>Start New Conversation</DialogTitle>
-                <DialogDescription>
-                    Select a project and model to start your task.
-                </DialogDescription>
-            </DialogHeader>
-            
-            <div class="flex flex-col gap-4 py-2 max-h-[60vh] overflow-y-auto overflow-x-hidden pr-2 w-full">
-                <!-- Selectors Row -->
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
-                    <div class="space-y-2 min-w-0">
-                        <label class="text-xs font-medium text-muted-foreground">Project</label>
-                        <div class="relative">
-                            <select 
-                                v-model="selectedProjectId"
-                                class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 appearance-none"
-                            >
-                                <option v-for="p in projects" :key="p.id" :value="p.id">
-                                    {{ p.name }}
-                                </option>
-                            </select>
-                            <!-- Chevron Icon -->
-                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-muted-foreground">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><path d="m6 9 6 6 6-6"/></svg>
-                            </div>
-                        </div>
-                    </div>
+	<Dialog :open="isOpen" @update:open="(val) => !val && close()">
+		<DialogContent class="overflow-x-hidden">
+			<DialogHeader>
+				<DialogTitle>Start New Conversation</DialogTitle>
+				<DialogDescription>
+					Select a project and model to start your task.
+				</DialogDescription>
+			</DialogHeader>
 
-                    <div class="space-y-2 min-w-0">
-                        <label class="text-xs font-medium text-muted-foreground">Model</label>
-                        <div class="relative">
-                             <select 
-                                v-model="selectedModelId"
-                                class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 appearance-none"
-                            >
-                                <optgroup
-                                    v-for="group in groupedModelTemplates"
-                                    :key="group.agentType"
-                                    :label="group.label"
-                                >
-                                    <option v-for="m in group.models" :key="m.id" :value="m.id">
-                                        {{ m.name }}
-                                    </option>
-                                </optgroup>
-                            </select>
-                             <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-muted-foreground">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><path d="m6 9 6 6 6-6"/></svg>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+			<div
+				class="flex flex-col gap-4 py-2 max-h-[60vh] overflow-y-auto overflow-x-hidden pr-2 w-full"
+			>
+				<!-- Selectors Row -->
+				<div class="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
+					<div class="space-y-2 min-w-0">
+						<label class="text-xs font-medium text-muted-foreground">
+							Project
+						</label>
+						<div class="relative">
+							<select
+								v-model="selectedProjectId"
+								class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 appearance-none"
+							>
+								<option v-for="p in projects" :key="p.id" :value="p.id">
+									{{ p.name }}
+								</option>
+							</select>
+							<!-- Chevron Icon -->
+							<div
+								class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-muted-foreground"
+							>
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									width="16"
+									height="16"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									class="h-4 w-4"
+								>
+									<path d="m6 9 6 6 6-6"/>
+								</svg>
+							</div>
+						</div>
+					</div>
 
-                <div v-if="supportsReasoning" class="space-y-2 min-w-0">
-                    <label class="text-xs font-medium text-muted-foreground">Reasoning</label>
-                    <div class="relative">
-                        <select
-                            v-model="selectedReasoning"
-                            class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 appearance-none"
-                        >
-                            <option v-for="option in reasoningOptions" :key="option.value" :value="option.value">
-                                {{ option.label }}
-                            </option>
-                        </select>
-                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-muted-foreground">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><path d="m6 9 6 6 6-6"/></svg>
-                        </div>
-                    </div>
-                </div>
+					<div class="space-y-2 min-w-0">
+						<label class="text-xs font-medium text-muted-foreground">
+							Model
+						</label>
+						<div class="relative">
+							<select
+								v-model="selectedModelId"
+								class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 appearance-none"
+							>
+								<optgroup
+									v-for="group in groupedModelTemplates"
+									:key="group.agentType"
+									:label="group.label"
+								>
+									<option v-for="m in group.models" :key="m.id" :value="m.id">
+										{{ m.name }}
+									</option>
+								</optgroup>
+							</select>
+							<div
+								class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-muted-foreground"
+							>
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									width="16"
+									height="16"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									class="h-4 w-4"
+								>
+									<path d="m6 9 6 6 6-6"/>
+								</svg>
+							</div>
+						</div>
+					</div>
+				</div>
 
-                <div class="space-y-2 min-w-0">
-                    <label class="text-xs font-medium text-muted-foreground">Mode</label>
-                    <div class="relative">
-                        <select
-                            v-model="selectedMode"
-                            class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 appearance-none"
-                        >
-                            <option v-for="option in modeOptions" :key="option.value" :value="option.value">
-                                {{ option.label }}
-                            </option>
-                        </select>
-                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-muted-foreground">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><path d="m6 9 6 6 6-6"/></svg>
-                        </div>
-                    </div>
-                </div>
+				<div v-if="supportsReasoning" class="space-y-2 min-w-0">
+					<label class="text-xs font-medium text-muted-foreground">
+						Reasoning
+					</label>
+					<div class="relative">
+						<select
+							v-model="selectedReasoning"
+							class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 appearance-none"
+						>
+							<option
+								v-for="option in reasoningOptions"
+								:key="option.value"
+								:value="option.value"
+							>
+								{{ option.label }}
+							</option>
+						</select>
+						<div
+							class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-muted-foreground"
+						>
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								width="16"
+								height="16"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								class="h-4 w-4"
+							>
+								<path d="m6 9 6 6 6-6"/>
+							</svg>
+						</div>
+					</div>
+				</div>
 
-                <div class="space-y-2 min-w-0">
-                    <label class="text-xs font-medium text-muted-foreground">Initial Request</label>
-                    <Textarea
-                        v-model="input"
-                        placeholder="Describe your task... (Cmd+Enter to send)"
-                        @keydown="handleKeydown"
-                        :disabled="isLoading"
-                        class="min-h-[100px] max-h-[300px] overflow-y-auto w-full resize-none break-all"
-                        autofocus
-                    />
-                </div>
-            </div>
+				<div class="space-y-2 min-w-0">
+					<label class="text-xs font-medium text-muted-foreground">Mode</label>
+					<div class="relative">
+						<select
+							v-model="selectedMode"
+							class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 appearance-none"
+						>
+							<option
+								v-for="option in modeOptions"
+								:key="option.value"
+								:value="option.value"
+							>
+								{{ option.label }}
+							</option>
+						</select>
+						<div
+							class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-muted-foreground"
+						>
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								width="16"
+								height="16"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								class="h-4 w-4"
+							>
+								<path d="m6 9 6 6 6-6"/>
+							</svg>
+						</div>
+					</div>
+				</div>
 
-            <DialogFooter class="sm:justify-end">
-                <Button type="button" variant="secondary" @click="close">
-                    Close
-                </Button>
-                <Button 
-                    type="button" 
-                    @click="handleStart" 
-                    :disabled="isLoading || !input.trim() || !selectedProjectId || !selectedModelId" 
-                    class="bg-blue-600 hover:bg-blue-500 text-white"
-                >
-                    <span v-if="isLoading">Starting...</span>
-                    <span v-else>Start conversation</span>
-                </Button>
-            </DialogFooter>
-        </DialogContent>
-    </Dialog>
+				<div class="space-y-2 min-w-0">
+					<label class="text-xs font-medium text-muted-foreground">
+						Initial Request
+					</label>
+					<Textarea
+						v-model="input"
+						placeholder="Describe your task... (Cmd+Enter to send)"
+						@keydown="handleKeydown"
+						:disabled="isLoading"
+						class="min-h-[100px] max-h-[300px] overflow-y-auto w-full resize-none break-all"
+						autofocus
+					/>
+				</div>
+			</div>
+
+			<DialogFooter class="sm:justify-end">
+				<Button type="button" variant="secondary" @click="close">Close</Button>
+				<Button
+					type="button"
+					@click="handleStart"
+					:disabled="isLoading || !input.trim() || !selectedProjectId || !selectedModelId"
+					class="bg-blue-600 hover:bg-blue-500 text-white"
+				>
+					<span v-if="isLoading">Starting...</span>
+					<span v-else>Start conversation</span>
+				</Button>
+			</DialogFooter>
+		</DialogContent>
+	</Dialog>
 </template>

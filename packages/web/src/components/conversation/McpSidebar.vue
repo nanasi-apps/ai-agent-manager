@@ -57,28 +57,35 @@ const handleToggleTool = async (server: McpServerEntry, tool: McpTool) => {
 <template>
 	<div class="h-12 border-b px-4 flex items-center justify-between shrink-0">
 		<div class="flex items-center gap-2 font-semibold text-sm">
-			<Plug class="size-4" />
+			<Plug class="size-4"/>
 			MCP Servers
-			<Badge v-if="conversation.mcpAgentType" variant="outline" class="text-[10px] h-5 ml-1">
+			<Badge
+				v-if="conversation.mcpAgentType"
+				variant="outline"
+				class="text-[10px] h-5 ml-1"
+			>
 				{{ conversation.mcpAgentType }}
 			</Badge>
 		</div>
 		<Button variant="ghost" size="icon" class="size-7" @click="handleClose">
-			<X class="size-4" />
+			<X class="size-4"/>
 		</Button>
 	</div>
 
 	<ScrollArea class="flex-1 min-h-0 h-full">
 		<div class="p-4 space-y-6">
-			<div v-if="conversation.isLoadingMcp" class="flex items-center justify-center py-8">
-				<Loader2 class="size-6 animate-spin text-muted-foreground" />
+			<div
+				v-if="conversation.isLoadingMcp"
+				class="flex items-center justify-center py-8"
+			>
+				<Loader2 class="size-6 animate-spin text-muted-foreground"/>
 			</div>
 
 			<template v-else>
 				<!-- Session-specific (Injected) MCP Servers -->
 				<div>
 					<h3 class="text-sm font-semibold mb-3 flex items-center gap-2">
-						<Server class="size-4 text-primary" />
+						<Server class="size-4 text-primary"/>
 						Injected Servers
 					</h3>
 					<div
@@ -106,7 +113,9 @@ const handleToggleTool = async (server: McpServerEntry, tool: McpTool) => {
 									{{ server.config.url ? server.config.type || "HTTP" : "stdio" }}
 								</Badge>
 							</div>
-							<p class="text-xs text-muted-foreground mt-1 font-mono truncate pl-5">
+							<p
+								class="text-xs text-muted-foreground mt-1 font-mono truncate pl-5"
+							>
 								{{ getMcpConnectionInfo(server) }}
 							</p>
 
@@ -117,11 +126,19 @@ const handleToggleTool = async (server: McpServerEntry, tool: McpTool) => {
 									class="mt-3 border-primary/20 space-y-2 py-1"
 									@click.stop
 								>
-									<div v-if="conversation.isLoadingMcpTools" class="flex items-center gap-2 py-2">
-										<Loader2 class="size-3 animate-spin text-muted-foreground" />
-										<span class="text-xs text-muted-foreground">Loading tools...</span>
+									<div
+										v-if="conversation.isLoadingMcpTools"
+										class="flex items-center gap-2 py-2"
+									>
+										<Loader2 class="size-3 animate-spin text-muted-foreground"/>
+										<span class="text-xs text-muted-foreground"
+											>Loading tools...</span
+										>
 									</div>
-									<div v-else-if="conversation.mcpToolsError" class="text-xs text-red-500 py-2">
+									<div
+										v-else-if="conversation.mcpToolsError"
+										class="text-xs text-red-500 py-2"
+									>
 										{{ conversation.mcpToolsError }}
 									</div>
 									<div
@@ -138,7 +155,9 @@ const handleToggleTool = async (server: McpServerEntry, tool: McpTool) => {
 											:class="{ 'opacity-50 grayscale': isToolDisabled(server, tool) }"
 											@click="handleToggleTool(server, tool)"
 										>
-											<div class="flex items-center justify-between gap-2 overflow-hidden">
+											<div
+												class="flex items-center justify-between gap-2 overflow-hidden"
+											>
 												<span
 													class="text-xs font-mono font-bold text-primary truncate"
 													:title="tool.name"
@@ -162,7 +181,7 @@ const handleToggleTool = async (server: McpServerEntry, tool: McpTool) => {
 				<!-- General (Global) MCP Servers -->
 				<div>
 					<h3 class="text-sm font-semibold mb-3 flex items-center gap-2">
-						<Terminal class="size-4 text-primary" />
+						<Terminal class="size-4 text-primary"/>
 						Global Servers
 					</h3>
 					<div
@@ -190,7 +209,9 @@ const handleToggleTool = async (server: McpServerEntry, tool: McpTool) => {
 									{{ server.config.url ? server.config.type || "HTTP" : "stdio" }}
 								</Badge>
 							</div>
-							<p class="text-xs text-muted-foreground mt-1 font-mono truncate pl-5">
+							<p
+								class="text-xs text-muted-foreground mt-1 font-mono truncate pl-5"
+							>
 								{{ getMcpConnectionInfo(server) }}
 							</p>
 
@@ -201,11 +222,19 @@ const handleToggleTool = async (server: McpServerEntry, tool: McpTool) => {
 									class="mt-3 space-y-2 py-1"
 									@click.stop
 								>
-									<div v-if="conversation.isLoadingMcpTools" class="flex items-center gap-2 py-2">
-										<Loader2 class="size-3 animate-spin text-muted-foreground" />
-										<span class="text-xs text-muted-foreground">Loading tools...</span>
+									<div
+										v-if="conversation.isLoadingMcpTools"
+										class="flex items-center gap-2 py-2"
+									>
+										<Loader2 class="size-3 animate-spin text-muted-foreground"/>
+										<span class="text-xs text-muted-foreground"
+											>Loading tools...</span
+										>
 									</div>
-									<div v-else-if="conversation.mcpToolsError" class="text-xs text-red-500 py-2">
+									<div
+										v-else-if="conversation.mcpToolsError"
+										class="text-xs text-red-500 py-2"
+									>
 										{{ conversation.mcpToolsError }}
 									</div>
 									<div
@@ -220,7 +249,9 @@ const handleToggleTool = async (server: McpServerEntry, tool: McpTool) => {
 											:key="tool.name"
 											class="group/tool bg-muted/20 rounded p-2 border border-transparent hover:border-border transition-colors"
 										>
-											<div class="flex items-center justify-between gap-2 overflow-hidden">
+											<div
+												class="flex items-center justify-between gap-2 overflow-hidden"
+											>
 												<span
 													class="text-xs font-mono font-bold text-primary truncate"
 													:title="tool.name"
@@ -246,7 +277,8 @@ const handleToggleTool = async (server: McpServerEntry, tool: McpTool) => {
 			<div
 				class="p-3 rounded-lg border border-dashed bg-muted/20 text-xs text-muted-foreground"
 			>
-				<strong>Coming Soon:</strong> Enable/disable MCP servers per conversation.
+				<strong>Coming Soon:</strong>Enable/disable MCP servers per
+				conversation.
 			</div>
 		</div>
 	</ScrollArea>

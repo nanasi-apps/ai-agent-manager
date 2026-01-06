@@ -232,7 +232,7 @@ class DevServerManager {
 
 			// Capture logs
 			const logs: string[] = [];
-			const logHandler = (data: Buffer | string, isError: boolean) => {
+			const logHandler = (data: Buffer | string, _isError: boolean) => {
 				const text = data.toString();
 				// Strip ANSI codes if needed, or keep for frontend rendering?
 				// For now, keep as is.
@@ -284,22 +284,18 @@ class DevServerManager {
 			// 4. Wait for readiness (if configured)
 			const readinessConfig = config.readiness || (config as any).readiness;
 
-			if (readinessConfig && readinessConfig.logPattern) {
+			if (readinessConfig?.logPattern) {
 				logger.info("Waiting for readiness: {logPattern}", {
 					logPattern: readinessConfig.logPattern,
 				});
-				try {
-					const { ready, logs } = await this.waitForReadiness(
-						childProcess,
-						readinessConfig.logPattern,
-						timeout,
-					);
+				const { ready, logs } = await this.waitForReadiness(
+					childProcess,
+					readinessConfig.logPattern,
+					timeout,
+				);
 
-					if (!ready) {
-						throw new Error(`Readiness check failed:\n${logs}`);
-					}
-				} catch (error) {
-					throw error;
+				if (!ready) {
+					throw new Error(`Readiness check failed:\n${logs}`);
 				}
 			}
 
@@ -309,7 +305,7 @@ class DevServerManager {
 					let targetPort: number | undefined;
 					if (config.action.targetService) {
 						const svc = config.services?.find(
-							(s) => s.name === config.action!.targetService,
+							(s) => s.name === config.action?.targetService,
 						);
 						if (svc && allocatedPorts[svc.envKey]) {
 							targetPort = allocatedPorts[svc.envKey];

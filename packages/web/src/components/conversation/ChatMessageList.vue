@@ -133,12 +133,12 @@ const sanitizeLogContent = (content: string, logType?: LogType) => {
 	if (!clean) return "No content";
 
 	if (logType === "tool_call") {
-		return "```json\n" + clean + "\n```";
+		return `\`\`\`json\n${clean}\n\`\`\``;
 	}
 
 	if (logType === "tool_result") {
 		if (clean.startsWith("```")) return clean;
-		return "```\n" + clean + "\n```";
+		return `\`\`\`\n${clean}\n\`\`\``;
 	}
 
 	return clean;
@@ -248,8 +248,8 @@ const displayItems = computed<DisplayItem[]>(() => {
 			items.push({
 				type: "log-group",
 				group: {
-					id: `log-group-${logs[0]!.id}`,
-					timestamp: logs[0]!.timestamp,
+					id: `log-group-${logs[0]?.id}`,
+					timestamp: logs[0]?.timestamp,
 					logs,
 				},
 			});
@@ -408,14 +408,8 @@ const getItemByIndex = (
 </script>
 
 <template>
-	<div
-		ref="scrollContainerRef"
-		class="h-full w-full overflow-auto"
-	>
-		<div
-			class="relative w-full"
-			:style="{ height: `${totalSize}px` }"
-		>
+	<div ref="scrollContainerRef" class="h-full w-full overflow-auto">
+		<div class="relative w-full" :style="{ height: `${totalSize}px` }">
 			<div
 				v-if="conversation.messages.length === 0 && !conversation.isGenerating"
 				class="absolute inset-0 flex flex-col items-center justify-center py-20 text-center"
@@ -423,9 +417,11 @@ const getItemByIndex = (
 				<div
 					class="size-12 rounded-full bg-muted flex items-center justify-center mb-4"
 				>
-					<Sparkles class="size-6 text-muted-foreground" />
+					<Sparkles class="size-6 text-muted-foreground"/>
 				</div>
-				<h3 class="font-semibold text-lg mb-2">{{ t('chat.startConversation') }}</h3>
+				<h3 class="font-semibold text-lg mb-2">
+					{{ t('chat.startConversation') }}
+				</h3>
 				<p class="text-sm text-muted-foreground max-w-sm">
 					{{ t('chat.startPrompt') }}
 				</p>
@@ -442,7 +438,9 @@ const getItemByIndex = (
 				:style="{ transform: `translateY(${virtualRow.start}px)` }"
 			>
 				<!-- Typing Indicator -->
-				<template v-if="getItemByIndex(virtualRow.index)?.type === 'typing-indicator'">
+				<template
+					v-if="getItemByIndex(virtualRow.index)?.type === 'typing-indicator'"
+				>
 					<div class="flex gap-4">
 						<Avatar class="size-8 shrink-0 border bg-primary/10">
 							<div
@@ -451,7 +449,9 @@ const getItemByIndex = (
 								AI
 							</div>
 						</Avatar>
-						<div class="bg-card border rounded-2xl rounded-tl-md px-4 py-3 shadow-sm">
+						<div
+							class="bg-card border rounded-2xl rounded-tl-md px-4 py-3 shadow-sm"
+						>
 							<div class="flex items-center gap-1">
 								<span
 									class="size-2 bg-muted-foreground/40 rounded-full animate-bounce"
@@ -530,7 +530,9 @@ const getItemByIndex = (
 										'rounded-tl-md': (getItemByIndex(virtualRow.index) as { type: 'message'; message: Message }).message.role === 'agent',
 									}"
 								>
-									<div v-html="renderMarkdown((getItemByIndex(virtualRow.index) as { type: 'message'; message: Message }).message.content)" />
+									<div
+										v-html="renderMarkdown((getItemByIndex(virtualRow.index) as { type: 'message'; message: Message }).message.content)"
+									/>
 
 									<!-- Copy Button -->
 									<button
@@ -541,7 +543,7 @@ const getItemByIndex = (
 											v-if="conversation.copiedId === (getItemByIndex(virtualRow.index) as { type: 'message'; message: Message }).message.id"
 											class="size-3.5 text-green-500"
 										/>
-										<Copy v-else class="size-3.5 text-muted-foreground" />
+										<Copy v-else class="size-3.5 text-muted-foreground"/>
 									</button>
 								</div>
 							</div>
@@ -598,7 +600,7 @@ const getItemByIndex = (
 									v-else-if="(getItemByIndex(virtualRow.index) as { type: 'message'; message: Message }).message.logType === 'plan'"
 									class="size-3.5 text-orange-500 shrink-0"
 								/>
-								<AlertCircle v-else class="size-3.5 text-yellow-500 shrink-0" />
+								<AlertCircle v-else class="size-3.5 text-yellow-500 shrink-0"/>
 
 								<span
 									class="text-xs font-medium font-mono text-muted-foreground truncate max-w-[200px]"
@@ -607,9 +609,11 @@ const getItemByIndex = (
 								</span>
 
 								<!-- Timestamp (faint) -->
-								<span class="ml-auto text-[10px] text-muted-foreground/40">{{
+								<span class="ml-auto text-[10px] text-muted-foreground/40"
+									>{{
 									formatTime((getItemByIndex(virtualRow.index) as { type: 'message'; message: Message }).message.timestamp)
-								}}</span>
+								}}</span
+								>
 							</div>
 
 							<!-- Content (Visible if always open OR manually expanded) -->
@@ -648,7 +652,7 @@ const getItemByIndex = (
 											v-if="conversation.copiedId === (getItemByIndex(virtualRow.index) as { type: 'message'; message: Message }).message.id"
 											class="size-3 text-green-500"
 										/>
-										<Copy v-else class="size-3 text-muted-foreground" />
+										<Copy v-else class="size-3 text-muted-foreground"/>
 									</button>
 								</div>
 							</div>
@@ -656,7 +660,10 @@ const getItemByIndex = (
 					</template>
 
 					<!-- Group Thinking + Tool Calls into one message -->
-					<div v-else-if="getItemByIndex(virtualRow.index)!.type === 'log-group'" class="group flex gap-4">
+					<div
+						v-else-if="getItemByIndex(virtualRow.index)!.type === 'log-group'"
+						class="group flex gap-4"
+					>
 						<Avatar class="size-8 shrink-0 border bg-primary/10">
 							<div
 								class="flex items-center justify-center size-full text-primary font-semibold text-xs"
@@ -675,7 +682,9 @@ const getItemByIndex = (
 								</span>
 							</div>
 
-							<div class="bg-card border rounded-2xl px-4 py-3 shadow-sm overflow-hidden">
+							<div
+								class="bg-card border rounded-2xl px-4 py-3 shadow-sm overflow-hidden"
+							>
 								<div
 									@click="handleToggle((getItemByIndex(virtualRow.index) as { type: 'log-group'; group: LogGroup }).group.id)"
 									class="flex items-center gap-2 text-xs font-medium text-muted-foreground select-none cursor-pointer hover:text-foreground min-w-0"
@@ -692,14 +701,16 @@ const getItemByIndex = (
 										v-if="getGroupTitleDetails((getItemByIndex(virtualRow.index) as { type: 'log-group'; group: LogGroup }).group).sourceType === 'thinking'"
 										class="size-3.5 text-purple-500 shrink-0"
 									/>
-									<Terminal
-										v-else
-										class="size-3.5 text-blue-500 shrink-0"
-									/>
-									<span class="truncate">{{ getGroupSummary((getItemByIndex(virtualRow.index) as { type: 'log-group'; group: LogGroup }).group) }}</span>
+									<Terminal v-else class="size-3.5 text-blue-500 shrink-0"/>
+									<span class="truncate"
+										>{{ getGroupSummary((getItemByIndex(virtualRow.index) as { type: 'log-group'; group: LogGroup }).group) }}</span
+									>
 								</div>
 
-								<div v-show="conversation.expandedMessageIds.has((getItemByIndex(virtualRow.index) as { type: 'log-group'; group: LogGroup }).group.id)" class="mt-3">
+								<div
+									v-show="conversation.expandedMessageIds.has((getItemByIndex(virtualRow.index) as { type: 'log-group'; group: LogGroup }).group.id)"
+									class="mt-3"
+								>
 									<div
 										v-for="log in (getItemByIndex(virtualRow.index) as { type: 'log-group'; group: LogGroup }).group.logs"
 										:key="log.id"
@@ -750,11 +761,10 @@ const getItemByIndex = (
 												v-else-if="log.logType === 'system'"
 												class="size-3.5 text-green-500 shrink-0"
 											/>
-											<Terminal
-												v-else
-												class="size-3.5 text-blue-500 shrink-0"
-											/>
-											<span v-if="!shouldHideGroupLogTitle(log, (getItemByIndex(virtualRow.index) as { type: 'log-group'; group: LogGroup }).group)">
+											<Terminal v-else class="size-3.5 text-blue-500 shrink-0"/>
+											<span
+												v-if="!shouldHideGroupLogTitle(log, (getItemByIndex(virtualRow.index) as { type: 'log-group'; group: LogGroup }).group)"
+											>
 												{{ getCodexLogLabel(log) }}
 											</span>
 										</div>
@@ -798,7 +808,7 @@ const getItemByIndex = (
 													v-if="conversation.copiedId === log.id"
 													class="size-3 text-green-500"
 												/>
-												<Copy v-else class="size-3 text-muted-foreground" />
+												<Copy v-else class="size-3 text-muted-foreground"/>
 											</button>
 										</div>
 									</div>
@@ -817,8 +827,10 @@ const getItemByIndex = (
 				@click="forceScrollToBottom"
 				class="fixed bottom-24 right-8 z-10 flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-primary-foreground shadow-lg transition-all hover:bg-primary/90 hover:shadow-xl"
 			>
-				<ArrowDown class="size-4" />
-				<span class="text-sm font-medium">{{ t('chat.scrollToBottom', 'New messages') }}</span>
+				<ArrowDown class="size-4"/>
+				<span class="text-sm font-medium"
+					>{{ t('chat.scrollToBottom', 'New messages') }}</span
+				>
 			</button>
 		</Transition>
 	</div>
@@ -827,7 +839,9 @@ const getItemByIndex = (
 <style scoped>
 .fade-enter-active,
 .fade-leave-active {
-	transition: opacity 0.2s ease, transform 0.2s ease;
+	transition:
+		opacity 0.2s ease,
+		transform 0.2s ease;
 }
 
 .fade-enter-from,

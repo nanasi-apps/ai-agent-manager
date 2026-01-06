@@ -217,9 +217,11 @@ onUnmounted(() => {
 </script>
 
 <template>
-	<div class="conversation-view flex flex-col h-full overflow-hidden bg-background">
+	<div
+		class="conversation-view flex flex-col h-full overflow-hidden bg-background"
+	>
 		<!-- Header (no props needed) -->
-		<ConversationHeader />
+		<ConversationHeader/>
 
 		<ResizablePanelGroup
 			:key="conversation.isMcpSheetOpen ? 'open' : 'closed'"
@@ -239,79 +241,100 @@ onUnmounted(() => {
 								v-if="conversation.sessionId === 'new'"
 								class="h-full w-full"
 							>
-								<div class="h-full flex flex-col items-center justify-center text-muted-foreground p-8 text-center">
+								<div
+									class="h-full flex flex-col items-center justify-center text-muted-foreground p-8 text-center"
+								>
 									<div class="space-y-6 w-full text-left max-w-3xl p-4">
-                                <h3 class="text-xl font-semibold text-foreground">Start a new conversation</h3>
-                                
-                                <div class="flex flex-col gap-4">
-                                  <label class="text-sm font-medium w-16">Project :</label>
-                                     <div class="flex items-center justify-between gap-4">
-                                         <select 
-                                            :value="conversation.projectId || ''"
-										 @change="conversation.projectId = ($event.target as HTMLSelectElement).value"
-										 class="h-9 flex-1 rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-									  >
-                                            <option v-for="p in projectsStore.projects" :key="p.id" :value="p.id">
-                                                {{ p.name }}
-                                            </option>
-                                         </select>
-                                     </div>
-                                  <label class="text-sm font-medium w-16">Agents :</label>
-                                  <div class="flex items-center justify-between gap-4">
-                                    <select
-                                      :value="conversation.modelIdDraft"
-									 @change="
+										<h3 class="text-xl font-semibold text-foreground">
+											Start a new conversation
+										</h3>
+
+										<div class="flex flex-col gap-4">
+											<label class="text-sm font-medium w-16">Project :</label>
+											<div class="flex items-center justify-between gap-4">
+												<select
+													:value="conversation.projectId || ''"
+													@change="conversation.projectId = ($event.target as HTMLSelectElement).value"
+													class="h-9 flex-1 rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+												>
+													<option
+														v-for="p in projectsStore.projects"
+														:key="p.id"
+														:value="p.id"
+													>
+														{{ p.name }}
+													</option>
+												</select>
+											</div>
+											<label class="text-sm font-medium w-16">Agents :</label>
+											<div class="flex items-center justify-between gap-4">
+												<select
+													:value="conversation.modelIdDraft"
+													@change="
 									 	conversation.modelIdDraft = ($event.target as HTMLSelectElement).value
 									 "
-									 class="h-9 flex-1 rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-									 :disabled="conversation.isUpdatingAgent || conversation.isLoading || conversation.modelTemplates.length === 0"
-								 >
-                                      <optgroup
-                                        v-for="group in groupedModelTemplates"
-                                        :key="group.agentType + (group.isCustomApi ? '-custom' : '-default')"
-                                        :label="group.label"
-                                      >
-                                        <option v-for="m in group.models" :key="m.id" :value="m.id">
-                                          {{ m.name }}
-                                        </option>
-                                      </optgroup>
-                                    </select>
-                                  </div>
-                                  <template v-if="conversation.supportsReasoning">
-                                    <label class="text-sm font-medium w-16">Reasoning :</label>
-                                    <div class="flex items-center justify-between gap-4">
-                                      <select
-                                        :value="conversation.reasoningDraft"
-									 @change="
+													class="h-9 flex-1 rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+													:disabled="conversation.isUpdatingAgent || conversation.isLoading || conversation.modelTemplates.length === 0"
+												>
+													<optgroup
+														v-for="group in groupedModelTemplates"
+														:key="group.agentType + (group.isCustomApi ? '-custom' : '-default')"
+														:label="group.label"
+													>
+														<option
+															v-for="m in group.models"
+															:key="m.id"
+															:value="m.id"
+														>
+															{{ m.name }}
+														</option>
+													</optgroup>
+												</select>
+											</div>
+											<template v-if="conversation.supportsReasoning">
+												<label class="text-sm font-medium w-16">
+													Reasoning :
+												</label>
+												<div class="flex items-center justify-between gap-4">
+													<select
+														:value="conversation.reasoningDraft"
+														@change="
 									 	conversation.reasoningDraft = ($event.target as HTMLSelectElement).value as ReasoningLevel
 									 "
-									class="h-9 flex-1 rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-									:disabled="conversation.isUpdatingAgent || conversation.isLoading"
-								  >
-                                        <option v-for="option in reasoningOptions" :key="option.value" :value="option.value">
-                                          {{ option.label }}
-                                        </option>
-                                      </select>
-                                    </div>
-                                  </template>
-                                  <label class="text-sm font-medium w-16">Mode :</label>
-                                  <div class="flex items-center justify-between gap-4">
-                                    <select
-									 :value="conversation.modeDraft"
-									 @change="conversation.modeDraft = ($event.target as HTMLSelectElement).value as AgentMode"
-									class="h-9 flex-1 rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-									:disabled="conversation.isUpdatingAgent || conversation.isLoading"
-								>
-                                      <option v-for="option in modeOptions" :key="option.value" :value="option.value">
-                                        {{ option.label }}
-                                      </option>
-                                    </select>
-                                  </div>
-
-                                </div>
-                                <p class="text-sm">Type your message below to begin.</p>
-                            </div>
-                        </div>
+														class="h-9 flex-1 rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+														:disabled="conversation.isUpdatingAgent || conversation.isLoading"
+													>
+														<option
+															v-for="option in reasoningOptions"
+															:key="option.value"
+															:value="option.value"
+														>
+															{{ option.label }}
+														</option>
+													</select>
+												</div>
+											</template>
+											<label class="text-sm font-medium w-16">Mode :</label>
+											<div class="flex items-center justify-between gap-4">
+												<select
+													:value="conversation.modeDraft"
+													@change="conversation.modeDraft = ($event.target as HTMLSelectElement).value as AgentMode"
+													class="h-9 flex-1 rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+													:disabled="conversation.isUpdatingAgent || conversation.isLoading"
+												>
+													<option
+														v-for="option in modeOptions"
+														:key="option.value"
+														:value="option.value"
+													>
+														{{ option.label }}
+													</option>
+												</select>
+											</div>
+										</div>
+										<p class="text-sm">Type your message below to begin.</p>
+									</div>
+								</div>
 							</ScrollArea>
 
 							<!-- ChatMessageList with TanStack Virtual -->
@@ -322,15 +345,15 @@ onUnmounted(() => {
 							/>
 						</div>
 
-					<!-- ChatInput (only emits for actions) -->
-					<ChatInput
-						@send="handleSendMessage"
-						@stop="handleStopGeneration"
-					/>
-				</div></Transition>
+						<!-- ChatInput (only emits for actions) -->
+						<ChatInput @send="handleSendMessage" @stop="handleStopGeneration"/>
+					</div>
+				</Transition>
 			</ResizablePanel>
 
-			<ResizableHandle v-if="conversation.isMcpSheetOpen || conversation.isPlanViewerOpen" />
+			<ResizableHandle
+				v-if="conversation.isMcpSheetOpen || conversation.isPlanViewerOpen"
+			/>
 
 			<!-- MCP Sidebar (no props needed) -->
 			<Transition name="sidebar">
@@ -340,7 +363,7 @@ onUnmounted(() => {
 					:min-size="10"
 					class="bg-background flex flex-col min-w-[250px] max-w-[30vw] overflow-hidden"
 				>
-					<McpSidebar />
+					<McpSidebar/>
 				</ResizablePanel>
 			</Transition>
 
@@ -352,7 +375,7 @@ onUnmounted(() => {
 					:min-size="20"
 					class="bg-background flex flex-col min-w-[300px] max-w-[45vw] overflow-hidden"
 				>
-					<PlanViewer />
+					<PlanViewer/>
 				</ResizablePanel>
 			</Transition>
 		</ResizablePanelGroup>
@@ -368,9 +391,9 @@ onUnmounted(() => {
 
 .sidebar-enter-from,
 .sidebar-leave-to {
-	flex-grow: 0.00001 !important;
-	min-width: 0 !important;
-	max-width: 0 !important;
+	flex-grow: 0.00001;
+	min-width: 0;
+	max-width: 0;
 	opacity: 0;
 	transform: translateX(20px);
 }

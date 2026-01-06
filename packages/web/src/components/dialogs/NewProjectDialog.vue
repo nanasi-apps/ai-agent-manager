@@ -65,59 +65,67 @@ const handleCreate = async () => {
 </script>
 
 <template>
-    <Dialog :open="open" @update:open="(val) => emit('update:open', val)">
-        <DialogContent>
-            <DialogHeader>
-                <DialogTitle>Create New Project</DialogTitle>
-                <DialogDescription>
-                    Create a project to organize your agent conversions.
-                </DialogDescription>
-            </DialogHeader>
-            <div class="grid gap-4 py-4">
-                <div class="space-y-2">
-                    <label class="text-xs font-medium text-muted-foreground">Project Name (required)</label>
-                    <Input
-                        id="name"
-                        v-model="name"
-                        placeholder="Project Name"
-                        @keydown.enter="handleCreate"
-                        autoFocus
-                    />
-                </div>
-                <div class="space-y-2">
-                    <label class="text-xs font-medium text-muted-foreground">Root Path (required)</label>
-                    <div class="flex gap-2">
-                        <Input
-                            id="rootPath"
-                            v-model="rootPath"
-                            placeholder="/path/to/project"
-                            class="flex-1"
-                            @keydown.enter="handleCreate"
-                        />
-                        <Button
-                            variant="secondary"
-                            type="button"
-                            :disabled="!hasNativePicker || isLoading"
-                            @click="browseRootPath"
-                        >
-                            Browse
-                        </Button>
-                    </div>
-                </div>
-            </div>
-            <DialogFooter>
-                <Button type="button" variant="secondary" @click="emit('update:open', false)">
-                    Cancel
-                </Button>
-                <Button
-                    type="submit"
-                    @click="handleCreate"
-                    :disabled="isLoading || !name.trim() || !rootPath.trim()"
-                >
-                    <span v-if="isLoading">Creating...</span>
-                    <span v-else>Create Project</span>
-                </Button>
-            </DialogFooter>
-        </DialogContent>
-    </Dialog>
+	<Dialog :open="open" @update:open="(val) => emit('update:open', val)">
+		<DialogContent>
+			<DialogHeader>
+				<DialogTitle>Create New Project</DialogTitle>
+				<DialogDescription>
+					Create a project to organize your agent conversions.
+				</DialogDescription>
+			</DialogHeader>
+			<div class="grid gap-4 py-4">
+				<div class="space-y-2">
+					<label class="text-xs font-medium text-muted-foreground">
+						Project Name (required)
+					</label>
+					<Input
+						id="name"
+						v-model="name"
+						placeholder="Project Name"
+						@keydown.enter="handleCreate"
+						autoFocus
+					/>
+				</div>
+				<div class="space-y-2">
+					<label class="text-xs font-medium text-muted-foreground">
+						Root Path (required)
+					</label>
+					<div class="flex gap-2">
+						<Input
+							id="rootPath"
+							v-model="rootPath"
+							placeholder="/path/to/project"
+							class="flex-1"
+							@keydown.enter="handleCreate"
+						/>
+						<Button
+							variant="secondary"
+							type="button"
+							:disabled="!hasNativePicker || isLoading"
+							@click="browseRootPath"
+						>
+							Browse
+						</Button>
+					</div>
+				</div>
+			</div>
+			<DialogFooter>
+				<Button
+					type="button"
+					variant="secondary"
+					@click="emit('update:open', false)"
+				>
+					Cancel
+				</Button>
+				<Button
+					type="submit"
+					@click="handleCreate"
+					:disabled="isLoading || !name.trim() || !rootPath.trim()"
+				>
+					<span v-if="isLoading">Creating...</span>
+					<span v-else>Create Project</span>
+				</Button>
+			</DialogFooter>
+		</DialogContent>
+	</Dialog>
 </template>

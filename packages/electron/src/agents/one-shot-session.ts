@@ -245,7 +245,7 @@ export class OneShotSession extends EventEmitter {
 		);
 
 		const currentProcess = this.currentProcess;
-		const hasProcess = currentProcess && currentProcess.pid;
+		const hasProcess = currentProcess?.pid;
 
 		if (hasProcess) {
 			if (!currentProcess.killed) {

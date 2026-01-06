@@ -89,7 +89,7 @@ export const useBranchNameDialogStore = defineStore("branchNameDialog", () => {
 	async function syncPending() {
 		if (!hasElectron.value) return;
 		try {
-			const pending = await window.electronAPI!.listBranchNameRequests();
+			const pending = await window.electronAPI?.listBranchNameRequests();
 			pending.forEach((req) => upsertRequest(req));
 			if (pending.length > 0) {
 				open(pending[0]?.id);
@@ -104,7 +104,7 @@ export const useBranchNameDialogStore = defineStore("branchNameDialog", () => {
 		errorMessage.value = null;
 		isSubmitting.value = true;
 		try {
-			const result = await window.electronAPI!.submitBranchName(
+			const result = await window.electronAPI?.submitBranchName(
 				activeRequest.value.id,
 				inputValue.value.trim(),
 			);
@@ -127,7 +127,7 @@ export const useBranchNameDialogStore = defineStore("branchNameDialog", () => {
 		generationState.value =
 			generationState.value === "idle" ? "generating" : "regenerating";
 		try {
-			const result = await window.electronAPI!.generateBranchName(
+			const result = await window.electronAPI?.generateBranchName(
 				activeRequest.value.id,
 			);
 			if (!result?.success || !result.suggestion) {
@@ -160,18 +160,18 @@ export const useBranchNameDialogStore = defineStore("branchNameDialog", () => {
 
 		void syncPending();
 
-		window.electronAPI!.onBranchNameRequest((req) => {
+		window.electronAPI?.onBranchNameRequest((req) => {
 			upsertRequest(req);
 			open(req.id);
 		});
 
-		window.electronAPI!.onBranchNameOpen(({ requestId }) => {
+		window.electronAPI?.onBranchNameOpen(({ requestId }) => {
 			if (requestId) {
 				open(requestId);
 			}
 		});
 
-		window.electronAPI!.onBranchNameResolved((payload) => {
+		window.electronAPI?.onBranchNameResolved((payload) => {
 			markResolved(payload);
 		});
 	}

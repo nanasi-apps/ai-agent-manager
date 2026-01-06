@@ -53,7 +53,7 @@ const modelsByProvider = computed(() => {
 
 	const groups = localProviders.value
 		.map((provider) => {
-			const providerModels = allModels.value!.filter(
+			const providerModels = allModels.value?.filter(
 				(m) => m.providerId === provider.id,
 			);
 
@@ -639,492 +639,652 @@ watch(
 </script>
 
 <template>
-  <div class="p-4 space-y-8">
-    <div>
-      <h1 class="text-2xl font-bold mb-2">{{ t('settings.title') }}</h1>
-      <p class="text-muted-foreground">{{ t('settings.description') }}</p>
-    </div>
-    
-      <Tabs defaultValue="settings" class="w-full">
-        <TabsList class="mb-4">
-           <TabsTrigger value="settings">{{ t('settings.generalSettings') }}</TabsTrigger>
-           <TabsTrigger value="models">Model Settings</TabsTrigger>
-        </TabsList>
+	<div class="p-4 space-y-8">
+		<div>
+			<h1 class="text-2xl font-bold mb-2">{{ t('settings.title') }}</h1>
+			<p class="text-muted-foreground">{{ t('settings.description') }}</p>
+		</div>
 
-        <TabsContent value="settings">
+		<Tabs defaultValue="settings" class="w-full">
+			<TabsList class="mb-4">
+				<TabsTrigger value="settings">
+					{{ t('settings.generalSettings') }}
+				</TabsTrigger>
+				<TabsTrigger value="models">Model Settings</TabsTrigger>
+			</TabsList>
 
-          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle class="text-base">{{ t('settings.language') }}</CardTitle>
-                <CardDescription>
-                  {{ t('settings.languageDesc') }}
-                </CardDescription>
-              </CardHeader>
-          <CardContent>
-            <div class="space-y-2">
-              <Label>{{ t('settings.language') }}</Label>
-              <select
-                v-model="selectedLanguage"
-                class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <option value="en">English</option>
-                <option value="ja">日本語</option>
-              </select>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle class="text-base">{{ t('settings.notifications.title') }}</CardTitle>
-            <CardDescription>
-              {{ t('settings.notifications.desc') }}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div class="space-y-4">
-              <div class="flex items-center gap-3">
-                <Checkbox
-                  id="notify-on-agent-complete"
-                  :checked="notifyOnAgentComplete"
-                  @update:checked="(checked: boolean | 'indeterminate') => {
+			<TabsContent value="settings">
+				<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+					<Card>
+						<CardHeader>
+							<CardTitle class="text-base">
+								{{ t('settings.language') }}
+							</CardTitle>
+							<CardDescription>
+								{{ t('settings.languageDesc') }}
+							</CardDescription>
+						</CardHeader>
+						<CardContent>
+							<div class="space-y-2">
+								<Label>{{ t('settings.language') }}</Label>
+								<select
+									v-model="selectedLanguage"
+									class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+								>
+									<option value="en">English</option>
+									<option value="ja">日本語</option>
+								</select>
+							</div>
+						</CardContent>
+					</Card>
+					<Card>
+						<CardHeader>
+							<CardTitle class="text-base">
+								{{ t('settings.notifications.title') }}
+							</CardTitle>
+							<CardDescription>
+								{{ t('settings.notifications.desc') }}
+							</CardDescription>
+						</CardHeader>
+						<CardContent>
+							<div class="space-y-4">
+								<div class="flex items-center gap-3">
+									<Checkbox
+										id="notify-on-agent-complete"
+										:checked="notifyOnAgentComplete"
+										@update:checked="(checked: boolean | 'indeterminate') => {
                     notifyOnAgentComplete = checked === true;
                   }"
-                />
-                <Label
-                  for="notify-on-agent-complete"
-                  class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer select-none"
-                >
-                  {{ t('settings.notifications.onCompletion') }}
-                </Label>
-              </div>
-              <div class="space-y-2">
-                <Label class="text-sm font-medium">
-                  {{ t('settings.notifications.approvalsTitle') }}
-                </Label>
-                <p class="text-xs text-muted-foreground">
-                  {{ t('settings.notifications.approvalsDesc') }}
-                </p>
-                <div class="flex items-center gap-3">
-                  <Checkbox
-                    id="notify-approval-slack"
-                    :checked="isApprovalChannelEnabled('slack')"
-                    @update:checked="(checked: boolean | 'indeterminate') => {
+									/>
+									<Label
+										for="notify-on-agent-complete"
+										class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer select-none"
+									>
+										{{ t('settings.notifications.onCompletion') }}
+									</Label>
+								</div>
+								<div class="space-y-2">
+									<Label class="text-sm font-medium">
+										{{ t('settings.notifications.approvalsTitle') }}
+									</Label>
+									<p class="text-xs text-muted-foreground">
+										{{ t('settings.notifications.approvalsDesc') }}
+									</p>
+									<div class="flex items-center gap-3">
+										<Checkbox
+											id="notify-approval-slack"
+											:checked="isApprovalChannelEnabled('slack')"
+											@update:checked="(checked: boolean | 'indeterminate') => {
                       toggleApprovalChannel('slack', checked === true);
                     }"
-                  />
-                  <div class="flex-1 space-y-2">
-                    <Label
-                      for="notify-approval-slack"
-                      class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer select-none"
-                    >
-                      {{ t('settings.notifications.channels.slack') }}
-                    </Label>
-                    <div v-if="isApprovalChannelEnabled('slack')" class="relative">
-                      <Input
-                        v-model="slackWebhookUrl"
-                        :type="showSlackWebhook ? 'text' : 'password'"
-                        placeholder="https://hooks.slack.com/services/..."
-                        class="h-8 text-xs"
-                      />
-                       <button
-                        type="button"
-                        class="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                        @click="showSlackWebhook = !showSlackWebhook"
-                      >
-                        <EyeOff v-if="showSlackWebhook" class="size-3" />
-                        <Eye v-else class="size-3" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-                <div class="flex items-center gap-3">
-                  <Checkbox
-                    id="notify-approval-discord"
-                    :checked="isApprovalChannelEnabled('discord')"
-                    @update:checked="(checked: boolean | 'indeterminate') => {
+										/>
+										<div class="flex-1 space-y-2">
+											<Label
+												for="notify-approval-slack"
+												class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer select-none"
+											>
+												{{ t('settings.notifications.channels.slack') }}
+											</Label>
+											<div
+												v-if="isApprovalChannelEnabled('slack')"
+												class="relative"
+											>
+												<Input
+													v-model="slackWebhookUrl"
+													:type="showSlackWebhook ? 'text' : 'password'"
+													placeholder="https://hooks.slack.com/services/..."
+													class="h-8 text-xs"
+												/>
+												<button
+													type="button"
+													class="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+													@click="showSlackWebhook = !showSlackWebhook"
+												>
+													<EyeOff v-if="showSlackWebhook" class="size-3"/>
+													<Eye v-else class="size-3"/>
+												</button>
+											</div>
+										</div>
+									</div>
+									<div class="flex items-center gap-3">
+										<Checkbox
+											id="notify-approval-discord"
+											:checked="isApprovalChannelEnabled('discord')"
+											@update:checked="(checked: boolean | 'indeterminate') => {
                       toggleApprovalChannel('discord', checked === true);
                     }"
-                  />
-                  <div class="flex-1 space-y-2">
-                    <Label
-                      for="notify-approval-discord"
-                      class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer select-none"
-                    >
-                      {{ t('settings.notifications.channels.discord') }}
-                    </Label>
-                    <div v-if="isApprovalChannelEnabled('discord')" class="relative">
-                      <Input
-                        v-model="discordWebhookUrl"
-                        :type="showDiscordWebhook ? 'text' : 'password'"
-                        placeholder="https://discord.com/api/webhooks/..."
-                        class="h-8 text-xs"
-                      />
-                      <button
-                        type="button"
-                        class="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                        @click="showDiscordWebhook = !showDiscordWebhook"
-                      >
-                         <EyeOff v-if="showDiscordWebhook" class="size-3" />
-                        <Eye v-else class="size-3" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-                <p class="text-xs text-muted-foreground">
-                  {{ t('settings.notifications.approvalsHint') }}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle class="text-base">{{ t('settings.newConversion.title') }}</CardTitle>
-            <CardDescription>
-              {{ t('settings.newConversion.desc') }}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div class="space-y-2">
-              <Label>{{ t('settings.newConversion.openMode') }}</Label>
-              <select
-                v-model="newConversionOpenMode"
-                class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <option value="page">{{ t('settings.newConversion.page') }}</option>
-                <option value="dialog">{{ t('settings.newConversion.dialog') }}</option>
-              </select>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+										/>
+										<div class="flex-1 space-y-2">
+											<Label
+												for="notify-approval-discord"
+												class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer select-none"
+											>
+												{{ t('settings.notifications.channels.discord') }}
+											</Label>
+											<div
+												v-if="isApprovalChannelEnabled('discord')"
+												class="relative"
+											>
+												<Input
+													v-model="discordWebhookUrl"
+													:type="showDiscordWebhook ? 'text' : 'password'"
+													placeholder="https://discord.com/api/webhooks/..."
+													class="h-8 text-xs"
+												/>
+												<button
+													type="button"
+													class="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+													@click="showDiscordWebhook = !showDiscordWebhook"
+												>
+													<EyeOff v-if="showDiscordWebhook" class="size-3"/>
+													<Eye v-else class="size-3"/>
+												</button>
+											</div>
+										</div>
+									</div>
+									<p class="text-xs text-muted-foreground">
+										{{ t('settings.notifications.approvalsHint') }}
+									</p>
+								</div>
+							</div>
+						</CardContent>
+					</Card>
+					<Card>
+						<CardHeader>
+							<CardTitle class="text-base">
+								{{ t('settings.newConversion.title') }}
+							</CardTitle>
+							<CardDescription>
+								{{ t('settings.newConversion.desc') }}
+							</CardDescription>
+						</CardHeader>
+						<CardContent>
+							<div class="space-y-2">
+								<Label>{{ t('settings.newConversion.openMode') }}</Label>
+								<select
+									v-model="newConversionOpenMode"
+									class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+								>
+									<option value="page">
+										{{ t('settings.newConversion.page') }}
+									</option>
+									<option value="dialog">
+										{{ t('settings.newConversion.dialog') }}
+									</option>
+								</select>
+							</div>
+						</CardContent>
+					</Card>
+				</div>
 
+				<!-- Web Server Section -->
+				<div class="space-y-4">
+					<div class="flex items-center gap-2">
+						<Globe class="size-5"/>
+						<h2 class="text-xl font-semibold">
+							{{ t('settings.webServer.title') }}
+						</h2>
+					</div>
+					<p class="text-sm text-muted-foreground">
+						{{ t('settings.webServer.desc') }}
+					</p>
 
-    <!-- Web Server Section -->
-    <div class="space-y-4">
-      <div class="flex items-center gap-2">
-        <Globe class="size-5" />
-        <h2 class="text-xl font-semibold">{{ t('settings.webServer.title') }}</h2>
-      </div>
-      <p class="text-sm text-muted-foreground">
-        {{ t('settings.webServer.desc') }}
-      </p>
-
-      <Card>
-        <CardHeader>
-           <div class="flex items-center justify-between">
-              <CardTitle class="text-base">{{ t('settings.webServer.status') }}</CardTitle>
-              <Badge v-if="webServerStatus?.isRunning" variant="secondary" class="text-green-600">
-                <Check class="size-3 mr-1" />
-                {{ t('settings.webServer.running') }}
-              </Badge>
-              <Badge v-else variant="outline">{{ t('settings.webServer.stopped') }}</Badge>
-            </div>
-          <CardDescription>
-             {{ t('settings.webServer.statusDesc') }}
-          </CardDescription>
-        </CardHeader>
-        <CardContent class="space-y-4">
-           <div class="space-y-2">
-             <div class="flex items-center gap-3">
-               <Checkbox
-                 id="webserver-auto-start"
-                 :checked="webServerAutoStart"
-                 @update:checked="(checked: boolean | 'indeterminate') => {
+					<Card>
+						<CardHeader>
+							<div class="flex items-center justify-between">
+								<CardTitle class="text-base">
+									{{ t('settings.webServer.status') }}
+								</CardTitle>
+								<Badge
+									v-if="webServerStatus?.isRunning"
+									variant="secondary"
+									class="text-green-600"
+								>
+									<Check class="size-3 mr-1"/>
+									{{ t('settings.webServer.running') }}
+								</Badge>
+								<Badge v-else variant="outline">
+									{{ t('settings.webServer.stopped') }}
+								</Badge>
+							</div>
+							<CardDescription>
+								{{ t('settings.webServer.statusDesc') }}
+							</CardDescription>
+						</CardHeader>
+						<CardContent class="space-y-4">
+							<div class="space-y-2">
+								<div class="flex items-center gap-3">
+									<Checkbox
+										id="webserver-auto-start"
+										:checked="webServerAutoStart"
+										@update:checked="(checked: boolean | 'indeterminate') => {
                    webServerAutoStart = checked === true;
                  }"
-               />
-               <Label
-                 for="webserver-auto-start"
-                 class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer select-none"
-               >
-                 {{ t('settings.webServer.autoStart') }}
-               </Label>
-             </div>
-             <div class="flex items-center gap-3 pl-6">
-               <Checkbox
-                 id="webserver-auto-open"
-                 :checked="webServerAutoOpenBrowser"
-                 :disabled="!webServerAutoStart"
-                 @update:checked="(checked: boolean | 'indeterminate') => {
+									/>
+									<Label
+										for="webserver-auto-start"
+										class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer select-none"
+									>
+										{{ t('settings.webServer.autoStart') }}
+									</Label>
+								</div>
+								<div class="flex items-center gap-3 pl-6">
+									<Checkbox
+										id="webserver-auto-open"
+										:checked="webServerAutoOpenBrowser"
+										:disabled="!webServerAutoStart"
+										@update:checked="(checked: boolean | 'indeterminate') => {
                    webServerAutoOpenBrowser = checked === true;
                  }"
-               />
-               <Label
-                 for="webserver-auto-open"
-                 :class="['text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer select-none', { 'opacity-60': !webServerAutoStart }]"
-               >
-                 {{ t('settings.webServer.autoOpen') }}
-               </Label>
-             </div>
-           </div>
+									/>
+									<Label
+										for="webserver-auto-open"
+										:class="['text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer select-none', { 'opacity-60': !webServerAutoStart }]"
+									>
+										{{ t('settings.webServer.autoOpen') }}
+									</Label>
+								</div>
+							</div>
 
-           <div v-if="webServerStatus?.isRunning" class="space-y-2">
-              <div v-if="webServerStatus.localUrl" class="flex items-center gap-2">
-                <span class="text-sm font-medium">Local:</span>
-                <a :href="webServerStatus.localUrl" target="_blank" class="text-sm text-blue-500 hover:underline">{{ webServerStatus.localUrl }}</a>
-              </div>
-              <div v-if="webServerStatus.networkUrl" class="flex items-center gap-2">
-                <span class="text-sm font-medium">Network:</span>
-                 <a :href="webServerStatus.networkUrl" target="_blank" class="text-sm text-blue-500 hover:underline">{{ webServerStatus.networkUrl }}</a>
-              </div>
-           </div>
+							<div v-if="webServerStatus?.isRunning" class="space-y-2">
+								<div
+									v-if="webServerStatus.localUrl"
+									class="flex items-center gap-2"
+								>
+									<span class="text-sm font-medium">Local:</span>
+									<a
+										:href="webServerStatus.localUrl"
+										target="_blank"
+										class="text-sm text-blue-500 hover:underline"
+										>{{ webServerStatus.localUrl }}</a
+									>
+								</div>
+								<div
+									v-if="webServerStatus.networkUrl"
+									class="flex items-center gap-2"
+								>
+									<span class="text-sm font-medium">Network:</span>
+									<a
+										:href="webServerStatus.networkUrl"
+										target="_blank"
+										class="text-sm text-blue-500 hover:underline"
+										>{{ webServerStatus.networkUrl }}</a
+									>
+								</div>
+							</div>
 
-           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-             <div class="space-y-2">
-               <Label>{{ t('settings.webServer.host') }}</Label>
-               <Input v-model="webServerHost" placeholder="0.0.0.0" :disabled="webServerStatus?.isRunning" />
-             </div>
-             <div class="space-y-2">
-               <Label>{{ t('settings.webServer.port') }} (Optional)</Label>
-               <Input type="number" v-model="webServerPort" placeholder="Random" :disabled="webServerStatus?.isRunning" />
-             </div>
-           </div>
+							<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+								<div class="space-y-2">
+									<Label>{{ t('settings.webServer.host') }}</Label>
+									<Input
+										v-model="webServerHost"
+										placeholder="0.0.0.0"
+										:disabled="webServerStatus?.isRunning"
+									/>
+								</div>
+								<div class="space-y-2">
+									<Label>{{ t('settings.webServer.port') }}(Optional)</Label>
+									<Input
+										type="number"
+										v-model="webServerPort"
+										placeholder="Random"
+										:disabled="webServerStatus?.isRunning"
+									/>
+								</div>
+							</div>
 
-           <div class="flex items-center gap-2">
-              <Button v-if="!webServerStatus?.isRunning" @click="startWebServer" :disabled="isStartingWebServer">
-                <Loader2 v-if="isStartingWebServer" class="size-4 mr-2 animate-spin" />
-                {{ t('settings.webServer.start') }}
-              </Button>
-              <Button v-else variant="destructive" @click="stopWebServer" :disabled="isStoppingWebServer">
-                <Loader2 v-if="isStoppingWebServer" class="size-4 mr-2 animate-spin" />
-                 {{ t('settings.webServer.stop') }}
-              </Button>
-           </div>
-        </CardContent>
-      </Card>
-    </div>
+							<div class="flex items-center gap-2">
+								<Button
+									v-if="!webServerStatus?.isRunning"
+									@click="startWebServer"
+									:disabled="isStartingWebServer"
+								>
+									<Loader2
+										v-if="isStartingWebServer"
+										class="size-4 mr-2 animate-spin"
+									/>
+									{{ t('settings.webServer.start') }}
+								</Button>
+								<Button
+									v-else
+									variant="destructive"
+									@click="stopWebServer"
+									:disabled="isStoppingWebServer"
+								>
+									<Loader2
+										v-if="isStoppingWebServer"
+										class="size-4 mr-2 animate-spin"
+									/>
+									{{ t('settings.webServer.stop') }}
+								</Button>
+							</div>
+						</CardContent>
+					</Card>
+				</div>
 
-    <!-- API Settings Section -->
-    <div class="space-y-4">
-      <div class="flex items-center gap-2">
-        <Key class="size-5" />
-        <h2 class="text-xl font-semibold">{{ t('settings.apiSettings') }}</h2>
-      </div>
+				<!-- API Settings Section -->
+				<div class="space-y-4">
+					<div class="flex items-center gap-2">
+						<Key class="size-5"/>
+						<h2 class="text-xl font-semibold">
+							{{ t('settings.apiSettings') }}
+						</h2>
+					</div>
 
-      <p class="text-sm text-muted-foreground">
-        {{ t('settings.apiSettingsDesc') }}
-      </p>
+					<p class="text-sm text-muted-foreground">
+						{{ t('settings.apiSettingsDesc') }}
+					</p>
 
-      <div v-if="settingsStore.isLoading" class="flex items-center gap-2 text-muted-foreground">
-        <Loader2 class="size-4 animate-spin" />
-        {{ t('settings.loading') }}
-      </div>
+					<div
+						v-if="settingsStore.isLoading"
+						class="flex items-center gap-2 text-muted-foreground"
+					>
+						<Loader2 class="size-4 animate-spin"/>
+						{{ t('settings.loading') }}
+					</div>
 
-      <div class="space-y-6">
-         <!-- Add New Provider -->
-        <Card>
-          <CardHeader>
-             <CardTitle class="text-base">Add New Model Provider</CardTitle>
-             <CardDescription>
-               Add a new model provider (Codex or Gemini)
-             </CardDescription>
-          </CardHeader>
-          <CardContent class="space-y-4">
-             <div class="space-y-2">
-                 <Label>Name</Label>
-                 <Input v-model="newProvider.name" placeholder="My Provider" />
-             </div>
-             <div class="space-y-2">
-               <Label>Type</Label>
-               <select
-                v-model="newProvider.type"
-                class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <option value="codex">Codex (OpenAI Compatible API)</option>
-                <option value="gemini">Gemini</option>
-              </select>
-             </div>
-             <div class="space-y-2">
-                 <Label>API Base URL</Label>
-                 <Input v-model="newProvider.baseUrl" placeholder="https://api.example.com/v1" />
-             </div>
-             
-             <!-- Codex Specific -->
-             <div v-if="newProvider.type === 'codex'" class="space-y-4">
-                  <div class="space-y-2">
-                     <Label>Env Key Name</Label>
-                     <Input v-model="newProvider.envKey" placeholder="OPENAI_API_KEY" />
-                     <p class="text-xs text-muted-foreground">The environment variable name to inject the key as.</p>
-                  </div>
-                   <div class="space-y-2">
-                     <Label>API Key</Label>
-                     <Input v-model="newProvider.apiKey" type="password" placeholder="sk-..." />
-                  </div>
-             </div>
+					<div class="space-y-6">
+						<!-- Add New Provider -->
+						<Card>
+							<CardHeader>
+								<CardTitle class="text-base">Add New Model Provider</CardTitle>
+								<CardDescription>
+									Add a new model provider (Codex or Gemini)
+								</CardDescription>
+							</CardHeader>
+							<CardContent class="space-y-4">
+								<div class="space-y-2">
+									<Label>Name</Label>
+									<Input v-model="newProvider.name" placeholder="My Provider"/>
+								</div>
+								<div class="space-y-2">
+									<Label>Type</Label>
+									<select
+										v-model="newProvider.type"
+										class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+									>
+										<option value="codex">Codex (OpenAI Compatible API)</option>
+										<option value="gemini">Gemini</option>
+									</select>
+								</div>
+								<div class="space-y-2">
+									<Label>API Base URL</Label>
+									<Input
+										v-model="newProvider.baseUrl"
+										placeholder="https://api.example.com/v1"
+									/>
+								</div>
 
-             <!-- Gemini Specific -->
-             <div v-if="newProvider.type === 'gemini'" class="space-y-4">
-                  <div class="space-y-2">
-                     <Label>API Key</Label>
-                     <Input v-model="newProvider.apiKey" type="password" placeholder="AIza..." />
-                  </div>
-             </div>
+								<!-- Codex Specific -->
+								<div v-if="newProvider.type === 'codex'" class="space-y-4">
+									<div class="space-y-2">
+										<Label>Env Key Name</Label>
+										<Input
+											v-model="newProvider.envKey"
+											placeholder="OPENAI_API_KEY"
+										/>
+										<p class="text-xs text-muted-foreground">
+											The environment variable name to inject the key as.
+										</p>
+									</div>
+									<div class="space-y-2">
+										<Label>API Key</Label>
+										<Input
+											v-model="newProvider.apiKey"
+											type="password"
+											placeholder="sk-..."
+										/>
+									</div>
+								</div>
 
-             <div class="flex justify-end">
-                <Button @click="addProvider" :disabled="!isNewProviderValid">
-                   <Check class="size-4 mr-2" /> Add Provider
-                </Button>
-             </div>
-          </CardContent>
-        </Card>
+								<!-- Gemini Specific -->
+								<div v-if="newProvider.type === 'gemini'" class="space-y-4">
+									<div class="space-y-2">
+										<Label>API Key</Label>
+										<Input
+											v-model="newProvider.apiKey"
+											type="password"
+											placeholder="AIza..."
+										/>
+									</div>
+								</div>
 
-        <!-- Existing Providers -->
-         <div v-if="settingsStore.providers.length > 0" class="space-y-4">
-            <div class="flex items-center gap-2">
-               <h3 class="text-lg font-semibold">Configured Providers</h3>
-            </div>
-            <div v-for="(provider, index) in localProviders" :key="provider.id">
-                 <Card>
-                    <CardHeader>
-                       <div class="flex items-center justify-between">
-                          <div class="font-semibold">{{ provider.name }}</div>
-                           <Badge variant="secondary">{{ provider.type }}</Badge>
-                       </div>
-                       <CardDescription class="text-xs text-muted-foreground">ID: {{ provider.id }}</CardDescription>
-                    </CardHeader>
-                    <CardContent class="space-y-4">
-                        <div class="space-y-2">
-                             <Label>API Base URL</Label>
-                             <Input v-model="provider.baseUrl" />
-                        </div>
-                        
-                         <div v-if="provider.type === 'codex' || provider.type === 'openai' || provider.type === 'openai_compatible'" class="space-y-4">
-                              <div class="space-y-2">
-                                 <Label>Env Key Name</Label>
-                                 <Input v-model="(provider as any).envKey" />
-                              </div>
-                               <div class="space-y-2">
-                                 <Label>API Key</Label>
-                                  <div class="flex gap-2">
-                                     <Input v-model="provider.apiKey" type="password" :placeholder="provider.apiKey === '***' ? '••••••••' : ''"/>
-                                  </div>
-                              </div>
-                         </div>
+								<div class="flex justify-end">
+									<Button @click="addProvider" :disabled="!isNewProviderValid">
+										<Check class="size-4 mr-2"/>
+										Add Provider
+									</Button>
+								</div>
+							</CardContent>
+						</Card>
 
-                         <div v-if="provider.type === 'gemini'" class="space-y-4">
-                              <div class="space-y-2">
-                                 <Label>API Key</Label>
-                                  <div class="flex gap-2">
-                                     <Input v-model="provider.apiKey" type="password" :placeholder="provider.apiKey === '***' ? '••••••••' : ''"/>
-                                  </div>
-                              </div>
-                         </div>
+						<!-- Existing Providers -->
+						<div v-if="settingsStore.providers.length > 0" class="space-y-4">
+							<div class="flex items-center gap-2">
+								<h3 class="text-lg font-semibold">Configured Providers</h3>
+							</div>
+							<div
+								v-for="(provider, index) in localProviders"
+								:key="provider.id"
+							>
+								<Card>
+									<CardHeader>
+										<div class="flex items-center justify-between">
+											<div class="font-semibold">{{ provider.name }}</div>
+											<Badge variant="secondary">{{ provider.type }}</Badge>
+										</div>
+										<CardDescription class="text-xs text-muted-foreground">
+											ID: {{ provider.id }}
+										</CardDescription>
+									</CardHeader>
+									<CardContent class="space-y-4">
+										<div class="space-y-2">
+											<Label>API Base URL</Label>
+											<Input v-model="provider.baseUrl"/>
+										</div>
 
-                        <div class="flex items-center justify-between mt-4">
-                             <Button variant="destructive" size="sm" @click="deleteProvider(index)">Delete</Button>
-                        </div>
-                    </CardContent>
-                 </Card>
-            </div>
-         </div>
-      </div>
+										<div
+											v-if="provider.type === 'codex' || provider.type === 'openai' || provider.type === 'openai_compatible'"
+											class="space-y-4"
+										>
+											<div class="space-y-2">
+												<Label>Env Key Name</Label>
+												<Input v-model="(provider as any).envKey"/>
+											</div>
+											<div class="space-y-2">
+												<Label>API Key</Label>
+												<div class="flex gap-2">
+													<Input
+														v-model="provider.apiKey"
+														type="password"
+														:placeholder="provider.apiKey === '***' ? '••••••••' : ''"
+													/>
+												</div>
+											</div>
+										</div>
 
-         </div>
-      </TabsContent> <!-- End Settings Tab -->
+										<div v-if="provider.type === 'gemini'" class="space-y-4">
+											<div class="space-y-2">
+												<Label>API Key</Label>
+												<div class="flex gap-2">
+													<Input
+														v-model="provider.apiKey"
+														type="password"
+														:placeholder="provider.apiKey === '***' ? '••••••••' : ''"
+													/>
+												</div>
+											</div>
+										</div>
 
-      <TabsContent value="models">
-         <div class="space-y-6">
-            <div class="flex items-center justify-between">
-               <div>
-                  <h2 class="text-xl font-semibold">Model Configuration</h2>
-                  <p class="text-sm text-muted-foreground">Manage available models for each provider.</p>
-               </div>
-               <div class="relative w-64">
-                   <Search class="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                   <Input v-model="modelSearchQuery" placeholder="Search models..." class="pl-8" />
-               </div>
-            </div>
+										<div class="flex items-center justify-between mt-4">
+											<Button
+												variant="destructive"
+												size="sm"
+												@click="deleteProvider(index)"
+											>
+												Delete
+											</Button>
+										</div>
+									</CardContent>
+								</Card>
+							</div>
+						</div>
+					</div>
+				</div>
+			</TabsContent><!-- End Settings Tab -->
 
-            <div v-if="!localProviders.length" class="text-center py-8 text-muted-foreground">
-               No providers configured. Add a provider in Settings first.
-            </div>
+			<TabsContent value="models">
+				<div class="space-y-6">
+					<div class="flex items-center justify-between">
+						<div>
+							<h2 class="text-xl font-semibold">Model Configuration</h2>
+							<p class="text-sm text-muted-foreground">
+								Manage available models for each provider.
+							</p>
+						</div>
+						<div class="relative w-64">
+							<Search
+								class="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground"
+							/>
+							<Input
+								v-model="modelSearchQuery"
+								placeholder="Search models..."
+								class="pl-8"
+							/>
+						</div>
+					</div>
 
-            <div v-else ref="modelsScrollContainerRef">
-               <div class="relative w-full" :style="{ height: `${Math.max(0, totalModelsSize - modelsListOffset)}px` }">
-                  <div 
-                     v-for="virtualRow in virtualModels" 
-                     :key="String(virtualRow.key)"
-                     :ref="(el) => {
+					<div
+						v-if="!localProviders.length"
+						class="text-center py-8 text-muted-foreground"
+					>
+						No providers configured. Add a provider in Settings first.
+					</div>
+
+					<div v-else ref="modelsScrollContainerRef">
+						<div
+							class="relative w-full"
+							:style="{ height: `${Math.max(0, totalModelsSize - modelsListOffset)}px` }"
+						>
+							<div
+								v-for="virtualRow in virtualModels"
+								:key="String(virtualRow.key)"
+								:ref="(el) => {
                         if (el) modelsVirtualizer.measureElement(el as HTMLElement)
                      }"
-                     :data-index="virtualRow.index"
-                     class="absolute top-0 left-0 w-full"
-                     :style="{ transform: `translateY(${virtualRow.start - modelsListOffset}px)` }"
-                  >
-                     <!-- Provider Header -->
-                     <div 
-                        v-if="getVirtualItemData(virtualRow.index)?.type === 'provider-header'" 
-                        class="flex items-center justify-between p-4 bg-muted/20 border-b"
-                     >
-                        <div class="flex items-center gap-2 cursor-pointer" @click="collapsedProviders[getVirtualItemData(virtualRow.index).provider.id] = !collapsedProviders[getVirtualItemData(virtualRow.index).provider.id]">
-                           <Button variant="ghost" size="sm" class="p-0 hover:bg-transparent">
-                               <ChevronDown 
-                                  class="h-4 w-4 transition-transform duration-200" 
-                                  :class="{ '-rotate-90': collapsedProviders[getVirtualItemData(virtualRow.index).provider.id] }"
-                               />
-                           </Button>
-                           <div>
-                               <h3 class="text-lg font-medium">
-                                   <span class="capitalize">{{ getVirtualItemData(virtualRow.index).provider.type }}</span>
-                                   <span v-if="getVirtualItemData(virtualRow.index).provider.name.toLowerCase() !== getVirtualItemData(virtualRow.index).provider.type.toLowerCase()">
-                                       - {{ getVirtualItemData(virtualRow.index).provider.name }}
-                                   </span>
-                               </h3>
-                               <div class="text-xs text-muted-foreground">{{ getVirtualItemData(virtualRow.index).totalCount }} models</div>
-                           </div>
-                        </div>
-                        <div class="flex gap-2">
-                           <Button variant="outline" size="sm" @click.stop="toggleAllModels(getVirtualItemData(virtualRow.index).provider.id, true)">Enable All</Button>
-                           <Button variant="outline" size="sm" @click.stop="toggleAllModels(getVirtualItemData(virtualRow.index).provider.id, false)">Disable All</Button>
-                        </div>
-                     </div>
+								:data-index="virtualRow.index"
+								class="absolute top-0 left-0 w-full"
+								:style="{ transform: `translateY(${virtualRow.start - modelsListOffset}px)` }"
+							>
+								<!-- Provider Header -->
+								<div
+									v-if="getVirtualItemData(virtualRow.index)?.type === 'provider-header'"
+									class="flex items-center justify-between p-4 bg-muted/20 border-b"
+								>
+									<div
+										class="flex items-center gap-2 cursor-pointer"
+										@click="collapsedProviders[getVirtualItemData(virtualRow.index).provider.id] = !collapsedProviders[getVirtualItemData(virtualRow.index).provider.id]"
+									>
+										<Button
+											variant="ghost"
+											size="sm"
+											class="p-0 hover:bg-transparent"
+										>
+											<ChevronDown
+												class="h-4 w-4 transition-transform duration-200"
+												:class="{ '-rotate-90': collapsedProviders[getVirtualItemData(virtualRow.index).provider.id] }"
+											/>
+										</Button>
+										<div>
+											<h3 class="text-lg font-medium">
+												<span class="capitalize"
+													>{{ getVirtualItemData(virtualRow.index).provider.type }}</span
+												>
+												<span
+													v-if="getVirtualItemData(virtualRow.index).provider.name.toLowerCase() !== getVirtualItemData(virtualRow.index).provider.type.toLowerCase()"
+												>
+													-
+													{{ getVirtualItemData(virtualRow.index).provider.name }}
+												</span>
+											</h3>
+											<div class="text-xs text-muted-foreground">
+												{{ getVirtualItemData(virtualRow.index).totalCount }}
+												models
+											</div>
+										</div>
+									</div>
+									<div class="flex gap-2">
+										<Button
+											variant="outline"
+											size="sm"
+											@click.stop="toggleAllModels(getVirtualItemData(virtualRow.index).provider.id, true)"
+										>
+											Enable All
+										</Button>
+										<Button
+											variant="outline"
+											size="sm"
+											@click.stop="toggleAllModels(getVirtualItemData(virtualRow.index).provider.id, false)"
+										>
+											Disable All
+										</Button>
+									</div>
+								</div>
 
-                     <!-- Developer Group Header -->
-                     <div 
-                        v-else-if="getVirtualItemData(virtualRow.index)?.type === 'dev-group-header'"
-                        class="flex items-center gap-2 font-medium text-sm bg-muted/10 p-2 pl-8 border-b cursor-pointer hover:bg-muted/20"
-                        @click="collapsedDeveloperGroups[`${getVirtualItemData(virtualRow.index).providerId}::${getVirtualItemData(virtualRow.index).groupName}`] = !collapsedDeveloperGroups[`${getVirtualItemData(virtualRow.index).providerId}::${getVirtualItemData(virtualRow.index).groupName}`]"
-                     >
-                        <Button variant="ghost" size="sm" class="p-0 h-4 w-4 hover:bg-transparent mr-1">
-                             <ChevronDown 
-                                class="h-3 w-3 transition-transform duration-200" 
-                                :class="{ '-rotate-90': collapsedDeveloperGroups[`${getVirtualItemData(virtualRow.index).providerId}::${getVirtualItemData(virtualRow.index).groupName}`] }"
-                            />
-                        </Button>
-                        
-                        <Checkbox 
-                            :model-value="getDeveloperGroupState(getVirtualItemData(virtualRow.index).providerId, getVirtualItemData(virtualRow.index).models)"
-                            @update:model-value="(checked: boolean | 'indeterminate') => setDeveloperGroupEnabled(getVirtualItemData(virtualRow.index).providerId, getVirtualItemData(virtualRow.index).models, checked === true)"
-                            @click.stop
-                        />
-                        <span>{{ getVirtualItemData(virtualRow.index).groupName }}</span>
-                        <span class="text-xs text-muted-foreground ml-auto">{{ getVirtualItemData(virtualRow.index).models.length }} models</span>
-                     </div>
+								<!-- Developer Group Header -->
+								<div
+									v-else-if="getVirtualItemData(virtualRow.index)?.type === 'dev-group-header'"
+									class="flex items-center gap-2 font-medium text-sm bg-muted/10 p-2 pl-8 border-b cursor-pointer hover:bg-muted/20"
+									@click="collapsedDeveloperGroups[`${getVirtualItemData(virtualRow.index).providerId}::${getVirtualItemData(virtualRow.index).groupName}`] = !collapsedDeveloperGroups[`${getVirtualItemData(virtualRow.index).providerId}::${getVirtualItemData(virtualRow.index).groupName}`]"
+								>
+									<Button
+										variant="ghost"
+										size="sm"
+										class="p-0 h-4 w-4 hover:bg-transparent mr-1"
+									>
+										<ChevronDown
+											class="h-3 w-3 transition-transform duration-200"
+											:class="{ '-rotate-90': collapsedDeveloperGroups[`${getVirtualItemData(virtualRow.index).providerId}::${getVirtualItemData(virtualRow.index).groupName}`] }"
+										/>
+									</Button>
 
-                     <!-- Model Item -->
-                     <div 
-                        v-else-if="getVirtualItemData(virtualRow.index)?.type === 'model'"
-                        class="flex items-center gap-2 p-2 pl-12 border-b hover:bg-muted/50"
-                     >
-                        <Checkbox 
-                           :id="getVirtualItemData(virtualRow.index).model.id"
-                           :model-value="isModelEnabled(getVirtualItemData(virtualRow.index).providerId, getVirtualItemData(virtualRow.index).model.name)"
-                           @update:model-value="(checked: boolean | 'indeterminate') => setModelEnabled(getVirtualItemData(virtualRow.index).providerId, getVirtualItemData(virtualRow.index).model.name, checked === true)"
-                        />
-                        <Label :for="getVirtualItemData(virtualRow.index).model.id" class="text-sm truncate cursor-pointer" :title="getVirtualItemData(virtualRow.index).model.name">
-                            {{ getVirtualItemData(virtualRow.index).model.name }}
-                        </Label>
-                     </div>
+									<Checkbox
+										:model-value="getDeveloperGroupState(getVirtualItemData(virtualRow.index).providerId, getVirtualItemData(virtualRow.index).models)"
+										@update:model-value="(checked: boolean | 'indeterminate') => setDeveloperGroupEnabled(getVirtualItemData(virtualRow.index).providerId, getVirtualItemData(virtualRow.index).models, checked === true)"
+										@click.stop
+									/>
+									<span
+										>{{ getVirtualItemData(virtualRow.index).groupName }}</span
+									>
+									<span class="text-xs text-muted-foreground ml-auto"
+										>{{ getVirtualItemData(virtualRow.index).models.length }}
+										models</span
+									>
+								</div>
 
-                  </div>
-               </div>
-            </div>
-         </div>
-      </TabsContent>
-
-    </Tabs>
-  </div>
+								<!-- Model Item -->
+								<div
+									v-else-if="getVirtualItemData(virtualRow.index)?.type === 'model'"
+									class="flex items-center gap-2 p-2 pl-12 border-b hover:bg-muted/50"
+								>
+									<Checkbox
+										:id="getVirtualItemData(virtualRow.index).model.id"
+										:model-value="isModelEnabled(getVirtualItemData(virtualRow.index).providerId, getVirtualItemData(virtualRow.index).model.name)"
+										@update:model-value="(checked: boolean | 'indeterminate') => setModelEnabled(getVirtualItemData(virtualRow.index).providerId, getVirtualItemData(virtualRow.index).model.name, checked === true)"
+									/>
+									<Label
+										:for="getVirtualItemData(virtualRow.index).model.id"
+										class="text-sm truncate cursor-pointer"
+										:title="getVirtualItemData(virtualRow.index).model.name"
+									>
+										{{ getVirtualItemData(virtualRow.index).model.name }}
+									</Label>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</TabsContent>
+		</Tabs>
+	</div>
 </template>
-

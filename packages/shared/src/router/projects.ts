@@ -195,7 +195,7 @@ export const projectsRouter = {
 
 			// Generate rule files in project root (commented out - preserved for future use)
 			const updatedProject = storeInstance.getProject(input.projectId);
-			if (updatedProject && updatedProject.rootPath) {
+			if (updatedProject?.rootPath) {
 				try {
 					const disabledSet = new Set(updatedProject.disabledGlobalRules ?? []);
 					let globalRulesContent = "";

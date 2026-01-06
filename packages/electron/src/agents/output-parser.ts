@@ -99,7 +99,7 @@ export class AgentOutputParser {
 			} else {
 				// Fallback for generic JSON
 				results.push({
-					data: JSON.stringify(json, null, 2) + "\n",
+					data: `${JSON.stringify(json, null, 2)}\n`,
 					type: "text",
 					raw: json,
 				});
@@ -253,7 +253,7 @@ export class AgentOutputParser {
 						for (const block of content) {
 							if (block.type === "text") {
 								results.push({
-									data: block.text + "\n",
+									data: `${block.text}\n`,
 									type: "text",
 									raw: json,
 								});
@@ -356,7 +356,7 @@ export class AgentOutputParser {
 				} else if (json.text) {
 					results.push({ data: String(json.text), type: "text", raw: json });
 				} else if (json.message && typeof json.message === "string") {
-					results.push({ data: json.message + "\n", type: "text", raw: json });
+					results.push({ data: `${json.message}\n`, type: "text", raw: json });
 				}
 		}
 	}
@@ -563,7 +563,7 @@ export class AgentOutputParser {
 				if (json.text) {
 					results.push({ data: String(json.text), type: "text", raw: json });
 				} else if (json.message && typeof json.message === "string") {
-					results.push({ data: json.message + "\n", type: "text", raw: json });
+					results.push({ data: `${json.message}\n`, type: "text", raw: json });
 				}
 		}
 

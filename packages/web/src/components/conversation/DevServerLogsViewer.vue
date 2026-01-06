@@ -64,26 +64,38 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <Dialog :open="open" @update:open="emit('update:open', $event)">
-        <DialogContent class="max-w-4xl h-[80vh] flex flex-col p-0 gap-0 overflow-hidden outline-none">
-             <DialogHeader class="px-6 py-4 border-b bg-muted/20">
-                <DialogTitle class="flex items-center gap-2">
-                    <Terminal class="w-5 h-5 text-muted-foreground" />
-                    Dev Server Logs
-                </DialogTitle>
-                <DialogDescription>
-                    Live logs from the running development server.
-                </DialogDescription>
-             </DialogHeader>
-             <div class="flex-1 min-h-0 bg-black text-green-400 font-mono text-xs p-0 relative group">
-                 <ScrollArea class="h-full w-full p-4">
-                     <div v-if="logs.length === 0" class="text-zinc-500 italic p-2">No logs available...</div>
-                     <div v-else class="flex flex-col">
-                        <div v-for="(line, i) in logs" :key="i" class="whitespace-pre-wrap break-all leading-tight">{{ line }}</div>
-                        <div ref="logsEndRef" class="h-1"></div>
-                     </div>
-                 </ScrollArea>
-             </div>
-        </DialogContent>
-    </Dialog>
+	<Dialog :open="open" @update:open="emit('update:open', $event)">
+		<DialogContent
+			class="max-w-4xl h-[80vh] flex flex-col p-0 gap-0 overflow-hidden outline-none"
+		>
+			<DialogHeader class="px-6 py-4 border-b bg-muted/20">
+				<DialogTitle class="flex items-center gap-2">
+					<Terminal class="w-5 h-5 text-muted-foreground"/>
+					Dev Server Logs
+				</DialogTitle>
+				<DialogDescription>
+					Live logs from the running development server.
+				</DialogDescription>
+			</DialogHeader>
+			<div
+				class="flex-1 min-h-0 bg-black text-green-400 font-mono text-xs p-0 relative group"
+			>
+				<ScrollArea class="h-full w-full p-4">
+					<div v-if="logs.length === 0" class="text-zinc-500 italic p-2">
+						No logs available...
+					</div>
+					<div v-else class="flex flex-col">
+						<div
+							v-for="(line, i) in logs"
+							:key="i"
+							class="whitespace-pre-wrap break-all leading-tight"
+						>
+							{{ line }}
+						</div>
+						<div ref="logsEndRef" class="h-1"></div>
+					</div>
+				</ScrollArea>
+			</div>
+		</DialogContent>
+	</Dialog>
 </template>

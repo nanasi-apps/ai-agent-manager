@@ -8,7 +8,7 @@ import { buildFullMessage, shellEscape, splitCommand } from "./interface";
 
 export class ClaudeDriver implements AgentDriver {
 	getCommand(
-		context: AgentDriverContext,
+		_context: AgentDriverContext,
 		message: string,
 		config: AgentConfig,
 		systemPrompt?: string,

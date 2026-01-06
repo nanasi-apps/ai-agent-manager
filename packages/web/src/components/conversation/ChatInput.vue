@@ -60,14 +60,14 @@ const handleKeydown = (e: KeyboardEvent) => {
 		<div class="max-w-3xl mx-auto p-4 flex flex-col gap-2">
 			<div>
 				<div class="flex items-center gap-2">
-						<Textarea
-							v-model="conversation.input"
-							:placeholder="t('chat.placeholder')"
-							class="min-h-[24px] max-h-[200px] py-3 px-4 bg-transparent border focus-within:ring-2 focus-within:ring-ring focus-within:border-transparent transition-all focus-visible:ring-0 resize-none shadow-none text-sm"
-							:disabled="conversation.isLoading"
-							@keydown="handleKeydown"
-							autofocus
-						/>
+					<Textarea
+						v-model="conversation.input"
+						:placeholder="t('chat.placeholder')"
+						class="min-h-[24px] max-h-[200px] py-3 px-4 bg-transparent border focus-within:ring-2 focus-within:ring-ring focus-within:border-transparent transition-all focus-visible:ring-0 resize-none shadow-none text-sm"
+						:disabled="conversation.isLoading"
+						@keydown="handleKeydown"
+						autofocus
+					/>
 
 					<!-- Stop Button (shown when generating) -->
 					<Button
@@ -77,7 +77,7 @@ const handleKeydown = (e: KeyboardEvent) => {
 						@click="emit('stop')"
 						class="h-11 w-11 shrink-0 rounded-xl bg-red-600 hover:bg-red-700 shadow-lg shadow-red-600/20 transition-all text-white border-0"
 					>
-						<Square class="size-5 fill-current" />
+						<Square class="size-5 fill-current"/>
 					</Button>
 
 					<!-- Send Button (shown when not generating) -->
@@ -90,12 +90,15 @@ const handleKeydown = (e: KeyboardEvent) => {
 						:disabled="!conversation.input.trim() || conversation.isLoading"
 						@click="emit('send')"
 					>
-						<Loader2 v-if="conversation.isLoading" class="size-5 animate-spin" />
-						<Send v-else class="size-5" />
+						<Loader2 v-if="conversation.isLoading" class="size-5 animate-spin"/>
+						<Send v-else class="size-5"/>
 					</Button>
 				</div>
 
-				<div v-if="!isSelectorDisabled" class="flex items-center justify-between mt-2 px-1">
+				<div
+					v-if="!isSelectorDisabled"
+					class="flex items-center justify-between mt-2 px-1"
+				>
 					<!-- Selectors Group -->
 					<div class="flex items-center gap-2">
 						<!-- Model Selector -->
@@ -118,8 +121,11 @@ const handleKeydown = (e: KeyboardEvent) => {
 							<div
 								class="pointer-events-none absolute inset-y-0 right-0 gap-1 px-2 flex items-center text-muted-foreground"
 							>
-								<Loader2 v-if="conversation.isSwappingModel" class="size-2.5 animate-spin" />
-								<ChevronDown class="size-3" />
+								<Loader2
+									v-if="conversation.isSwappingModel"
+									class="size-2.5 animate-spin"
+								/>
+								<ChevronDown class="size-3"/>
 							</div>
 						</div>
 
@@ -130,20 +136,30 @@ const handleKeydown = (e: KeyboardEvent) => {
 								class="h-6 w-auto min-w-[80px] rounded-md border border-input bg-transparent px-2 text-[10px] shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 appearance-none pr-6 cursor-pointer hover:bg-accent/50"
 								:disabled="conversation.isUpdatingAgent || conversation.isLoading"
 							>
-								<option v-for="option in modeOptions" :key="option.value" :value="option.value">
+								<option
+									v-for="option in modeOptions"
+									:key="option.value"
+									:value="option.value"
+								>
 									{{ option.label }}
 								</option>
 							</select>
 							<div
 								class="pointer-events-none absolute inset-y-0 right-0 gap-1 px-2 flex items-center text-muted-foreground"
 							>
-								<Loader2 v-if="conversation.isUpdatingMode" class="size-2.5 animate-spin" />
-								<ChevronDown class="size-3" />
+								<Loader2
+									v-if="conversation.isUpdatingMode"
+									class="size-2.5 animate-spin"
+								/>
+								<ChevronDown class="size-3"/>
 							</div>
 						</div>
 
 						<!-- Reasoning Selector -->
-						<div v-if="conversation.supportsReasoning" class="relative min-w-[110px]">
+						<div
+							v-if="conversation.supportsReasoning"
+							class="relative min-w-[110px]"
+						>
 							<select
 								v-model="conversation.reasoningDraft"
 								class="h-6 w-auto min-w-[110px] rounded-md border border-input bg-transparent px-2 text-[10px] shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 appearance-none pr-6 cursor-pointer hover:bg-accent/50"
@@ -160,8 +176,11 @@ const handleKeydown = (e: KeyboardEvent) => {
 							<div
 								class="pointer-events-none absolute inset-y-0 right-0 gap-1 px-2 flex items-center text-muted-foreground"
 							>
-								<Loader2 v-if="conversation.isUpdatingReasoning" class="size-2.5 animate-spin" />
-								<ChevronDown class="size-3" />
+								<Loader2
+									v-if="conversation.isUpdatingReasoning"
+									class="size-2.5 animate-spin"
+								/>
+								<ChevronDown class="size-3"/>
 							</div>
 						</div>
 					</div>

@@ -130,38 +130,50 @@ onUnmounted(() => clearInterval(interval));
 </script>
 
 <template>
-  <div v-if="currentProject && launchConfigs.length > 0" class="border-b px-4 py-2 flex items-center justify-between bg-sidebar">
-      <div class="flex items-center gap-2">
-         <!-- Optionally show project name here, but it's already in sidebar/breadcrumb -->
-      </div>
-      
-      <div class="flex items-center gap-2 ml-auto">
-          <div class="flex items-center gap-2 bg-background rounded-md border shadow-sm p-0.5">
-               <!-- Config Selector -->
-               <select 
-                 v-model="selectedConfig" 
-                 class="h-7 bg-transparent text-sm border-none focus:ring-0 outline-none px-2 w-[150px] truncate cursor-pointer"
-                 :disabled="isRunning"
-               >
-                   <option v-for="config in launchConfigs" :key="config.value" :value="config.value">
-                       {{ config.label }}
-                   </option>
-               </select>
-    
-              <div class="w-px h-4 bg-border"></div>
-    
-              <!-- Run/Stop Button -->
-              <Button 
-                size="sm" 
-                variant="ghost"
-                class="h-7 w-8 px-0 hover:bg-muted"
-                :class="{'text-green-600 hover:text-green-700 hover:bg-green-100': !isRunning, 'text-red-600 hover:text-red-700 hover:bg-red-100': isRunning}"
-                @click="toggleRun"
-                :title="isRunning ? 'Stop' : 'Run'"
-              >
-                  <component :is="isRunning ? Square : Play" class="size-4 fill-current" />
-              </Button>
-          </div>
-      </div>
-  </div>
+	<div
+		v-if="currentProject && launchConfigs.length > 0"
+		class="border-b px-4 py-2 flex items-center justify-between bg-sidebar"
+	>
+		<div class="flex items-center gap-2">
+			<!-- Optionally show project name here, but it's already in sidebar/breadcrumb -->
+		</div>
+
+		<div class="flex items-center gap-2 ml-auto">
+			<div
+				class="flex items-center gap-2 bg-background rounded-md border shadow-sm p-0.5"
+			>
+				<!-- Config Selector -->
+				<select
+					v-model="selectedConfig"
+					class="h-7 bg-transparent text-sm border-none focus:ring-0 outline-none px-2 w-[150px] truncate cursor-pointer"
+					:disabled="isRunning"
+				>
+					<option
+						v-for="config in launchConfigs"
+						:key="config.value"
+						:value="config.value"
+					>
+						{{ config.label }}
+					</option>
+				</select>
+
+				<div class="w-px h-4 bg-border"></div>
+
+				<!-- Run/Stop Button -->
+				<Button
+					size="sm"
+					variant="ghost"
+					class="h-7 w-8 px-0 hover:bg-muted"
+					:class="{'text-green-600 hover:text-green-700 hover:bg-green-100': !isRunning, 'text-red-600 hover:text-red-700 hover:bg-red-100': isRunning}"
+					@click="toggleRun"
+					:title="isRunning ? 'Stop' : 'Run'"
+				>
+					<component
+						:is="isRunning ? Square : Play"
+						class="size-4 fill-current"
+					/>
+				</Button>
+			</div>
+		</div>
+	</div>
 </template>

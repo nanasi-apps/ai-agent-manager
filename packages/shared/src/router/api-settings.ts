@@ -83,7 +83,7 @@ export const apiSettingsRouter = {
 					// If apiKey is masked, try to find existing key
 					if (p.apiKey === MASKED_API_KEY) {
 						const existing = existingProviders.find((ep) => ep.id === p.id);
-						if (existing && existing.apiKey) {
+						if (existing?.apiKey) {
 							return { ...p, apiKey: existing.apiKey };
 						}
 						return p;

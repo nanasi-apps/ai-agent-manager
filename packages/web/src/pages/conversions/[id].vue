@@ -13,5 +13,5 @@ const sessionId = computed(() => {
 </script>
 
 <template>
-  <ConversationView :session-id="sessionId" />
+	<ConversationView :session-id="sessionId"/>
 </template>

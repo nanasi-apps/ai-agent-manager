@@ -184,7 +184,7 @@ export function summarizeContent(content: string, limit = 300): string {
 		.replace(/\s+/g, " ")
 		.trim();
 	if (clean.length <= limit) return clean;
-	return clean.slice(0, limit) + "... (truncated)";
+	return `${clean.slice(0, limit)}... (truncated)`;
 }
 
 /**

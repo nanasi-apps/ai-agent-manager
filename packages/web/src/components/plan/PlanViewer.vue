@@ -40,7 +40,7 @@ const formatModelLabel = (model: ModelTemplate) => {
 const openApproveDialog = () => {
 	// Default to first available model
 	if (availableModels.value.length > 0 && !selectedModelId.value) {
-		selectedModelId.value = availableModels.value[0]!.id;
+		selectedModelId.value = availableModels.value[0]?.id;
 	}
 	isApproveDialogOpen.value = true;
 };
@@ -57,90 +57,99 @@ const closeApproveDialog = () => {
 </script>
 
 <template>
-  <div class="flex flex-col h-full bg-background border-l">
-    <!-- Header -->
-    <div class="flex items-center justify-between p-4 border-b h-14 shrink-0">
-      <div class="flex items-center gap-2">
-        <FileText class="size-5" />
-        <h2 class="font-semibold">{{ t('plan.title', 'Implementation Plan') }}</h2>
-      </div>
-      <div class="flex items-center gap-2">
-        <!-- Approve Button -->
-        <Button
-          v-if="hasContent"
-          size="sm"
-          variant="default"
-          class="gap-1.5"
-          :disabled="conversation.isApproving"
-          @click="openApproveDialog"
-        >
-          <Loader2 v-if="conversation.isApproving" class="size-4 animate-spin" />
-          <CheckCircle2 v-else class="size-4" />
-          {{ t('plan.approve', 'Approve') }}
-        </Button>
-        <!-- Close Button -->
+	<div class="flex flex-col h-full bg-background border-l">
+		<!-- Header -->
+		<div class="flex items-center justify-between p-4 border-b h-14 shrink-0">
+			<div class="flex items-center gap-2">
+				<FileText class="size-5"/>
+				<h2 class="font-semibold">
+					{{ t('plan.title', 'Implementation Plan') }}
+				</h2>
+			</div>
+			<div class="flex items-center gap-2">
+				<!-- Approve Button -->
+				<Button
+					v-if="hasContent"
+					size="sm"
+					variant="default"
+					class="gap-1.5"
+					:disabled="conversation.isApproving"
+					@click="openApproveDialog"
+				>
+					<Loader2 v-if="conversation.isApproving" class="size-4 animate-spin"/>
+					<CheckCircle2 v-else class="size-4"/>
+					{{ t('plan.approve', 'Approve') }}
+				</Button>
+				<!-- Close Button -->
+			</div>
+		</div>
 
-      </div>
-    </div>
+		<!-- Content with ScrollArea -->
+		<ScrollArea class="flex-1 min-h-0">
+			<div class="p-6">
+				<div
+					v-if="!conversation.latestPlanContent"
+					class="text-center text-muted-foreground py-10"
+				>
+					<FileText class="size-12 mx-auto mb-4 opacity-20"/>
+					<p>{{ t('plan.empty', 'No plan generated yet.') }}</p>
+				</div>
+				<div
+					v-else
+					class="markdown-content prose dark:prose-invert max-w-none"
+					v-html="renderMarkdown(conversation.latestPlanContent)"
+				/>
+			</div>
+		</ScrollArea>
 
-    <!-- Content with ScrollArea -->
-    <ScrollArea class="flex-1 min-h-0">
-      <div class="p-6">
-        <div v-if="!conversation.latestPlanContent" class="text-center text-muted-foreground py-10">
-          <FileText class="size-12 mx-auto mb-4 opacity-20" />
-          <p>{{ t('plan.empty', 'No plan generated yet.') }}</p>
-        </div>
-        <div
-          v-else
-          class="markdown-content prose dark:prose-invert max-w-none"
-          v-html="renderMarkdown(conversation.latestPlanContent)"
-        />
-      </div>
-    </ScrollArea>
+		<!-- Model Selection Dialog -->
+		<Dialog v-model:open="isApproveDialogOpen">
+			<DialogContent>
+				<DialogHeader>
+					<DialogTitle>
+						{{ t('plan.approveDialog.title', 'Approve & Execute Plan') }}
+					</DialogTitle>
+					<DialogDescription>
+						{{ t('plan.approveDialog.description', 'Select a model to execute this plan in Agent mode.') }}
+					</DialogDescription>
+				</DialogHeader>
 
-    <!-- Model Selection Dialog -->
-    <Dialog v-model:open="isApproveDialogOpen">
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{{ t('plan.approveDialog.title', 'Approve & Execute Plan') }}</DialogTitle>
-          <DialogDescription>
-            {{ t('plan.approveDialog.description', 'Select a model to execute this plan in Agent mode.') }}
-          </DialogDescription>
-        </DialogHeader>
+				<div class="py-4">
+					<label class="text-sm font-medium mb-2 block">
+						{{ t('plan.approveDialog.modelLabel', 'Execution Model') }}
+					</label>
+					<select
+						v-model="selectedModelId"
+						class="w-full h-10 px-3 py-2 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+					>
+						<option
+							v-for="model in availableModels"
+							:key="model.id"
+							:value="model.id"
+						>
+							{{ formatModelLabel(model) }}
+						</option>
+					</select>
+				</div>
 
-        <div class="py-4">
-          <label class="text-sm font-medium mb-2 block">
-            {{ t('plan.approveDialog.modelLabel', 'Execution Model') }}
-          </label>
-          <select
-            v-model="selectedModelId"
-            class="w-full h-10 px-3 py-2 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-          >
-            <option
-              v-for="model in availableModels"
-              :key="model.id"
-              :value="model.id"
-            >
-              {{ formatModelLabel(model) }}
-            </option>
-          </select>
-        </div>
-
-        <DialogFooter>
-          <Button variant="outline" @click="closeApproveDialog">
-            {{ t('common.cancel', 'Cancel') }}
-          </Button>
-          <Button
-            :disabled="!selectedModelId || conversation.isApproving"
-            @click="handleApprove"
-          >
-            <Loader2 v-if="conversation.isApproving" class="size-4 mr-2 animate-spin" />
-            {{ t('plan.approveDialog.confirm', 'Execute Plan') }}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  </div>
+				<DialogFooter>
+					<Button variant="outline" @click="closeApproveDialog">
+						{{ t('common.cancel', 'Cancel') }}
+					</Button>
+					<Button
+						:disabled="!selectedModelId || conversation.isApproving"
+						@click="handleApprove"
+					>
+						<Loader2
+							v-if="conversation.isApproving"
+							class="size-4 mr-2 animate-spin"
+						/>
+						{{ t('plan.approveDialog.confirm', 'Execute Plan') }}
+					</Button>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
+	</div>
 </template>
 
 <style scoped>

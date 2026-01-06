@@ -17,6 +17,6 @@ const delegatedProps = computed(() => {
 		class="overflow-hidden transition-all data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down"
 		:class="props.class"
 	>
-		<slot />
+		<slot/>
 	</CollapsibleContent>
 </template>

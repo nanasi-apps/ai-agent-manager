@@ -75,39 +75,39 @@ const handleKeydown = (e: KeyboardEvent) => {
 </script>
 
 <template>
-  <div class="space-y-2">
-    <label v-if="label" class="text-sm font-medium">{{ label }}</label>
-    <div class="flex gap-2">
-      <Input
-        v-model="inputValue"
-        :placeholder="placeholder || 'Add item(s)...'"
-        @keydown="handleKeydown"
-        class="flex-1"
-      />
-      <Button variant="secondary" size="icon" type="button" @click="addItem">
-        <Plus class="size-4" />
-      </Button>
-    </div>
-    <p v-if="helpText" class="text-xs text-muted-foreground">{{ helpText }}</p>
-    <div v-if="modelValue.length > 0" class="space-y-2 mt-2">
-      <div v-for="(item, index) in modelValue" :key="index" class="flex gap-2">
-        <Input
-          :model-value="item"
-          class="flex-1"
-          @update:model-value="(val: string | number) => updateItem(index, String(val))"
-          @blur="() => normalizeItem(index)"
-        />
-        <Button
-          variant="ghost"
-          size="icon"
-          type="button"
-          class="text-muted-foreground hover:text-destructive"
-          @click="removeItem(index)"
-        >
-          <X class="size-4" />
-        </Button>
-      </div>
-    </div>
-    <p v-else class="text-xs text-muted-foreground italic">No items defined.</p>
-  </div>
+	<div class="space-y-2">
+		<label v-if="label" class="text-sm font-medium">{{ label }}</label>
+		<div class="flex gap-2">
+			<Input
+				v-model="inputValue"
+				:placeholder="placeholder || 'Add item(s)...'"
+				@keydown="handleKeydown"
+				class="flex-1"
+			/>
+			<Button variant="secondary" size="icon" type="button" @click="addItem">
+				<Plus class="size-4"/>
+			</Button>
+		</div>
+		<p v-if="helpText" class="text-xs text-muted-foreground">{{ helpText }}</p>
+		<div v-if="modelValue.length > 0" class="space-y-2 mt-2">
+			<div v-for="(item, index) in modelValue" :key="index" class="flex gap-2">
+				<Input
+					:model-value="item"
+					class="flex-1"
+					@update:model-value="(val: string | number) => updateItem(index, String(val))"
+					@blur="() => normalizeItem(index)"
+				/>
+				<Button
+					variant="ghost"
+					size="icon"
+					type="button"
+					class="text-muted-foreground hover:text-destructive"
+					@click="removeItem(index)"
+				>
+					<X class="size-4"/>
+				</Button>
+			</div>
+		</div>
+		<p v-else class="text-xs text-muted-foreground italic">No items defined.</p>
+	</div>
 </template>
