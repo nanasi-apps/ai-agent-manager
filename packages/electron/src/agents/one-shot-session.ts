@@ -3,8 +3,8 @@ import { EventEmitter } from "node:events";
 import {
 	type AgentConfig,
 	type AgentLogPayload,
-	getStoreOrThrow,
 	getLogger,
+	getStoreOrThrow,
 } from "@agent-manager/shared";
 import { createActor, type SnapshotFrom } from "xstate";
 import type { WorktreeResumeRequest } from "./agent-manager";
@@ -312,10 +312,9 @@ export class OneShotSession extends EventEmitter {
 			const parts = [baseRules, worktreeInstructions].filter(Boolean);
 			systemPrompt = parts.join("\n\n");
 			if (baseRules) {
-				logger.info(
-					"Injecting rules for session {sessionId}",
-					{ sessionId: this.sessionId },
-				);
+				logger.info("Injecting rules for session {sessionId}", {
+					sessionId: this.sessionId,
+				});
 			}
 		}
 
@@ -351,10 +350,10 @@ export class OneShotSession extends EventEmitter {
 				currentState.config,
 				systemPrompt,
 			);
-			logger.info(
-				"Running: {command} {args}",
-				{ command: cmd.command, args: cmd.args.join(" ") },
-			);
+			logger.info("Running: {command} {args}", {
+				command: cmd.command,
+				args: cmd.args.join(" "),
+			});
 			if (isCodex) {
 				logger.info(
 					"Codex context: messageCount={messageCount}, codexThreadId={codexThreadId}, codexSessionId={codexSessionId}",
@@ -440,7 +439,10 @@ export class OneShotSession extends EventEmitter {
 		} catch (error: unknown) {
 			this.actor.send({ type: "STOP" });
 			logger.error("Error running command: {error}", { error });
-			this.emitLog(`Error: ${error instanceof Error ? error.message : String(error)}`, "error");
+			this.emitLog(
+				`Error: ${error instanceof Error ? error.message : String(error)}`,
+				"error",
+			);
 		}
 	}
 	private handleProcessOutput(child: ChildProcess) {
@@ -458,7 +460,10 @@ export class OneShotSession extends EventEmitter {
 		if (child.stderr) {
 			child.stderr.on("data", (data) => {
 				const str = data.toString();
-				logger.debug("stderr for session {sessionId}: {str}", { sessionId: this.sessionId, str });
+				logger.debug("stderr for session {sessionId}: {str}", {
+					sessionId: this.sessionId,
+					str,
+				});
 				if (!this.state.config.streamJson) {
 					this.emitLog(str, "text");
 				}
@@ -470,7 +475,11 @@ export class OneShotSession extends EventEmitter {
 	private handleProcessClose(child: ChildProcess, code: number | null) {
 		logger.debug(
 			"handleProcessClose called for session {sessionId}, code={code}, hasPending={hasPending}",
-			{ sessionId: this.sessionId, code, hasPending: !!this.state.pendingWorktreeResume },
+			{
+				sessionId: this.sessionId,
+				code,
+				hasPending: !!this.state.pendingWorktreeResume,
+			},
 		);
 
 		if (this.currentProcess !== child) {
@@ -508,7 +517,10 @@ export class OneShotSession extends EventEmitter {
 			if (currentSessionState.geminiSessionId) {
 				logger.warn(
 					"Gemini session {geminiSessionId} is invalid for session {sessionId}.",
-					{ geminiSessionId: currentSessionState.geminiSessionId, sessionId: this.sessionId },
+					{
+						geminiSessionId: currentSessionState.geminiSessionId,
+						sessionId: this.sessionId,
+					},
 				);
 			}
 			// Mark invalid and stop
@@ -614,7 +626,6 @@ export class OneShotSession extends EventEmitter {
 		}
 	}
 
-
 	private handlePendingWorktreeResume() {
 		const pending = this.state.pendingWorktreeResume;
 		logger.debug(
@@ -640,7 +651,11 @@ export class OneShotSession extends EventEmitter {
 
 		logger.info(
 			"Activating worktree for session {sessionId}: branch={branch}, cwd={cwd}",
-			{ sessionId: this.sessionId, branch: pending.request.branch, cwd: pending.request.cwd },
+			{
+				sessionId: this.sessionId,
+				branch: pending.request.branch,
+				cwd: pending.request.cwd,
+			},
 		);
 
 		this.actor.send({ type: "CLEAR_PENDING_WORKTREE_RESUME" });
@@ -724,7 +739,6 @@ export class OneShotSession extends EventEmitter {
 		if (session.config.mode === "regular") {
 			return "";
 		}
-
 
 		// Get projectId and config status from conversation
 		let projectId: string | undefined;

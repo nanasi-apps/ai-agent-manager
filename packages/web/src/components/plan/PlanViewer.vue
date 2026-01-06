@@ -27,9 +27,7 @@ const hasContent = computed(() => !!conversation.latestPlanContent?.trim());
 
 // Filter to only agent mode compatible models
 const availableModels = computed(() => {
-	return conversation.modelTemplates.filter(
-		(m) => m.agentType !== "default",
-	);
+	return conversation.modelTemplates.filter((m) => m.agentType !== "default");
 });
 
 const formatModelLabel = (model: ModelTemplate) => {
@@ -56,8 +54,6 @@ const handleApprove = async () => {
 const closeApproveDialog = () => {
 	isApproveDialogOpen.value = false;
 };
-
-
 </script>
 
 <template>

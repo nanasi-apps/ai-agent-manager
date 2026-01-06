@@ -33,9 +33,9 @@ export interface AgentConfig {
 	oneShotMode?: boolean;
 	/** Content of rules to inject into the session */
 	rulesContent?: string;
-	
+
 	/** Optional provider identifier */
-	provider?: string; 
+	provider?: string;
 }
 
 /**
@@ -44,7 +44,14 @@ export interface AgentConfig {
 export interface AgentLogPayload {
 	sessionId: string;
 	data: string;
-	type?: "text" | "tool_call" | "tool_result" | "thinking" | "error" | "system" | "plan";
+	type?:
+		| "text"
+		| "tool_call"
+		| "tool_result"
+		| "thinking"
+		| "error"
+		| "system"
+		| "plan";
 	raw?: unknown;
 }
 

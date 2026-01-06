@@ -32,10 +32,10 @@ export class UnifiedAgentManager extends EventEmitter implements IAgentManager {
 		command: string,
 		config?: Partial<AgentConfig>,
 	) {
-		logger.info(
-			"Starting session {sessionId} (type: {type})",
-			{ sessionId, type: config?.type ?? "custom" },
-		);
+		logger.info("Starting session {sessionId} (type: {type})", {
+			sessionId,
+			type: config?.type ?? "custom",
+		});
 		oneShotAgentManager.startSession(sessionId, command, config);
 	}
 
@@ -67,13 +67,13 @@ export class UnifiedAgentManager extends EventEmitter implements IAgentManager {
 		return oneShotAgentManager.listSessions();
 	}
 
-	getSessionMetadata(
-		sessionId: string,
-	): {
-		geminiSessionId?: string;
-		codexSessionId?: string;
-		codexThreadId?: string;
-	} | undefined {
+	getSessionMetadata(sessionId: string):
+		| {
+				geminiSessionId?: string;
+				codexSessionId?: string;
+				codexThreadId?: string;
+		  }
+		| undefined {
 		return oneShotAgentManager.getSessionMetadata?.(sessionId);
 	}
 

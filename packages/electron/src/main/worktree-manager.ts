@@ -135,7 +135,9 @@ export class WorktreeManager {
 				(worktree) => worktree.branch === branch && !worktree.prunable,
 			);
 			if (!created) {
-				throw new Error(`Worktree for branch ${branch} not found after create.`);
+				throw new Error(
+					`Worktree for branch ${branch} not found after create.`,
+				);
 			}
 			return created;
 		} catch (error) {
@@ -151,7 +153,9 @@ export class WorktreeManager {
 	): Promise<void> {
 		try {
 			const worktrees = await this.getWorktrees(projectRoot);
-			const target = worktrees.find((worktree) => worktree.path === worktreePath);
+			const target = worktrees.find(
+				(worktree) => worktree.path === worktreePath,
+			);
 			if (!target) {
 				throw new Error(`Worktree not found for path: ${worktreePath}`);
 			}

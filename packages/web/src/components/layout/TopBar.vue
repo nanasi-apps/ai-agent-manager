@@ -1,124 +1,132 @@
 <script setup lang="ts">
-import { computed, ref, watch, onMounted, onUnmounted } from 'vue';
-import { useRoute } from 'vue-router';
-import { Play, Square } from 'lucide-vue-next';
-import { Button } from '@/components/ui/button';
-import { useProjectsStore } from '@/stores/projects';
-import { orpc } from '@/services/orpc';
-import type { Project } from '@agent-manager/shared';
+import type { Project } from "@agent-manager/shared";
+import { Play, Square } from "lucide-vue-next";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { useRoute } from "vue-router";
+import { Button } from "@/components/ui/button";
+import { orpc } from "@/services/orpc";
+import { useProjectsStore } from "@/stores/projects";
 
 const route = useRoute();
 const projectsStore = useProjectsStore();
 
 const currentProjectId = computed(() => {
-    const path = route.path;
-    if (path.startsWith('/projects/')) {
-        return path.split('/')[2];
-    }
-    return null;
+	const path = route.path;
+	if (path.startsWith("/projects/")) {
+		return path.split("/")[2];
+	}
+	return null;
 });
 
 const currentProject = computed(() => {
-    if (!currentProjectId.value) return null;
-    // Cast to shared Project type to access launchConfigs
-    return projectsStore.getProjectById(currentProjectId.value) as unknown as Project | undefined;
+	if (!currentProjectId.value) return null;
+	// Cast to shared Project type to access launchConfigs
+	return projectsStore.getProjectById(currentProjectId.value) as unknown as
+		| Project
+		| undefined;
 });
 
 // Launch Configs
 const launchConfigs = computed(() => {
-    const proj = currentProject.value;
-    if (!proj) return [];
-    
-    const configs = [];
-    if (proj.launchConfigs && proj.launchConfigs.length > 0) {
-        configs.push(...proj.launchConfigs);
-    }
-    
-    // Fallback if no launchConfigs but autoConfig exists
-    if (configs.length === 0 && proj.autoConfig) {
-        configs.push({ ...proj.autoConfig, name: 'Default' });
-    }
-    
-    return configs.map(c => ({
-        label: c.name || 'Untitled',
-        value: c.name || 'default'
-    }));
+	const proj = currentProject.value;
+	if (!proj) return [];
+
+	const configs = [];
+	if (proj.launchConfigs && proj.launchConfigs.length > 0) {
+		configs.push(...proj.launchConfigs);
+	}
+
+	// Fallback if no launchConfigs but autoConfig exists
+	if (configs.length === 0 && proj.autoConfig) {
+		configs.push({ ...proj.autoConfig, name: "Default" });
+	}
+
+	return configs.map((c) => ({
+		label: c.name || "Untitled",
+		value: c.name || "default",
+	}));
 });
 
-const selectedConfig = ref<string>('');
+const selectedConfig = ref<string>("");
 const isRunning = ref(false);
 
 // Watch configs to set default selection
-watch(() => launchConfigs.value, (newConfigs) => {
-    const safeConfigs = newConfigs || [];
-    if (safeConfigs.length > 0) {
-        const currentSelected = selectedConfig.value;
-        const exists = safeConfigs.some((c) => c && c.value === currentSelected);
-        if (!currentSelected || !exists) {
-            const firstConfig = safeConfigs[0];
-            selectedConfig.value = firstConfig ? firstConfig.value : '';
-        }
-    } else {
-        selectedConfig.value = '';
-    }
-}, { immediate: true });
+watch(
+	() => launchConfigs.value,
+	(newConfigs) => {
+		const safeConfigs = newConfigs || [];
+		if (safeConfigs.length > 0) {
+			const currentSelected = selectedConfig.value;
+			const exists = safeConfigs.some((c) => c && c.value === currentSelected);
+			if (!currentSelected || !exists) {
+				const firstConfig = safeConfigs[0];
+				selectedConfig.value = firstConfig ? firstConfig.value : "";
+			}
+		} else {
+			selectedConfig.value = "";
+		}
+	},
+	{ immediate: true },
+);
 
 // Watch project change to reset/check status
 watch(currentProjectId, () => {
-    checkStatus();
+	checkStatus();
 });
 
 async function checkStatus() {
-    if (!currentProjectId.value) {
-        isRunning.value = false;
-        return;
-    }
-    try {
-        const status = await orpc.devServerStatus({ projectId: currentProjectId.value });
-        if (status && status.status === 'running') {
-            isRunning.value = true;
-        } else {
-            isRunning.value = false;
-        }
-    } catch (e) {
-        console.error("Failed to check status", e);
-        isRunning.value = false;
-    }
+	if (!currentProjectId.value) {
+		isRunning.value = false;
+		return;
+	}
+	try {
+		const status = await orpc.devServerStatus({
+			projectId: currentProjectId.value,
+		});
+		if (status && status.status === "running") {
+			isRunning.value = true;
+		} else {
+			isRunning.value = false;
+		}
+	} catch (e) {
+		console.error("Failed to check status", e);
+		isRunning.value = false;
+	}
 }
 
 async function toggleRun() {
-    if (!currentProjectId.value) return;
-    
-    if (isRunning.value) {
-        // Stop
-        try {
-            await orpc.devServerStop({ projectId: currentProjectId.value });
-            isRunning.value = false;
-        } catch (e) {
-            console.error("Failed to stop", e);
-        }
-    } else {
-        // Run
-        try {
-            await orpc.devServerLaunch({ 
-                projectId: currentProjectId.value,
-                configName: selectedConfig.value === 'Default' ? undefined : selectedConfig.value 
-            });
-            isRunning.value = true;
-            checkStatus();
-        } catch (e) {
-            console.error("Failed to launch", e);
-        }
-    }
+	if (!currentProjectId.value) return;
+
+	if (isRunning.value) {
+		// Stop
+		try {
+			await orpc.devServerStop({ projectId: currentProjectId.value });
+			isRunning.value = false;
+		} catch (e) {
+			console.error("Failed to stop", e);
+		}
+	} else {
+		// Run
+		try {
+			await orpc.devServerLaunch({
+				projectId: currentProjectId.value,
+				configName:
+					selectedConfig.value === "Default" ? undefined : selectedConfig.value,
+			});
+			isRunning.value = true;
+			checkStatus();
+		} catch (e) {
+			console.error("Failed to launch", e);
+		}
+	}
 }
 
 let interval: ReturnType<typeof setInterval>;
 onMounted(() => {
-    checkStatus();
-    interval = setInterval(checkStatus, 2000);
+	checkStatus();
+	interval = setInterval(checkStatus, 2000);
 });
 onUnmounted(() => clearInterval(interval));
-
 </script>
 
 <template>

@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import type { AgentMode, ReasoningLevel } from "@agent-manager/shared";
+import { ChevronDown, Loader2, Send, Square } from "lucide-vue-next";
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
-import { ChevronDown, Loader2, Send, Square } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { groupModelTemplates } from "@/lib/modelTemplateGroups";
 import { useConversationStore } from "@/stores/conversation";
 import { useSettingsStore } from "@/stores/settings";
-import { groupModelTemplates } from "@/lib/modelTemplateGroups";
 
 const { t } = useI18n();
 const conversation = useConversationStore();
@@ -37,12 +37,15 @@ const groupedModelTemplates = computed(() =>
 	}),
 );
 
-const isSelectorDisabled = computed(() =>
-	conversation.sessionId === "new" || conversation.isGenerating || conversation.isLoading
+const isSelectorDisabled = computed(
+	() =>
+		conversation.sessionId === "new" ||
+		conversation.isGenerating ||
+		conversation.isLoading,
 );
 
 const handleKeydown = (e: KeyboardEvent) => {
-    if (e.isComposing) return;
+	if (e.isComposing) return;
 	if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
 		e.preventDefault();
 		emit("send");

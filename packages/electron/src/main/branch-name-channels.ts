@@ -10,7 +10,10 @@ export function setupBranchNameChannels() {
 		"branch-name:submit",
 		async (_event, payload: { requestId?: string; branchName?: string }) => {
 			if (!payload?.requestId || !payload?.branchName) {
-				return { success: false, error: "requestId and branchName are required" };
+				return {
+					success: false,
+					error: "requestId and branchName are required",
+				};
 			}
 			try {
 				const resolved = branchNamePromptService.submitBranchName(

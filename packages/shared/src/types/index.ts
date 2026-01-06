@@ -8,6 +8,9 @@ export type {
 	AgentType,
 	ReasoningLevel,
 } from "./agent";
+// Approval types
+export * from "./approval";
+export * from "./gtr-config";
 // MCP types
 export type {
 	McpResource,
@@ -23,6 +26,3 @@ export { availableAgents, getAgentTemplate } from "./project";
 // Store types
 export * from "./store";
 export * from "./worktree";
-// Approval types
-export * from "./approval";
-export * from "./gtr-config";

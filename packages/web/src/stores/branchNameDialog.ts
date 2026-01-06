@@ -16,7 +16,7 @@ export const useBranchNameDialogStore = defineStore("branchNameDialog", () => {
 
 	const activeRequest = computed(() =>
 		activeRequestId.value
-			? requests.value.get(activeRequestId.value) ?? null
+			? (requests.value.get(activeRequestId.value) ?? null)
 			: null,
 	);
 
@@ -24,9 +24,10 @@ export const useBranchNameDialogStore = defineStore("branchNameDialog", () => {
 		() => typeof window !== "undefined" && !!window.electronAPI,
 	);
 
-	const isGenerating = computed(() =>
-		generationState.value === "generating" ||
-		generationState.value === "regenerating",
+	const isGenerating = computed(
+		() =>
+			generationState.value === "generating" ||
+			generationState.value === "regenerating",
 	);
 
 	const canSubmit = computed(
@@ -37,7 +38,10 @@ export const useBranchNameDialogStore = defineStore("branchNameDialog", () => {
 			!isGenerating.value,
 	);
 
-	function upsertRequest(request: BranchNameRequest, openDialog: boolean = false) {
+	function upsertRequest(
+		request: BranchNameRequest,
+		openDialog: boolean = false,
+	) {
 		requests.value.set(request.id, request);
 		if (!activeRequestId.value) {
 			activeRequestId.value = request.id;

@@ -1,27 +1,27 @@
 import hljs from "highlight.js/lib/core";
+import bash from "highlight.js/lib/languages/bash";
+import cpp from "highlight.js/lib/languages/cpp";
+import csharp from "highlight.js/lib/languages/csharp";
+import css from "highlight.js/lib/languages/css";
+import dockerfile from "highlight.js/lib/languages/dockerfile";
+import go from "highlight.js/lib/languages/go";
+import java from "highlight.js/lib/languages/java";
 // Import only the languages we commonly use
 import javascript from "highlight.js/lib/languages/javascript";
-import typescript from "highlight.js/lib/languages/typescript";
-import python from "highlight.js/lib/languages/python";
-import bash from "highlight.js/lib/languages/bash";
 import json from "highlight.js/lib/languages/json";
-import xml from "highlight.js/lib/languages/xml";
-import css from "highlight.js/lib/languages/css";
-import markdown from "highlight.js/lib/languages/markdown";
-import yaml from "highlight.js/lib/languages/yaml";
-import sql from "highlight.js/lib/languages/sql";
-import go from "highlight.js/lib/languages/go";
-import rust from "highlight.js/lib/languages/rust";
-import java from "highlight.js/lib/languages/java";
-import csharp from "highlight.js/lib/languages/csharp";
-import cpp from "highlight.js/lib/languages/cpp";
-import ruby from "highlight.js/lib/languages/ruby";
-import php from "highlight.js/lib/languages/php";
-import swift from "highlight.js/lib/languages/swift";
 import kotlin from "highlight.js/lib/languages/kotlin";
-import dockerfile from "highlight.js/lib/languages/dockerfile";
-import shell from "highlight.js/lib/languages/shell";
+import markdown from "highlight.js/lib/languages/markdown";
+import php from "highlight.js/lib/languages/php";
 import plaintext from "highlight.js/lib/languages/plaintext";
+import python from "highlight.js/lib/languages/python";
+import ruby from "highlight.js/lib/languages/ruby";
+import rust from "highlight.js/lib/languages/rust";
+import shell from "highlight.js/lib/languages/shell";
+import sql from "highlight.js/lib/languages/sql";
+import swift from "highlight.js/lib/languages/swift";
+import typescript from "highlight.js/lib/languages/typescript";
+import xml from "highlight.js/lib/languages/xml";
+import yaml from "highlight.js/lib/languages/yaml";
 import { marked } from "marked";
 
 // Register languages
@@ -66,21 +66,21 @@ hljs.registerLanguage("text", plaintext);
 
 // Configure marked with syntax highlighting
 marked.setOptions({
-    gfm: true,
-    breaks: true,
+	gfm: true,
+	breaks: true,
 });
 
 // Custom renderer for code blocks with syntax highlighting
 const renderer = new marked.Renderer();
 
 renderer.code = ({ text, lang }) => {
-    const language = lang && hljs.getLanguage(lang) ? lang : "plaintext";
-    const highlighted = hljs.highlight(text, { language }).value;
-    return `<pre class="hljs rounded-lg overflow-x-auto"><code class="language-${language}">${highlighted}</code></pre>`;
+	const language = lang && hljs.getLanguage(lang) ? lang : "plaintext";
+	const highlighted = hljs.highlight(text, { language }).value;
+	return `<pre class="hljs rounded-lg overflow-x-auto"><code class="language-${language}">${highlighted}</code></pre>`;
 };
 
 renderer.codespan = ({ text }) => {
-    return `<code class="inline-code">${text}</code>`;
+	return `<code class="inline-code">${text}</code>`;
 };
 
 marked.use({ renderer });
@@ -89,14 +89,14 @@ marked.use({ renderer });
  * Renders markdown content to HTML with syntax highlighting
  */
 export function renderMarkdown(content: string): string {
-    if (!content) return "";
+	if (!content) return "";
 
-    try {
-        const result = marked.parse(content);
-        // marked.parse can return string | Promise<string>, but with sync options it's always string
-        return typeof result === "string" ? result : "";
-    } catch (err) {
-        console.error("Markdown parsing error:", err);
-        return content;
-    }
+	try {
+		const result = marked.parse(content);
+		// marked.parse can return string | Promise<string>, but with sync options it's always string
+		return typeof result === "string" ? result : "";
+	} catch (err) {
+		console.error("Markdown parsing error:", err);
+		return content;
+	}
 }

@@ -1,21 +1,21 @@
 import { os } from "@orpc/server";
 import { z } from "zod";
 import { agentsRouter } from "./agents";
-import { appSettingsRouter } from "./app-settings";
 import { apiSettingsRouter } from "./api-settings";
+import { appSettingsRouter } from "./app-settings";
 import { approvalsRouter } from "./approvals";
 import { conversationsRouter } from "./conversations";
 import { locksRouter } from "./locks";
 import { getSessionMcpServersLogic, listMcpToolsLogic, mcpRouter } from "./mcp";
 export { getSessionMcpServersLogic, listMcpToolsLogic, mcpRouter };
 
+import { devServerRouter } from "./dev-server";
 import { modelsRouter } from "./models";
 import { projectsRouter } from "./projects";
 // Import all sub-routers
 import { rulesRouter } from "./rules";
-import { worktreesRouter } from "./worktrees";
 import { webServerRouter } from "./web-server";
-import { devServerRouter } from "./dev-server";
+import { worktreesRouter } from "./worktrees";
 
 // Re-export services for external use
 export {
@@ -24,24 +24,28 @@ export {
 	getHandoverServiceOrThrow,
 	getNativeDialog,
 	getStoreOrThrow,
+	getWebServerServiceOrThrow,
 	getWorktreeManagerOrThrow,
 	type IAgentManager,
 	type IGtrConfigService,
 	type INativeDialog,
+	type IWebServerService,
+	type IWebServerStatus,
 	setAgentManager,
+	setDevServerService,
 	setGtrConfigService,
 	setHandoverService,
 	setNativeDialog,
 	setStore,
-	setWorktreeManager,
-	setDevServerService,
 	setWebServerService,
-	getWebServerServiceOrThrow,
-	type IWebServerService,
-	type IWebServerStatus,
+	setWorktreeManager,
 } from "../services/dependency-container";
 // Re-export model utilities
-export { buildModelId, HARDCODED_MODELS, parseModelId } from "../services/model-fetcher";
+export {
+	buildModelId,
+	HARDCODED_MODELS,
+	parseModelId,
+} from "../services/model-fetcher";
 // Re-export utilities
 export { generateUUID } from "../utils";
 

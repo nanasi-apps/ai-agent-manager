@@ -1,10 +1,10 @@
 import path from "node:path";
 import tailwindcss from "@tailwindcss/vite";
 import vue from "@vitejs/plugin-vue";
-import VueRouter from "unplugin-vue-router/vite";
-import { visualizer } from "rollup-plugin-visualizer";
-import { defineConfig } from "vite";
 import cssnano from "cssnano";
+import { visualizer } from "rollup-plugin-visualizer";
+import VueRouter from "unplugin-vue-router/vite";
+import { defineConfig } from "vite";
 
 export default defineConfig(({ command }) => ({
 	base: command === "build" ? "./" : "/",
@@ -53,7 +53,11 @@ export default defineConfig(({ command }) => ({
 				manualChunks: (id) => {
 					if (id.includes("node_modules")) {
 						// Vue core ecosystem
-						if (id.includes("vue") || id.includes("@vue") || id.includes("pinia")) {
+						if (
+							id.includes("vue") ||
+							id.includes("@vue") ||
+							id.includes("pinia")
+						) {
 							return "vue-vendor";
 						}
 						// UI component library

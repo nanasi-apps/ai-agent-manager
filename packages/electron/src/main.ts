@@ -1,4 +1,7 @@
+import path from "node:path";
 import {
+	getLogger,
+	initLogger,
 	setAgentManager,
 	setDevServerService,
 	setGtrConfigService,
@@ -7,22 +10,19 @@ import {
 	setStore,
 	setWebServerService,
 	setWorktreeManager,
-	initLogger,
-	getLogger,
 } from "@agent-manager/shared";
 import { app, BrowserWindow, dialog, shell } from "electron";
-import path from "node:path";
 import {
 	setAgentManager as setElectronAgentManager,
 	unifiedAgentManager,
 } from "./agents";
 import { setupAgentLogs } from "./main/agent-logs";
 import { setupAgentState } from "./main/agent-state";
-import { setupIpc } from "./main/ipc";
 import { setupBranchNameChannels } from "./main/branch-name-channels";
+import { devServerManager } from "./main/dev-server-manager";
+import { setupIpc } from "./main/ipc";
 import { initializeWindowTheme, setupGlobalThemeHandlers } from "./main/theme";
 import { worktreeManager } from "./main/worktree-manager";
-import { devServerManager } from "./main/dev-server-manager";
 import { startMcpServer } from "./server/mcp-server.js";
 import { setupElectronOrpc } from "./server/orpc-server";
 import { GtrConfigService } from "./services/gtr-config-service";
@@ -56,9 +56,8 @@ setNativeDialog({
 		return result.filePaths[0] ?? null;
 	},
 	selectPaths: async ({ type, multiple }) => {
-		const properties: Array<
-			"openFile" | "openDirectory" | "multiSelections"
-		> = [];
+		const properties: Array<"openFile" | "openDirectory" | "multiSelections"> =
+			[];
 		if (type === "file") properties.push("openFile");
 		if (type === "dir") properties.push("openDirectory");
 		if (type === "any") properties.push("openFile", "openDirectory");
@@ -163,7 +162,6 @@ app.whenReady().then(async () => {
 			logger.error("Failed to start MCP server: {err}", { err });
 		});
 });
-
 
 app.on("window-all-closed", () => {
 	if (process.platform !== "darwin") {

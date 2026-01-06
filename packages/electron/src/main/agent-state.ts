@@ -1,9 +1,9 @@
+import { randomUUID } from "node:crypto";
 import type {
 	AgentStatePayload,
 	AgentStateValue,
 	ApprovalChannel,
 } from "@agent-manager/shared";
-import { randomUUID } from "node:crypto";
 import { BrowserWindow, Notification } from "electron";
 import { unifiedAgentManager } from "../agents";
 import { notificationService } from "../services/notification-service";
@@ -34,7 +34,10 @@ function generateId(): string {
 }
 
 function generatePlanSummary(planContent: string): string {
-	const clean = planContent.replace(/^#+\s*/gm, "").replace(/\n+/g, " ").trim();
+	const clean = planContent
+		.replace(/^#+\s*/gm, "")
+		.replace(/\n+/g, " ")
+		.trim();
 	if (clean.length <= 200) return clean;
 	return `${clean.slice(0, 200)}...`;
 }
@@ -86,10 +89,13 @@ function hasMatchingApproval(
 		);
 }
 
-function matchesState(value: AgentStateValue | undefined, state: string): boolean {
+function matchesState(
+	value: AgentStateValue | undefined,
+	state: string,
+): boolean {
 	if (!value) return false;
 	if (typeof value === "string") return value === state;
-	return Object.prototype.hasOwnProperty.call(value, state);
+	return Object.hasOwn(value, state);
 }
 
 function shouldNotifyOnComplete(
@@ -98,7 +104,8 @@ function shouldNotifyOnComplete(
 	context: Record<string, unknown>,
 ): boolean {
 	const transitionedToIdle =
-		matchesState(previousValue, "processing") && matchesState(currentValue, "idle");
+		matchesState(previousValue, "processing") &&
+		matchesState(currentValue, "idle");
 	if (!transitionedToIdle) return false;
 	if ((context as { pendingWorktreeResume?: unknown })?.pendingWorktreeResume) {
 		return false;
@@ -119,8 +126,10 @@ function sendCompletionNotification(sessionId: string) {
 	if (conversation?.title) bodyParts.push(conversation.title);
 	if (project?.name) bodyParts.push(project.name);
 	const body = bodyParts.length > 0 ? bodyParts.join(" • ") : sessionId;
-	console.log(`[AgentState] Sending completion notification for ${sessionId}: ${body}`);
-	new Notification({ title, body, silent: false, }).show();
+	console.log(
+		`[AgentState] Sending completion notification for ${sessionId}: ${body}`,
+	);
+	new Notification({ title, body, silent: false }).show();
 }
 
 export function setupAgentState() {
@@ -199,8 +208,12 @@ export function setupAgentState() {
 				}
 			}
 
-			if (shouldNotifyOnComplete(payload.value, previousValue, payload.context)) {
-				console.log(`[AgentState] Sending completion notification for ${payload.sessionId}`);
+			if (
+				shouldNotifyOnComplete(payload.value, previousValue, payload.context)
+			) {
+				console.log(
+					`[AgentState] Sending completion notification for ${payload.sessionId}`,
+				);
 				sendCompletionNotification(payload.sessionId);
 			}
 

@@ -3,14 +3,14 @@ import type {
 	AgentMode,
 	ReasoningLevel,
 } from "@agent-manager/shared";
+import { store } from "../../store";
+import { detectAgentType } from "../agent-type-utils";
 import type {
 	AgentDriver,
 	AgentDriverCommand,
 	AgentDriverContext,
 } from "./interface";
 import { buildFullMessage, shellEscape, splitCommand } from "./interface";
-import { detectAgentType } from "../agent-type-utils";
-import { store } from "../../store";
 
 export class CodexDriver implements AgentDriver {
 	getCommand(
@@ -151,33 +151,41 @@ function buildModeArgs(mode?: AgentMode): string[] {
 
 /**
  * Build custom API provider arguments for Codex CLI
- * 
+ *
  * @param config
  */
 function buildCustomApiArgs(config?: AgentConfig): string[] {
-	console.log(config)
+	console.log(config);
 	if (!config) return [];
 	const apiSettings = store.getApiSettings();
 
-	const modelType = detectAgentType(config)
+	const modelType = detectAgentType(config);
 	if (config.provider && modelType.isCodex) {
-		const provider = apiSettings.providers?.find((provider) => provider.id === config.provider);
+		const provider = apiSettings.providers?.find(
+			(provider) => provider.id === config.provider,
+		);
 
 		if (!provider) return [];
 		const providerKey = `model_providers.${provider.id}`;
 		const args = [
-			'-c', `${providerKey}.name="${provider.name}"`,
-			'-c', `model_provider=${provider.id}`,
+			"-c",
+			`${providerKey}.name="${provider.name}"`,
+			"-c",
+			`model_provider=${provider.id}`,
 		];
 
-		if (provider.type === "codex" || provider.type === "openai" || provider.type === "openai_compatible")  {
+		if (
+			provider.type === "codex" ||
+			provider.type === "openai" ||
+			provider.type === "openai_compatible"
+		) {
 			// Codex / OpenAI / OpenAI Compatible
 			// These are now flattened in ModelProviderCodex
 			if (provider.baseUrl) {
-				args.push('-c', `${providerKey}.base_url="${provider.baseUrl}"`);
+				args.push("-c", `${providerKey}.base_url="${provider.baseUrl}"`);
 			}
 			if (provider.envKey) {
-				args.push('-c', `${providerKey}.env_key="${provider.envKey}"`);
+				args.push("-c", `${providerKey}.env_key="${provider.envKey}"`);
 			}
 		}
 

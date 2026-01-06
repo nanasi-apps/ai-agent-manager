@@ -1,9 +1,6 @@
 import { z } from "zod";
 import { getCurrentBranch, runGit } from "../utils";
-import {
-	createSafeHandler,
-	errorResponse,
-} from "./safe-tool-wrapper";
+import { createSafeHandler, errorResponse } from "./safe-tool-wrapper";
 import type { ToolRegistrar } from "./types";
 
 export function registerGitTools(registerTool: ToolRegistrar) {

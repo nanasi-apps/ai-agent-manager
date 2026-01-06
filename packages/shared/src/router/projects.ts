@@ -7,10 +7,9 @@ import {
 	getStoreOrThrow,
 } from "../services/dependency-container";
 import { RULES_DIR } from "../services/rules-resolver";
+import { AgentConfigSchema } from "../types/launch-config";
 import type { Project } from "../types/store";
 import { generateUUID } from "../utils";
-
-import { AgentConfigSchema } from "../types/launch-config";
 
 const GtrConfigSchema = z.object({
 	copy: z.object({

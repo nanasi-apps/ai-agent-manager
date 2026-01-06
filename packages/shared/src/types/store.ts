@@ -14,13 +14,13 @@ export interface Message {
 	content: string;
 	timestamp: number;
 	logType?:
-	| "text"
-	| "tool_call"
-	| "tool_result"
-	| "thinking"
-	| "error"
-	| "system"
-	| "plan";
+		| "text"
+		| "tool_call"
+		| "tool_result"
+		| "thinking"
+		| "error"
+		| "system"
+		| "plan";
 }
 
 /**

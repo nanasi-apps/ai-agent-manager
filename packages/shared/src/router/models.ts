@@ -52,13 +52,15 @@ export const modelsRouter = {
 
 			// Create a cache key based on providers configuration AND includeDisabled flag
 			// Hash disabledModels too
-			const cacheKey = `models:v2:${includeDisabled}:${JSON.stringify(providers.map(p => ({
-				id: p.id,
-				type: p.type,
-				baseUrl: p.baseUrl,
-				apiKey: p.apiKey ? 'set' : 'unset',
-				disabledModels: p.disabledModels
-			})))}`;
+			const cacheKey = `models:v2:${includeDisabled}:${JSON.stringify(
+				providers.map((p) => ({
+					id: p.id,
+					type: p.type,
+					baseUrl: p.baseUrl,
+					apiKey: p.apiKey ? "set" : "unset",
+					disabledModels: p.disabledModels,
+				})),
+			)}`;
 			const cached = modelListCache.get(cacheKey);
 			const now = Date.now();
 			if (cached && cached.expiresAt > now) {
@@ -110,9 +112,14 @@ export const modelsRouter = {
 				let targetAgentId = "";
 				if (provider.type === "gemini") targetAgentId = "gemini";
 				// 'openai' and 'openai_compatible' map to 'codex' driver
-				else if (["codex", "openai", "openai_compatible"].includes(provider.type)) targetAgentId = "codex";
+				else if (
+					["codex", "openai", "openai_compatible"].includes(provider.type)
+				)
+					targetAgentId = "codex";
 
-				const agentTemplate = availableAgents.find((a) => a.id === targetAgentId);
+				const agentTemplate = availableAgents.find(
+					(a) => a.id === targetAgentId,
+				);
 				if (!agentTemplate) continue;
 
 				let models: string[] = [];
@@ -121,14 +128,19 @@ export const modelsRouter = {
 				try {
 					if (provider.type === "gemini" && apiKey) {
 						models = await fetchGeminiModels(apiKey, provider.baseUrl);
-					} else if (["codex", "openai", "openai_compatible"].includes(provider.type)) {
+					} else if (
+						["codex", "openai", "openai_compatible"].includes(provider.type)
+					) {
 						const p = provider as any;
 						if (apiKey) {
 							models = await fetchOpenAIModels(apiKey, p.baseUrl);
 						}
 					}
 				} catch (e) {
-					console.error(`Failed to fetch models for provider ${provider.name}`, e);
+					console.error(
+						`Failed to fetch models for provider ${provider.name}`,
+						e,
+					);
 				}
 
 				if (models.length > 0) {

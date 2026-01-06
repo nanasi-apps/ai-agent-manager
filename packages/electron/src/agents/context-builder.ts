@@ -52,7 +52,9 @@ function getTemplate(name: string): string {
 	}
 	const template = templateCache.get(name);
 	if (!template) {
-		throw new Error(`Internal error: Template ${name} not found in cache after loading`);
+		throw new Error(
+			`Internal error: Template ${name} not found in cache after loading`,
+		);
 	}
 	return template;
 }

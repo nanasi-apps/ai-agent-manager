@@ -102,7 +102,9 @@ export const conversationsRouter = {
 			const now = Date.now();
 			const storeInstance = getStoreOrThrow();
 			const agentManagerInstance = getAgentManagerOrThrow();
-			console.log(`Creating conversation session ${sessionId} for project ${input.projectId}`);
+			console.log(
+				`Creating conversation session ${sessionId} for project ${input.projectId}`,
+			);
 
 			// Verify project exists
 			const project = storeInstance.getProject(input.projectId);
@@ -386,7 +388,9 @@ export const conversationsRouter = {
 			),
 		)
 		.handler(async ({ input }) => {
-			const conversations = getStoreOrThrow().listConversations(input.projectId);
+			const conversations = getStoreOrThrow().listConversations(
+				input.projectId,
+			);
 			const agentManager = getAgentManagerOrThrow();
 			return conversations.map((c) => ({
 				...c,
@@ -454,7 +458,8 @@ export const conversationsRouter = {
 			const project = storeInstance.getProject(conv.projectId);
 			const cwd = project?.rootPath || nextTemplate.agent.cwd;
 
-			const previousCliName = currentTemplate?.name || conv.agentType || "unknown";
+			const previousCliName =
+				currentTemplate?.name || conv.agentType || "unknown";
 			const previousModel = conv.agentModel || "default";
 			const previousLabel = `${previousCliName} - ${previousModel}`;
 
@@ -509,7 +514,8 @@ export const conversationsRouter = {
 				)
 				.slice(-20);
 
-			handoverPreviousName = currentTemplate?.name || conv.agentType || "unknown";
+			handoverPreviousName =
+				currentTemplate?.name || conv.agentType || "unknown";
 
 			if (recent.length > 0) {
 				const historyText = recent

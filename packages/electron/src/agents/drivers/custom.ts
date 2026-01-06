@@ -7,7 +7,7 @@ import type {
 import { shellEscape, splitCommand } from "./interface";
 
 export class CustomDriver implements AgentDriver {
-	constructor(private config: AgentConfig) { }
+	constructor(private config: AgentConfig) {}
 
 	getCommand(
 		_context: AgentDriverContext,
@@ -27,4 +27,3 @@ export class CustomDriver implements AgentDriver {
 		};
 	}
 }
-

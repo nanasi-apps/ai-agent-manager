@@ -1,8 +1,11 @@
-import type { AppSettings, ApprovalChannel } from "@agent-manager/shared";
+import type { ApprovalChannel, AppSettings } from "@agent-manager/shared";
 import { store } from "../store/file-store";
 
 export class NotificationService {
-	private async sendToSlack(webhookUrl: string, message: string): Promise<void> {
+	private async sendToSlack(
+		webhookUrl: string,
+		message: string,
+	): Promise<void> {
 		try {
 			await fetch(webhookUrl, {
 				method: "POST",
@@ -10,11 +13,17 @@ export class NotificationService {
 				body: JSON.stringify({ text: message }),
 			});
 		} catch (error) {
-			console.error("[NotificationService] Failed to send Slack notification", error);
+			console.error(
+				"[NotificationService] Failed to send Slack notification",
+				error,
+			);
 		}
 	}
 
-	private async sendToDiscord(webhookUrl: string, message: string): Promise<void> {
+	private async sendToDiscord(
+		webhookUrl: string,
+		message: string,
+	): Promise<void> {
 		try {
 			await fetch(webhookUrl, {
 				method: "POST",
@@ -22,7 +31,10 @@ export class NotificationService {
 				body: JSON.stringify({ content: message }),
 			});
 		} catch (error) {
-			console.error("[NotificationService] Failed to send Discord notification", error);
+			console.error(
+				"[NotificationService] Failed to send Discord notification",
+				error,
+			);
 		}
 	}
 
@@ -31,7 +43,7 @@ export class NotificationService {
 		message: string,
 	): Promise<void> {
 		const settings: AppSettings = store.getAppSettings();
-		
+
 		const tasks: Promise<void>[] = [];
 
 		if (channels.includes("slack") && settings.slackWebhookUrl) {

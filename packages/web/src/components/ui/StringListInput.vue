@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref } from "vue";
 import { Plus, X } from "lucide-vue-next";
+import { ref } from "vue";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -11,9 +11,7 @@ const props = defineProps<{
 	helpText?: string;
 }>();
 
-const emit = defineEmits<{
-	(e: "update:modelValue", value: string[]): void;
-}>();
+const emit = defineEmits<(e: "update:modelValue", value: string[]) => void>();
 
 const inputValue = ref("");
 

@@ -12,9 +12,16 @@ import {
 	Search,
 	Settings,
 } from "lucide-vue-next";
-import { onMounted, onUnmounted, ref, watch, computed, type Component } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import {
+	type Component,
+	computed,
+	onMounted,
+	onUnmounted,
+	ref,
+	watch,
+} from "vue";
 import { useI18n } from "vue-i18n";
+import { useRoute, useRouter } from "vue-router";
 import NewProjectDialog from "@/components/dialogs/NewProjectDialog.vue";
 import {
 	Collapsible,
@@ -38,10 +45,10 @@ import {
 	SidebarMenuSubItem,
 	useSidebar,
 } from "@/components/ui/sidebar";
-import { useNewConversionDialogStore } from "@/stores/newConversionDialog";
-import { useSettingsStore } from "@/stores/settings";
-import { useProjectsStore } from "@/stores/projects";
 import { onAgentStateChangedPort } from "@/services/agent-state-port";
+import { useNewConversionDialogStore } from "@/stores/newConversionDialog";
+import { useProjectsStore } from "@/stores/projects";
+import { useSettingsStore } from "@/stores/settings";
 
 const { t } = useI18n();
 
@@ -57,47 +64,47 @@ const newConversionDialogStore = useNewConversionDialogStore();
 const { open: openNewConversionDialog } = newConversionDialogStore;
 
 const openNewConversion = (projectId: string) => {
-  if (settingsStore.newConversionOpenMode === 'dialog'){
-    openNewConversionDialog(projectId);
-  } else if (settingsStore.newConversionOpenMode === 'page') {
-    router.push(`/conversions/new?projectId=${projectId}`);
-  } else {
-    openNewConversionDialog(projectId);
-  }
-}
+	if (settingsStore.newConversionOpenMode === "dialog") {
+		openNewConversionDialog(projectId);
+	} else if (settingsStore.newConversionOpenMode === "page") {
+		router.push(`/conversions/new?projectId=${projectId}`);
+	} else {
+		openNewConversionDialog(projectId);
+	}
+};
 
 type SidebarItem = {
-  id: string;
-  title: string;
-  url: string;
-  icon: Component;
-  isRunning?: boolean;
+	id: string;
+	title: string;
+	url: string;
+	icon: Component;
+	isRunning?: boolean;
 };
 
 // Main navigation items.
 const navItems = computed<SidebarItem[]>(() => [
 	{
 		id: "dashboard",
-		title: t('sidebar.dashboard'),
+		title: t("sidebar.dashboard"),
 		url: "/",
 		icon: Home,
 	},
 	{
 		id: "inbox",
-		title: t('general.inbox'),
+		title: t("general.inbox"),
 		url: "/inbox",
 		icon: Inbox,
 	},
 	{
 		id: "search",
-		title: t('sidebar.search'),
+		title: t("sidebar.search"),
 		url: "#",
 		icon: Search,
 	},
 ]);
 
 // Sidebar projects computed from store
-const sidebarProjects = computed(() => 
+const sidebarProjects = computed(() =>
 	projectsStore.projectsWithConversations.map((p) => ({
 		id: p.id,
 		name: p.name,
@@ -106,7 +113,7 @@ const sidebarProjects = computed(() =>
 			title: c.title,
 			isRunning: c.isProcessing ?? false,
 		})),
-	}))
+	})),
 );
 
 let refreshInterval: ReturnType<typeof setInterval> | null = null;
@@ -114,16 +121,20 @@ let stateChangeUnsubscribe: (() => void) | null = null;
 
 onMounted(async () => {
 	projectsStore.loadAll();
-	window.addEventListener("agent-manager:data-change", () => projectsStore.loadAll(true));
+	window.addEventListener("agent-manager:data-change", () =>
+		projectsStore.loadAll(true),
+	);
 	refreshInterval = setInterval(() => projectsStore.loadAll(true), 3000);
-	
+
 	stateChangeUnsubscribe = onAgentStateChangedPort(() => {
 		projectsStore.loadAll(true);
 	});
 });
 
 onUnmounted(() => {
-	window.removeEventListener("agent-manager:data-change", () => projectsStore.loadAll(true));
+	window.removeEventListener("agent-manager:data-change", () =>
+		projectsStore.loadAll(true),
+	);
 	if (refreshInterval) clearInterval(refreshInterval);
 	if (stateChangeUnsubscribe) stateChangeUnsubscribe();
 });
@@ -157,19 +168,19 @@ watch(
 const bottomItems = computed<SidebarItem[]>(() => [
 	{
 		id: "mcp-servers",
-		title: t('sidebar.mcpServers'),
+		title: t("sidebar.mcpServers"),
 		url: "/mcp",
 		icon: Plug,
 	},
 	{
 		id: "rules",
-		title: t('sidebar.rules'),
+		title: t("sidebar.rules"),
 		url: "/rules",
 		icon: BookOpen,
 	},
 	{
 		id: "settings",
-		title: t('sidebar.settings'),
+		title: t("sidebar.settings"),
 		url: "/settings",
 		icon: Settings,
 	},

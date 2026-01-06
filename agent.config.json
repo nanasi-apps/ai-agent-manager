@@ -1,36 +1,36 @@
 {
-  "name": "Agent Manager",
-  "type": "web",
-  "startCommand": "npm run dev",
-  "services": [
-    {
-      "name": "Web",
-      "port": 5173,
-      "envVar": "WEB_PORT",
-      "ui": true
-    },
-    {
-      "name": "ORPC",
-      "port": 3002,
-      "envVar": "ORPC_PORT",
-      "ui": false
-    },
-    {
-      "name": "MCP",
-      "port": 3001,
-      "envVar": "MCP_PORT",
-      "ui": false
-    }
-  ],
-  "interaction": {
-    "method": "stdin"
-  },
-  "action": {
-    "type": "open_browser",
-    "targetService": "Web"
-  },
-  "readiness": {
-    "timeout": 60000,
-    "logPattern": "ready in"
-  }
+	"name": "Agent Manager",
+	"type": "web",
+	"startCommand": "npm run dev",
+	"services": [
+		{
+			"name": "Web",
+			"port": 5173,
+			"envVar": "WEB_PORT",
+			"ui": true
+		},
+		{
+			"name": "ORPC",
+			"port": 3002,
+			"envVar": "ORPC_PORT",
+			"ui": false
+		},
+		{
+			"name": "MCP",
+			"port": 3001,
+			"envVar": "MCP_PORT",
+			"ui": false
+		}
+	],
+	"interaction": {
+		"method": "stdin"
+	},
+	"action": {
+		"type": "open_browser",
+		"targetService": "Web"
+	},
+	"readiness": {
+		"timeout": 60000,
+		"logPattern": "ready in"
+	}
 }

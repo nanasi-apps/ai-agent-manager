@@ -1,20 +1,23 @@
+import { randomUUID } from "node:crypto";
 import type { AgentLogPayload, AgentMode } from "@agent-manager/shared";
 import { getStoreOrThrow } from "@agent-manager/shared";
-import { randomUUID } from "node:crypto";
-import { BrowserWindow } from "electron";
 import { StreamableHTTPTransport } from "@hono/mcp";
 import { serve } from "@hono/node-server";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import { BrowserWindow } from "electron";
 import { Hono } from "hono";
 import { getAgentManager } from "../agents/agent-manager";
+import {
+	getSessionContext,
+	runWithSessionContext,
+} from "./mcp-session-context";
 import {
 	buildToolBlockedResponse,
 	filterToolsByMode,
 	isToolAllowedForMode,
 	isToolDisabledForSession,
 } from "./tool-policy";
-import { getSessionContext, runWithSessionContext } from "./mcp-session-context";
 import {
 	registerFsTools,
 	registerGitTools,
@@ -53,7 +56,10 @@ const isInternalServer = (value: unknown): value is InternalServer => {
 	return "setRequestHandler" in value;
 };
 
-const planToolNames = new Set(["planning_create", "propose_implementation_plan"]);
+const planToolNames = new Set([
+	"planning_create",
+	"propose_implementation_plan",
+]);
 
 function generateFallbackUUID(): string {
 	return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
@@ -107,10 +113,7 @@ function extractPlanContent(args: unknown): string | null {
 	return planContent.trim() ? planContent : null;
 }
 
-function hasPlanContent(
-	sessionId: string,
-	planContent: string,
-): boolean {
+function hasPlanContent(sessionId: string, planContent: string): boolean {
 	const messages = getStoreOrThrow().getMessages(sessionId);
 	for (let i = messages.length - 1; i >= 0; i--) {
 		const msg = messages[i];
@@ -129,86 +132,90 @@ export async function startMcpServer(port: number = 3001) {
 
 	// Create a tool registrar that wraps handlers with security checks
 	const registerTool: ToolRegistrar = (name, schema, handler) => {
-		server.registerTool(name, schema, async (args: Record<string, unknown>, extra: unknown) => {
-			const context = getSessionContext();
-			const sessionId = context?.sessionId;
+		server.registerTool(
+			name,
+			schema,
+			async (args: Record<string, unknown>, extra: unknown) => {
+				const context = getSessionContext();
+				const sessionId = context?.sessionId;
 
-			if (context?.sessionId) {
-				const conv = getStoreOrThrow().getConversation(context.sessionId);
+				if (context?.sessionId) {
+					const conv = getStoreOrThrow().getConversation(context.sessionId);
 
-				// Check if tool is disabled by user
-				if (isToolDisabledForSession(name, conv?.disabledMcpTools)) {
-					console.log(
-						`[McpServer] Blocking disabled tool ${name} for session ${context.sessionId}`,
-					);
-					return buildToolBlockedResponse(
-						name,
-						"disabled for this session by the user",
-					);
-				}
-
-				// Check Plan/Ask Mode restrictions
-				const manager = getAgentManager();
-				const config = manager.getSessionConfig?.(context.sessionId);
-				const mode = config?.mode as AgentMode | undefined;
-
-				if (!isToolAllowedForMode(name, mode)) {
-					console.log(
-						`[McpServer] Blocking tool ${name} for session ${context.sessionId} (${mode} Mode)`,
-					);
-					return buildToolBlockedResponse(
-						name,
-						`not available in ${mode} Mode`,
-					);
-				}
-			}
-
-			if (sessionId) {
-				emitAgentLog({
-					sessionId,
-					data: formatToolCall(name, args),
-					type: "tool_call",
-				});
-			}
-
-			try {
-				const result = await handler(args, extra);
-
-				if (sessionId) {
-					if (planToolNames.has(name)) {
-						const planContent = extractPlanContent(args);
-						if (planContent) {
-							const persist = !hasPlanContent(sessionId, planContent);
-							emitAgentLog(
-								{
-									sessionId,
-									data: planContent,
-									type: "plan",
-								},
-								persist,
-							);
-						}
+					// Check if tool is disabled by user
+					if (isToolDisabledForSession(name, conv?.disabledMcpTools)) {
+						console.log(
+							`[McpServer] Blocking disabled tool ${name} for session ${context.sessionId}`,
+						);
+						return buildToolBlockedResponse(
+							name,
+							"disabled for this session by the user",
+						);
 					}
 
-					emitAgentLog({
-						sessionId,
-						data: formatToolResult(result),
-						type: result.isError ? "error" : "tool_result",
-					});
+					// Check Plan/Ask Mode restrictions
+					const manager = getAgentManager();
+					const config = manager.getSessionConfig?.(context.sessionId);
+					const mode = config?.mode as AgentMode | undefined;
+
+					if (!isToolAllowedForMode(name, mode)) {
+						console.log(
+							`[McpServer] Blocking tool ${name} for session ${context.sessionId} (${mode} Mode)`,
+						);
+						return buildToolBlockedResponse(
+							name,
+							`not available in ${mode} Mode`,
+						);
+					}
 				}
 
-				return result;
-			} catch (error: unknown) {
 				if (sessionId) {
 					emitAgentLog({
 						sessionId,
-						data: `[Error] ${error instanceof Error ? error.message : String(error)}\n`,
-						type: "error",
+						data: formatToolCall(name, args),
+						type: "tool_call",
 					});
 				}
-				throw error;
-			}
-		});
+
+				try {
+					const result = await handler(args, extra);
+
+					if (sessionId) {
+						if (planToolNames.has(name)) {
+							const planContent = extractPlanContent(args);
+							if (planContent) {
+								const persist = !hasPlanContent(sessionId, planContent);
+								emitAgentLog(
+									{
+										sessionId,
+										data: planContent,
+										type: "plan",
+									},
+									persist,
+								);
+							}
+						}
+
+						emitAgentLog({
+							sessionId,
+							data: formatToolResult(result),
+							type: result.isError ? "error" : "tool_result",
+						});
+					}
+
+					return result;
+				} catch (error: unknown) {
+					if (sessionId) {
+						emitAgentLog({
+							sessionId,
+							data: `[Error] ${error instanceof Error ? error.message : String(error)}\n`,
+							type: "error",
+						});
+					}
+					throw error;
+				}
+			},
+		);
 	};
 
 	// Register all tools from modular files
@@ -269,10 +276,7 @@ export async function startMcpServer(port: number = 3001) {
 						if (conv?.disabledMcpTools) {
 							result.tools = result.tools.filter(
 								(tool) =>
-									!isToolDisabledForSession(
-										tool.name,
-										conv.disabledMcpTools,
-									),
+									!isToolDisabledForSession(tool.name, conv.disabledMcpTools),
 							);
 						}
 
@@ -315,8 +319,13 @@ export async function startMcpServer(port: number = 3001) {
 
 	// Reject requests to /mcp/* without sessionId
 	app.all("/mcp/*", (c) => {
-		console.warn(`[McpServer] Rejected request without session ID: ${c.req.url}`);
-		return c.json({ error: "Session ID required. Use /mcp/:sessionId/* endpoint." }, 401);
+		console.warn(
+			`[McpServer] Rejected request without session ID: ${c.req.url}`,
+		);
+		return c.json(
+			{ error: "Session ID required. Use /mcp/:sessionId/* endpoint." },
+			401,
+		);
 	});
 
 	// Health check

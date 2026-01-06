@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { computed, ref, watch, onMounted, onUnmounted, nextTick } from "vue";
 import { useVirtualizer } from "@tanstack/vue-virtual";
 import {
 	AlertCircle,
@@ -9,14 +8,19 @@ import {
 	ChevronRight,
 	Copy,
 	Cpu,
+	FileText,
 	Sparkles,
 	Terminal,
-	FileText,
 } from "lucide-vue-next";
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { Avatar } from "@/components/ui/avatar";
-import { useConversationStore, type LogType, type Message } from "@/stores/conversation";
 import { renderMarkdown } from "@/lib/markdown";
+import {
+	type LogType,
+	type Message,
+	useConversationStore,
+} from "@/stores/conversation";
 
 const { t } = useI18n();
 const conversation = useConversationStore();
@@ -48,15 +52,15 @@ const codexLogTypes = new Set<LogType>([
 
 const getAgentLabel = () => {
 	const currentModel = conversation.selectedModelTemplate;
-	if (!currentModel) return t('chat.agent');
-	
+	if (!currentModel) return t("chat.agent");
+
 	const modelName = currentModel.model || currentModel.name;
 	const agentName = currentModel.agentName;
-	
+
 	if (modelName && agentName) {
 		return `${modelName} - ${agentName}`;
 	}
-	return agentName || t('chat.agent');
+	return agentName || t("chat.agent");
 };
 
 const getLogSummary = (msg: Message) => {
@@ -64,7 +68,7 @@ const getLogSummary = (msg: Message) => {
 	const type = msg.logType;
 
 	if (type === "system") {
-		const modelMatch = content.match(new RegExp("\\[Using model: ([^\\]]+)\\]"));
+		const modelMatch = content.match(/\[Using model: ([^\]]+)\]/);
 		if (modelMatch) return `Model: ${modelMatch[1]}`;
 		return "System";
 	}
@@ -103,17 +107,17 @@ const getCleanContent = (content: string, logType?: LogType) => {
 
 	let clean = content;
 	const prefixes = [
-		new RegExp("^\\s*\\[Tool: [^\\]]+\\]\\s*"),
-		new RegExp("^\\s*\\[Executing: [^\\]]+\\]\\s*"),
-		new RegExp("^\\s*\\[Result(: [^\\]]+)?\\]\\s*"),
-		new RegExp("^\\s*\\[Thinking\\]\\s*"),
-		new RegExp("^\\s*\\[Error\\]\\s*"),
-		new RegExp("^\\s*\\[System\\]\\s*"),
-		new RegExp("^\\s*\\[Using model: [^\\]]+\\]\\s*"),
-		new RegExp("^\\s*\\[Output\\]\\s*"),
-		new RegExp("^\\s*\\[File [^:]+: [^\\]]+\\]\\s*"),
-		new RegExp("^\\s*\\[Exit code: [^\\]]+\\]\\s*"),
-		new RegExp("^\\s*\\[Session started\\]\\s*"),
+		/^\s*\[Tool: [^\]]+\]\s*/,
+		/^\s*\[Executing: [^\]]+\]\s*/,
+		/^\s*\[Result(: [^\]]+)?\]\s*/,
+		/^\s*\[Thinking\]\s*/,
+		/^\s*\[Error\]\s*/,
+		/^\s*\[System\]\s*/,
+		/^\s*\[Using model: [^\]]+\]\s*/,
+		/^\s*\[Output\]\s*/,
+		/^\s*\[File [^:]+: [^\]]+\]\s*/,
+		/^\s*\[Exit code: [^\]]+\]\s*/,
+		/^\s*\[Session started\]\s*/,
 	];
 
 	for (const p of prefixes) {
@@ -145,7 +149,9 @@ const hasContent = (msg: Message) => {
 };
 
 const isAlwaysOpen = (msg: Message) => {
-	return (msg.logType === "system" || msg.logType === "error") && hasContent(msg)
+	return (
+		(msg.logType === "system" || msg.logType === "error") && hasContent(msg)
+	);
 };
 
 const isGroupLogAlwaysOpen = (msg: Message) => {
@@ -274,12 +280,15 @@ const virtualItems = computed(() => virtualizer.value.getVirtualItems());
 const totalSize = computed(() => virtualizer.value.getTotalSize());
 
 // Track expanded states to recalculate sizes
-watch(() => [...conversation.expandedMessageIds], () => {
-	// Re-measure all items when expand states change
-	nextTick(() => {
-		virtualizer.value.measure();
-	});
-});
+watch(
+	() => [...conversation.expandedMessageIds],
+	() => {
+		// Re-measure all items when expand states change
+		nextTick(() => {
+			virtualizer.value.measure();
+		});
+	},
+);
 
 // Auto-scroll to bottom when new messages arrive or content updates
 const isAutoScrollEnabled = ref(true);
@@ -289,9 +298,10 @@ const lastContentLength = ref(0);
 // Scroll to bottom helper
 const scrollToBottom = (smooth = true) => {
 	if (!isAutoScrollEnabled.value) return;
-	
+
 	nextTick(() => {
-		const itemCount = displayItems.value.length + (conversation.isGenerating ? 1 : 0);
+		const itemCount =
+			displayItems.value.length + (conversation.isGenerating ? 1 : 0);
 		if (itemCount > 0) {
 			virtualizer.value.scrollToIndex(itemCount - 1, {
 				align: "end",
@@ -302,12 +312,15 @@ const scrollToBottom = (smooth = true) => {
 };
 
 // Watch for new messages
-watch(() => conversation.messages.length, (newCount) => {
-	if (newCount > lastMessageCount.value) {
-		scrollToBottom();
-	}
-	lastMessageCount.value = newCount;
-});
+watch(
+	() => conversation.messages.length,
+	(newCount) => {
+		if (newCount > lastMessageCount.value) {
+			scrollToBottom();
+		}
+		lastMessageCount.value = newCount;
+	},
+);
 
 // Watch for content updates in last message (streaming)
 watch(
@@ -321,28 +334,33 @@ watch(
 			scrollToBottom(false);
 		}
 		lastContentLength.value = newLength;
-	}
+	},
 );
 
 // Watch for typing indicator changes
-watch(() => conversation.isGenerating, (isGenerating) => {
-	if (isGenerating) {
-		scrollToBottom();
-	}
-});
+watch(
+	() => conversation.isGenerating,
+	(isGenerating) => {
+		if (isGenerating) {
+			scrollToBottom();
+		}
+	},
+);
 
 // Scroll event handling for auto-scroll toggle
 const handleScroll = () => {
 	const el = scrollContainerRef.value;
 	if (!el) return;
-	
+
 	const threshold = 150;
 	const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
 	isAutoScrollEnabled.value = distanceFromBottom <= threshold;
 };
 
 onMounted(() => {
-	scrollContainerRef.value?.addEventListener("scroll", handleScroll, { passive: true });
+	scrollContainerRef.value?.addEventListener("scroll", handleScroll, {
+		passive: true,
+	});
 	// Initial scroll to bottom
 	scrollToBottom(false);
 });
@@ -376,7 +394,9 @@ const forceScrollToBottom = () => {
 };
 
 // Get item data by virtual index
-const getItemByIndex = (index: number): DisplayItem | { type: "typing-indicator" } | null => {
+const getItemByIndex = (
+	index: number,
+): DisplayItem | { type: "typing-indicator" } | null => {
 	if (index < displayItems.value.length) {
 		return displayItems.value[index]!;
 	}

@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { Dialog, DialogContent } from "@/components/ui/dialog";
-import ConversationView from "@/components/conversation/ConversationView.vue";
-import { useChatDialogStore } from "@/stores/chatDialog";
 import { storeToRefs } from "pinia";
+import ConversationView from "@/components/conversation/ConversationView.vue";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { useChatDialogStore } from "@/stores/chatDialog";
 
 const store = useChatDialogStore();
 const { isOpen, sessionId } = storeToRefs(store);

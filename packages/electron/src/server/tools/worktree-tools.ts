@@ -9,13 +9,13 @@ import {
 import { splitCommand } from "../../agents/drivers/interface";
 import { worktreeManager } from "../../main/worktree-manager";
 import { branchNamePromptService } from "../../services/branch-name-service";
+import { getSessionContext } from "../mcp-session-context";
 import {
 	execFileAsync,
 	getConflictedFiles,
 	getCurrentBranch,
 	runGtr,
 } from "../utils";
-import { getSessionContext } from "../mcp-session-context";
 import type { ToolRegistrar } from "./types";
 
 export function registerWorktreeTools(registerTool: ToolRegistrar) {
@@ -48,15 +48,14 @@ export function registerWorktreeTools(registerTool: ToolRegistrar) {
 			let normalizedBranch = branch.replace(/^refs\/heads\//, "");
 
 			try {
-				const selectedBranch = await branchNamePromptService.promptForBranchName(
-					{
+				const selectedBranch =
+					await branchNamePromptService.promptForBranchName({
 						repoPath,
 						projectId: context?.projectId,
 						sessionId,
 						suggestedBranch: normalizedBranch,
 						summary: resumeMessage,
-					},
-				);
+					});
 				normalizedBranch = selectedBranch.replace(/^refs\/heads\//, "");
 				console.log(
 					`[McpServer] Branch name selected by user: ${normalizedBranch}`,
@@ -371,12 +370,12 @@ export function registerWorktreeTools(registerTool: ToolRegistrar) {
 					args && args.length > 0
 						? [command, ...args]
 						: (() => {
-							const parsed = splitCommand(command);
-							if (!parsed.command) {
-								throw new Error("Command must be a non-empty string.");
-							}
-							return [parsed.command, ...parsed.args];
-						})();
+								const parsed = splitCommand(command);
+								if (!parsed.command) {
+									throw new Error("Command must be a non-empty string.");
+								}
+								return [parsed.command, ...parsed.args];
+							})();
 				const result = await runGtr(repoPath, ["run", branch, ...commandParts]);
 				return {
 					content: [{ type: "text", text: result }],

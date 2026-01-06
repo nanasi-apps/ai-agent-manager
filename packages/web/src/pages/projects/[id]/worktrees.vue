@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { Worktree } from "@agent-manager/shared";
 import { GitBranch, Loader2, Trash2 } from "lucide-vue-next";
 import { computed, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
@@ -14,75 +15,75 @@ import {
 } from "@/components/ui/table";
 import { getRouteParamFrom } from "@/lib/route-params";
 import { orpcQuery } from "@/services/orpc";
-import type { Worktree } from "@agent-manager/shared";
 
 const route = useRoute();
 const router = useRouter();
 const projectId = computed(() => getRouteParamFrom(route.params, "id"));
-
 
 const worktrees = ref<Worktree[]>([]);
 const isLoading = ref(false);
 const selectedPaths = ref<string[]>([]);
 
 const selectablePaths = computed(() =>
-  worktrees.value.filter(wt => !wt.isMain).map(wt => wt.path),
+	worktrees.value.filter((wt) => !wt.isMain).map((wt) => wt.path),
 );
 
 const isAllSelected = computed(() => {
-  if (selectablePaths.value.length === 0) return false;
+	if (selectablePaths.value.length === 0) return false;
 
-  const selectedCount = selectablePaths.value.filter(path =>
-    selectedPaths.value.includes(path),
-  ).length;
-  if (selectedCount === 0) return false;
-  if (selectedCount === selectablePaths.value.length) return true;
-  return "indeterminate";
+	const selectedCount = selectablePaths.value.filter((path) =>
+		selectedPaths.value.includes(path),
+	).length;
+	if (selectedCount === 0) return false;
+	if (selectedCount === selectablePaths.value.length) return true;
+	return "indeterminate";
 });
 
 const handleSelectAllToggle = (checked: boolean | "indeterminate") => {
-  selectedPaths.value = checked === true ? [...selectablePaths.value] : [];
+	selectedPaths.value = checked === true ? [...selectablePaths.value] : [];
 };
 
-const toggleSelection = (path: string, checked: boolean | 'indeterminate') => {
-  if (checked === true) {
-    if (!selectedPaths.value.includes(path)) {
-      selectedPaths.value = [...selectedPaths.value, path];
-    }
-  } else {
-    selectedPaths.value = selectedPaths.value.filter(p => p !== path);
-  }
+const toggleSelection = (path: string, checked: boolean | "indeterminate") => {
+	if (checked === true) {
+		if (!selectedPaths.value.includes(path)) {
+			selectedPaths.value = [...selectedPaths.value, path];
+		}
+	} else {
+		selectedPaths.value = selectedPaths.value.filter((p) => p !== path);
+	}
 };
 
 const removeSelectedWorktrees = async () => {
-    const id = projectId.value;
-    if (!id) return;
-    
-    const count = selectedPaths.value.length;
-    if (count === 0) return;
-    
-    if (
-        !confirm(
-            `Are you sure you want to remove ${count} worktree(s)? Uncommitted changes may be lost.`,
-        )
-    )
-        return;
+	const id = projectId.value;
+	if (!id) return;
 
-    try {
-        await Promise.all(selectedPaths.value.map(path => 
-            orpcQuery.removeWorktree.call({
-                projectId: id,
-                path,
-                force: true, 
-            })
-        ));
-        selectedPaths.value = [];
-        await loadWorktrees();
-    } catch (e) {
-        console.error(e);
-        alert("Failed to remove some worktrees: " + e);
-        await loadWorktrees();
-    }
+	const count = selectedPaths.value.length;
+	if (count === 0) return;
+
+	if (
+		!confirm(
+			`Are you sure you want to remove ${count} worktree(s)? Uncommitted changes may be lost.`,
+		)
+	)
+		return;
+
+	try {
+		await Promise.all(
+			selectedPaths.value.map((path) =>
+				orpcQuery.removeWorktree.call({
+					projectId: id,
+					path,
+					force: true,
+				}),
+			),
+		);
+		selectedPaths.value = [];
+		await loadWorktrees();
+	} catch (e) {
+		console.error(e);
+		alert("Failed to remove some worktrees: " + e);
+		await loadWorktrees();
+	}
 };
 
 const loadWorktrees = async () => {
@@ -92,11 +93,12 @@ const loadWorktrees = async () => {
 	try {
 		const res = await orpcQuery.listWorktrees.call({ projectId: id });
 		worktrees.value = res;
-		
-		// Cleanup selected paths
-		const existingPaths = res.map(wt => wt.path);
-		selectedPaths.value = selectedPaths.value.filter(p => existingPaths.includes(p));
 
+		// Cleanup selected paths
+		const existingPaths = res.map((wt) => wt.path);
+		selectedPaths.value = selectedPaths.value.filter((p) =>
+			existingPaths.includes(p),
+		);
 	} catch (e) {
 		console.error(e);
 	} finally {

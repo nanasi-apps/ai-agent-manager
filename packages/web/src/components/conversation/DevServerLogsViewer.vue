@@ -1,56 +1,65 @@
 <script setup lang="ts">
-import { ref, onUnmounted, watch, nextTick } from 'vue';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { useConversationStore } from '@/stores/conversation';
-import { Terminal } from 'lucide-vue-next';
+import { Terminal } from "lucide-vue-next";
+import { nextTick, onUnmounted, ref, watch } from "vue";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { useConversationStore } from "@/stores/conversation";
 
 const props = defineProps<{
-    open: boolean;
-    projectId: string;
-    conversationId: string;
+	open: boolean;
+	projectId: string;
+	conversationId: string;
 }>();
 
-const emit = defineEmits<{
-    (e: 'update:open', value: boolean): void;
-}>();
+const emit = defineEmits<(e: "update:open", value: boolean) => void>();
 
 const conversation = useConversationStore();
 const logs = ref<string[]>([]);
 const polling = ref<NodeJS.Timeout | null>(null);
 
 const fetchLogs = async () => {
-    try {
-        logs.value = await conversation.fetchDevServerLogs(props.projectId, props.conversationId);
-        scrollToBottom();
-    } catch (e) {
-        console.error("Failed to fetch logs:", e);
-    }
+	try {
+		logs.value = await conversation.fetchDevServerLogs(
+			props.projectId,
+			props.conversationId,
+		);
+		scrollToBottom();
+	} catch (e) {
+		console.error("Failed to fetch logs:", e);
+	}
 };
 
 const logsEndRef = ref<HTMLElement | null>(null);
 const scrollToBottom = async () => {
-    await nextTick();
-    if (logsEndRef.value) {
-        logsEndRef.value.scrollIntoView({ behavior: 'smooth' });
-    }
+	await nextTick();
+	if (logsEndRef.value) {
+		logsEndRef.value.scrollIntoView({ behavior: "smooth" });
+	}
 };
 
-
-watch(() => props.open, (isOpen) => {
-    if (isOpen) {
-        fetchLogs();
-        polling.value = setInterval(fetchLogs, 2000);
-    } else {
-        if (polling.value) {
-            clearInterval(polling.value);
-            polling.value = null;
-        }
-    }
-});
+watch(
+	() => props.open,
+	(isOpen) => {
+		if (isOpen) {
+			fetchLogs();
+			polling.value = setInterval(fetchLogs, 2000);
+		} else {
+			if (polling.value) {
+				clearInterval(polling.value);
+				polling.value = null;
+			}
+		}
+	},
+);
 
 onUnmounted(() => {
-    if (polling.value) clearInterval(polling.value);
+	if (polling.value) clearInterval(polling.value);
 });
 </script>
 

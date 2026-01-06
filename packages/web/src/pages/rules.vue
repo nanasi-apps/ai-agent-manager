@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { GlobalRule } from "@agent-manager/shared";
 import { FileText, Loader2, Plus, Save, Trash2 } from "lucide-vue-next";
 import { onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
@@ -15,10 +16,8 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { orpcQuery } from "@/services/orpc";
-import type { GlobalRule } from "@agent-manager/shared";
 
 const { t } = useI18n();
-
 
 const rules = ref<GlobalRule[]>([]);
 const selectedRule = ref<GlobalRule | null>(null);
@@ -107,7 +106,7 @@ const createRule = async () => {
 };
 
 const deleteRule = async (id: string) => {
-	if (!confirm(t('rules.confirmDelete'))) return;
+	if (!confirm(t("rules.confirmDelete"))) return;
 	try {
 		await orpcQuery.deleteGlobalRule.call({ id });
 		await loadRules();

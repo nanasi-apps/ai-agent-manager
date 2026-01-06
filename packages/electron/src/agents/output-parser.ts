@@ -6,7 +6,14 @@ import { SESSION_INVALID_PATTERNS } from "./process-utils";
  */
 export interface ParsedLog {
 	data: string;
-	type: "text" | "tool_call" | "tool_result" | "thinking" | "error" | "system" | "plan";
+	type:
+		| "text"
+		| "tool_call"
+		| "tool_result"
+		| "thinking"
+		| "error"
+		| "system"
+		| "plan";
 	raw?: unknown;
 	metadata?: ParsedLogMetadata;
 }
@@ -32,10 +39,7 @@ export class AgentOutputParser {
 		"propose_implementation_plan",
 	]);
 
-	private getPlanContent(
-		toolName: unknown,
-		rawParams: unknown,
-	): string | null {
+	private getPlanContent(toolName: unknown, rawParams: unknown): string | null {
 		if (typeof toolName !== "string") return null;
 		if (!AgentOutputParser.planToolNames.has(toolName)) return null;
 
@@ -435,10 +439,7 @@ export class AgentOutputParser {
 							(item.toolName as string | undefined) ||
 							"unknown";
 						const rawArgs =
-							item.arguments ??
-							item.input ??
-							item.parameters ??
-							item.args;
+							item.arguments ?? item.input ?? item.parameters ?? item.args;
 						let argsText = "";
 						if (rawArgs !== undefined) {
 							let parsedArgs: unknown = rawArgs;
@@ -450,10 +451,7 @@ export class AgentOutputParser {
 								}
 							}
 							argsText = `\n${JSON.stringify(parsedArgs, null, 2)}`;
-							const planContent = this.getPlanContent(
-								toolName,
-								parsedArgs,
-							);
+							const planContent = this.getPlanContent(toolName, parsedArgs);
 							if (planContent) {
 								results.push({
 									data: planContent,
@@ -515,10 +513,7 @@ export class AgentOutputParser {
 						case "function_call":
 						case "tool_result": {
 							const output =
-								item.output ??
-								item.result ??
-								item.content ??
-								item.response;
+								item.output ?? item.result ?? item.content ?? item.response;
 							if (output !== undefined) {
 								const text =
 									typeof output === "string"

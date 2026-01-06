@@ -1,7 +1,7 @@
 import type {
-	AppSettings,
 	ApiSettings,
 	ApprovalRequest,
+	AppSettings,
 	Conversation,
 	Message,
 	Project,

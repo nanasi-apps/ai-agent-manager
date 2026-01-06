@@ -2,8 +2,8 @@ import { randomUUID } from "node:crypto";
 import {
 	type ApprovalChannel,
 	type Conversation,
-	type IStore,
 	getStoreOrThrow,
+	type IStore,
 } from "@agent-manager/shared";
 import { z } from "zod";
 import { getSessionContext } from "../mcp-session-context";
@@ -26,7 +26,10 @@ function generateId(): string {
 }
 
 function generatePlanSummary(planContent: string): string {
-	const clean = planContent.replace(/^#+\s*/gm, "").replace(/\n+/g, " ").trim();
+	const clean = planContent
+		.replace(/^#+\s*/gm, "")
+		.replace(/\n+/g, " ")
+		.trim();
 	if (clean.length <= 200) return clean;
 	return `${clean.slice(0, 200)}...`;
 }
@@ -59,13 +62,18 @@ function resolveSessionContext(
 
 	const fallbackConversation = getLatestConversation(store);
 	if (fallbackConversation) {
-		return { sessionId: fallbackConversation.id, conversation: fallbackConversation };
+		return {
+			sessionId: fallbackConversation.id,
+			conversation: fallbackConversation,
+		};
 	}
 
 	return { sessionId: candidates[0] ?? generateId() };
 }
 
-function findLatestPlanContent(messages: { logType?: string; content: string }[]) {
+function findLatestPlanContent(
+	messages: { logType?: string; content: string }[],
+) {
 	for (let i = messages.length - 1; i >= 0; i--) {
 		const msg = messages[i];
 		if (msg?.logType === "plan" && msg.content?.trim()) {

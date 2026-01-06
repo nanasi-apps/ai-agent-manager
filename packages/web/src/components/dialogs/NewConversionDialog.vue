@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { AgentMode, Project, ReasoningLevel } from "@agent-manager/shared";
+import { storeToRefs } from "pinia";
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { Button } from "@/components/ui/button";
@@ -12,19 +13,16 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { storeToRefs } from "pinia";
-import { useNewConversionDialogStore } from "@/stores/newConversionDialog";
-import type { ModelTemplate } from "@/stores/conversation";
 import { groupModelTemplates } from "@/lib/modelTemplateGroups";
 import { getRouteParamFrom } from "@/lib/route-params";
 import { orpcQuery } from "@/services/orpc";
-
+import type { ModelTemplate } from "@/stores/conversation";
+import { useNewConversionDialogStore } from "@/stores/newConversionDialog";
 
 const newConversionDialogStore = useNewConversionDialogStore();
-const {
-	isOpen,
-	projectId: preselectedProjectId,
-} = storeToRefs(newConversionDialogStore);
+const { isOpen, projectId: preselectedProjectId } = storeToRefs(
+	newConversionDialogStore,
+);
 const { close } = newConversionDialogStore;
 
 const router = useRouter();
@@ -39,7 +37,6 @@ const projects = ref<Project[]>([]);
 const modelTemplates = ref<ModelTemplate[]>([]);
 const isLoading = ref(false);
 const isInitializing = ref(true);
-
 
 const reasoningOptions: { label: string; value: ReasoningLevel }[] = [
 	{ label: "Low", value: "low" },
@@ -90,7 +87,10 @@ const loadData = async () => {
 		const routeProjectId = getRouteParamFrom(route.params, "id");
 
 		// Validate current selection
-		if (selectedProjectId.value && !projects.value.some(p => p.id === selectedProjectId.value)) {
+		if (
+			selectedProjectId.value &&
+			!projects.value.some((p) => p.id === selectedProjectId.value)
+		) {
 			selectedProjectId.value = "";
 		}
 

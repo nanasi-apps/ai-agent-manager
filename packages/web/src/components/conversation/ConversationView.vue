@@ -11,25 +11,23 @@ import ChatInput from "@/components/conversation/ChatInput.vue";
 import ChatMessageList from "@/components/conversation/ChatMessageList.vue";
 import ConversationHeader from "@/components/conversation/ConversationHeader.vue";
 import McpSidebar from "@/components/conversation/McpSidebar.vue";
+import PlanViewer from "@/components/plan/PlanViewer.vue";
 import {
 	ResizableHandle,
 	ResizablePanel,
 	ResizablePanelGroup,
 } from "@/components/ui/resizable";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import PlanViewer from "@/components/plan/PlanViewer.vue";
-import { useConversationStore } from "@/stores/conversation";
-import { useProjectsStore } from "@/stores/projects";
 import { groupModelTemplates } from "@/lib/modelTemplateGroups";
 import { onAgentStateChangedPort } from "@/services/agent-state-port";
+import { useConversationStore } from "@/stores/conversation";
+import { useProjectsStore } from "@/stores/projects";
 
 const props = defineProps<{
-  sessionId: string;
+	sessionId: string;
 }>();
 
-const emit = defineEmits<{
-  (e: 'close'): void;
-}>();
+const emit = defineEmits<(e: "close") => void>();
 
 const route = useRoute();
 const router = useRouter();
@@ -87,16 +85,16 @@ const isInitializingSession = ref(false);
 
 // Session initialization
 async function initSession(id: string) {
-    // Prevent duplicate concurrent calls
-    if (isInitializingSession.value) {
-        return;
-    }
-    if (conversation.sessionId === id && conversation.messages.length > 0) {
-        return;
-    }
-    
-    isInitializingSession.value = true;
-    conversation.initSession(id);
+	// Prevent duplicate concurrent calls
+	if (isInitializingSession.value) {
+		return;
+	}
+	if (conversation.sessionId === id && conversation.messages.length > 0) {
+		return;
+	}
+
+	isInitializingSession.value = true;
+	conversation.initSession(id);
 	isSessionReady.value = false;
 
 	if (id === "new") {
@@ -105,7 +103,7 @@ async function initSession(id: string) {
 	}
 
 	try {
-        conversation.isLoading = true;
+		conversation.isLoading = true;
 		await conversation.loadConversation(id);
 	} finally {
 		conversation.isLoading = false;
@@ -124,7 +122,7 @@ watch(
 			void initSession(newId);
 		}
 	},
-    { immediate: true }
+	{ immediate: true },
 );
 
 watch(
@@ -153,7 +151,7 @@ let removeLogListener: (() => void) | undefined;
 let removeStateListener: (() => void) | undefined;
 
 onMounted(async () => {
-    loadProjects();
+	loadProjects();
 	await conversation.loadModelTemplates();
 	conversation.setupWatchers();
 	// Note: initSession is called by watch with immediate: true, so we don't call it here again
@@ -192,13 +190,14 @@ onMounted(async () => {
 		}
 		const removeStatePortListener = onAgentStateChangedPort(handleStateChanged);
 		if (!removeStatePortListener) {
-			const stateListenerResult = window.electronAPI.onAgentStateChanged(handleStateChanged);
+			const stateListenerResult =
+				window.electronAPI.onAgentStateChanged(handleStateChanged);
 			if (typeof stateListenerResult === "function") {
 				removeStateListener = stateListenerResult;
 			}
 		} else {
-            removeStateListener = removeStatePortListener;
-        }
+			removeStateListener = removeStatePortListener;
+		}
 	} else {
 		conversation.isConnected = false;
 		conversation.messages.push({
@@ -212,8 +211,8 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
-    if (removeLogListener) removeLogListener();
-    if (removeStateListener) removeStateListener();
+	if (removeLogListener) removeLogListener();
+	if (removeStateListener) removeStateListener();
 });
 </script>
 

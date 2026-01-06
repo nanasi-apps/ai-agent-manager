@@ -5,11 +5,7 @@ const commonConfig = {
 	platform: "node",
 	target: "node20",
 	outdir: "dist",
-	external: [
-		"electron",
-		"node-pty",
-		"*.node",
-	],
+	external: ["electron", "node-pty", "*.node"],
 	minify: true,
 	minifyWhitespace: true,
 	minifyIdentifiers: true,

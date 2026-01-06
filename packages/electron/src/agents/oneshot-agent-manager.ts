@@ -21,10 +21,7 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
 		config?: Partial<AgentConfig>,
 	) {
 		if (this.sessions.has(sessionId)) {
-			logger.warn(
-				"Session {sessionId} already exists.",
-				{ sessionId },
-			);
+			logger.warn("Session {sessionId} already exists.", { sessionId });
 			return;
 		}
 
@@ -46,7 +43,11 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
 
 		const persistedState = store.getConversation(sessionId)?.agentState;
 		if (persistedState) {
-			const ctx = (persistedState as { context?: { codexThreadId?: string; messageCount?: number } })?.context;
+			const ctx = (
+				persistedState as {
+					context?: { codexThreadId?: string; messageCount?: number };
+				}
+			)?.context;
 			logger.info(
 				"Restoring session {sessionId} with persisted state: codexThreadId={codexThreadId}, messageCount={messageCount}",
 				{
@@ -116,10 +117,9 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
 	): boolean {
 		const session = this.sessions.get(sessionId);
 		if (!session) {
-			logger.warn(
-				"Worktree resume requested for missing session {sessionId}",
-				{ sessionId },
-			);
+			logger.warn("Worktree resume requested for missing session {sessionId}", {
+				sessionId,
+			});
 			return false;
 		}
 
@@ -150,13 +150,13 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
 		return Array.from(this.sessions.keys());
 	}
 
-	getSessionMetadata(
-		sessionId: string,
-	): {
-		geminiSessionId?: string;
-		codexSessionId?: string;
-		codexThreadId?: string;
-	} | undefined {
+	getSessionMetadata(sessionId: string):
+		| {
+				geminiSessionId?: string;
+				codexSessionId?: string;
+				codexThreadId?: string;
+		  }
+		| undefined {
 		const session = this.sessions.get(sessionId);
 		if (!session) return undefined;
 		return {

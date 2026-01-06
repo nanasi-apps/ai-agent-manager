@@ -1,10 +1,10 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import type {
-	AppSettings,
 	ApiSettings,
 	ApprovalRequest,
 	ApprovalStatus,
+	AppSettings,
 	Conversation,
 	IStore,
 	Message,
@@ -109,16 +109,17 @@ export class FileStore implements IStore {
 			}
 
 			if (settingsPath && fs.existsSync(settingsPath)) {
-				const settings = JSON.parse(
-					fs.readFileSync(settingsPath, "utf-8"),
-				) as { apiSettings?: ApiSettings; appSettings?: AppSettings };
+				const settings = JSON.parse(fs.readFileSync(settingsPath, "utf-8")) as {
+					apiSettings?: ApiSettings;
+					appSettings?: AppSettings;
+				};
 				if (settings.apiSettings) {
 					// Migration: If we find legacy settings during load, we should probably ignore them or migrate them?
 					// User said: "existing ones are discardable without migration".
 					// So we just load providers if they exist.
 					if (settings.apiSettings.providers) {
 						this.apiSettings = {
-							providers: settings.apiSettings.providers
+							providers: settings.apiSettings.providers,
 						};
 					}
 				}
@@ -305,9 +306,9 @@ export class FileStore implements IStore {
 		const associatedConversationIds = new Set<string>();
 
 		// Delete any conversations associated with this project
-		const conversationsToDelete = Array.from(this.conversations.values()).filter(
-			(c) => c.projectId === id,
-		);
+		const conversationsToDelete = Array.from(
+			this.conversations.values(),
+		).filter((c) => c.projectId === id);
 		for (const conv of conversationsToDelete) {
 			associatedConversationIds.add(conv.id);
 			this.conversations.delete(conv.id);

@@ -1,8 +1,16 @@
 <script setup lang="ts">
-import { FileText, GitBranch, Plug, Play, Square, ExternalLink, Terminal } from "lucide-vue-next";
+import {
+	ExternalLink,
+	FileText,
+	GitBranch,
+	Play,
+	Plug,
+	Square,
+	Terminal,
+} from "lucide-vue-next";
+import { onUnmounted, ref, watch } from "vue";
 import { Button } from "@/components/ui/button";
 import { useConversationStore } from "@/stores/conversation";
-import { watch, onUnmounted, ref } from "vue";
 import DevServerLogsViewer from "./DevServerLogsViewer.vue";
 
 const conversation = useConversationStore();

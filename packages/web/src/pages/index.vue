@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { Loader2, MessageSquare } from "lucide-vue-next";
 import { onMounted } from "vue";
-import { useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
+import { useRouter } from "vue-router";
 import ConversionCard from "@/components/ConversionCard.vue";
 import { useProjectsStore } from "@/stores/projects";
 

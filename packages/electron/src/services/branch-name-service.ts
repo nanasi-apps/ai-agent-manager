@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
+import { type BranchNameRequest, getLogger } from "@agent-manager/shared";
 import { BrowserWindow, Notification } from "electron";
-import { getLogger, type BranchNameRequest } from "@agent-manager/shared";
 import { store } from "../store/file-store";
 
 type PendingEntry = {
@@ -56,7 +56,11 @@ function slugify(text: string, fallback: string): string {
 function choosePrefix(summary?: string): string {
 	if (!summary) return "feature";
 	const lower = summary.toLowerCase();
-	if (lower.includes("bug") || lower.includes("fix") || lower.includes("hotfix")) {
+	if (
+		lower.includes("bug") ||
+		lower.includes("fix") ||
+		lower.includes("hotfix")
+	) {
 		return "fix";
 	}
 	if (lower.includes("refactor") || lower.includes("cleanup")) {
@@ -225,10 +229,10 @@ export class BranchNamePromptService {
 			try {
 				win.webContents.send(channel, payload);
 			} catch (err) {
-				logger.warn(
-					"Failed to send branch name event {channel}: {error}",
-					{ channel, error: err },
-				);
+				logger.warn("Failed to send branch name event {channel}: {error}", {
+					channel,
+					error: err,
+				});
 			}
 		});
 	}

@@ -16,7 +16,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
 		return () => ipcRenderer.removeListener("theme-changed", listener);
 	},
 	onAgentLog: (callback: (payload: AgentLogPayload) => void) => {
-		const listener = (_event: unknown, payload: AgentLogPayload) => callback(payload);
+		const listener = (_event: unknown, payload: AgentLogPayload) =>
+			callback(payload);
 		ipcRenderer.on("agent-log", listener);
 		return () => ipcRenderer.removeListener("agent-log", listener);
 	},
@@ -34,16 +35,18 @@ contextBridge.exposeInMainWorld("electronAPI", {
 		ipcRenderer.on("branch-name:request", listener);
 		return () => ipcRenderer.removeListener("branch-name:request", listener);
 	},
-	onBranchNameOpen: (
-		callback: (payload: { requestId: string }) => void,
-	) => {
+	onBranchNameOpen: (callback: (payload: { requestId: string }) => void) => {
 		const listener = (_event: unknown, payload: { requestId: string }) =>
 			callback(payload);
 		ipcRenderer.on("branch-name:open", listener);
 		return () => ipcRenderer.removeListener("branch-name:open", listener);
 	},
 	onBranchNameResolved: (
-		callback: (payload: { requestId: string; branchName?: string; cancelled?: boolean }) => void,
+		callback: (payload: {
+			requestId: string;
+			branchName?: string;
+			cancelled?: boolean;
+		}) => void,
 	) => {
 		const listener = (
 			_event: unknown,

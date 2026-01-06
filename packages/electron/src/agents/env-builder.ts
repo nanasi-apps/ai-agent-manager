@@ -1,4 +1,8 @@
-import { getSessionMcpServersLogic, HARDCODED_MODELS, ModelProviderCodex } from "@agent-manager/shared";
+import {
+	getSessionMcpServersLogic,
+	HARDCODED_MODELS,
+	type ModelProviderCodex,
+} from "@agent-manager/shared";
 import { store } from "../store/file-store";
 import { getEnhancedEnv } from "../utils/path-enhancer";
 import { prepareClaudeEnv, prepareGeminiEnv } from "./env-utils";
@@ -54,7 +58,10 @@ export const EnvBuilder = {
 
 		let geminiProvider = providers.find((p) => p.type === "gemini");
 		let openaiProvider = providers.find(
-			(p) => p.type === "openai" || p.type === "openai_compatible" || p.type === "codex",
+			(p) =>
+				p.type === "openai" ||
+				p.type === "openai_compatible" ||
+				p.type === "codex",
 		) as ModelProviderCodex;
 
 		// If a specific provider is configured (Custom API), use it
@@ -108,11 +115,11 @@ export const EnvBuilder = {
 		// OpenAI / Codex
 		if (options.isCodex && !isStandardModel) {
 			console.log("[EnvBuilder] Using custom OpenAI / Codex provider settings");
-			console.log("openaiProvider: ",openaiProvider)
+			console.log("openaiProvider: ", openaiProvider);
 			if (openaiProvider) {
-				console.log("openaiProvider: ",openaiProvider)
+				console.log("openaiProvider: ", openaiProvider);
 				if (openaiProvider.apiKey && openaiProvider.envKey) {
-					console.log("openaiEnvkey: ",openaiProvider.envKey)
+					console.log("openaiEnvkey: ", openaiProvider.envKey);
 					env[openaiProvider.envKey] = openaiProvider.apiKey;
 				} else if (openaiProvider.apiKey) {
 					env.OPENAI_API_KEY = openaiProvider.apiKey;

@@ -16,10 +16,10 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { useNewConversionDialogStore } from "@/stores/newConversionDialog";
 import { MIN_LOAD_TIME } from "@/lib/constants";
 import { getRouteParamFrom } from "@/lib/route-params";
 import { orpcQuery } from "@/services/orpc";
+import { useNewConversionDialogStore } from "@/stores/newConversionDialog";
 
 const route = useRoute();
 const router = useRouter();

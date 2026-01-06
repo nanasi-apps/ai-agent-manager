@@ -78,11 +78,13 @@ const validateAutoConfigJson = (json: string): AutoConfig | null => {
 		// Support both new 'services' array and legacy 'ports' object
 		if (parsed.ports && !parsed.services) {
 			// Convert legacy ports to services format
-			parsed.services = Object.entries(parsed.ports).map(([envKey, defaultPort]) => ({
-				name: envKey,
-				envKey,
-				default: defaultPort as number,
-			}));
+			parsed.services = Object.entries(parsed.ports).map(
+				([envKey, defaultPort]) => ({
+					name: envKey,
+					envKey,
+					default: defaultPort as number,
+				}),
+			);
 			delete parsed.ports;
 		}
 		if (!Array.isArray(parsed.services)) {
@@ -276,8 +278,7 @@ const toggleGlobalRule = (ruleId: string, enabled: boolean) => {
 
 const isAllSelected = computed(() => {
 	return (
-		globalRules.value.length > 0 &&
-		disabledGlobalRulesDraft.value.length === 0
+		globalRules.value.length > 0 && disabledGlobalRulesDraft.value.length === 0
 	);
 });
 
@@ -296,7 +297,9 @@ const appendEntries = (
 	values: string[],
 	type: CopyEntryType,
 ) => {
-	const existing = new Set(entries.map((entry) => `${entry.type}::${entry.value}`));
+	const existing = new Set(
+		entries.map((entry) => `${entry.type}::${entry.value}`),
+	);
 	const added = values
 		.map((value) => value.trim())
 		.filter(Boolean)
@@ -404,7 +407,8 @@ const normalizeIncludeEntry = (index: number) => {
 		return;
 	}
 	const duplicateIndex = entries.findIndex(
-		(e, i) => i !== index && e.type === entry.type && e.value.trim() === trimmed,
+		(e, i) =>
+			i !== index && e.type === entry.type && e.value.trim() === trimmed,
 	);
 	if (duplicateIndex !== -1) {
 		entries.splice(index, 1);
@@ -429,7 +433,8 @@ const normalizeExcludeEntry = (index: number) => {
 		return;
 	}
 	const duplicateIndex = entries.findIndex(
-		(e, i) => i !== index && e.type === entry.type && e.value.trim() === trimmed,
+		(e, i) =>
+			i !== index && e.type === entry.type && e.value.trim() === trimmed,
 	);
 	if (duplicateIndex !== -1) {
 		entries.splice(index, 1);

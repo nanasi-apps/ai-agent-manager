@@ -1,13 +1,13 @@
 <script setup lang="ts">
+import { storeToRefs } from "pinia";
 import { onMounted, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import { storeToRefs } from "pinia";
-import NewProjectDialog from "@/components/dialogs/NewProjectDialog.vue";
 import BranchNameDialog from "@/components/dialogs/BranchNameDialog.vue";
+import NewProjectDialog from "@/components/dialogs/NewProjectDialog.vue";
+import DashboardLayout from "@/layouts/DashboardLayout.vue";
+import { useBranchNameDialogStore } from "@/stores/branchNameDialog";
 import { useNewProjectDialogStore } from "@/stores/newProjectDialog";
 import { useSettingsStore } from "@/stores/settings";
-import { useBranchNameDialogStore } from "@/stores/branchNameDialog";
-import DashboardLayout from "@/layouts/DashboardLayout.vue";
 
 const projectStore = useNewProjectDialogStore();
 const { isOpen } = storeToRefs(projectStore);

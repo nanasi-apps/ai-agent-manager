@@ -1,192 +1,192 @@
 {
-  "general": {
-    "cancel": "キャンセル",
-    "save": "保存",
-    "saved": "保存しました！",
-    "delete": "削除",
-    "create": "作成",
-    "loading": "読み込み中...",
-    "refresh": "更新",
-    "enabled": "有効",
-    "disabled": "無効",
-    "clear": "クリア",
-    "inbox": "Inbox"
-  },
-  "sidebar": {
-    "dashboard": "ダッシュボード",
-    "search": "検索",
-    "projects": "プロジェクト",
-    "addProject": "プロジェクトを追加",
-    "newConversion": "新しい会話",
-    "viewAll": "すべて見る",
-    "noConversations": "会話はありません",
-    "agentsManager": "Agents Manager",
-    "mcpServers": "MCP Servers",
-    "rules": "ルール",
-    "settings": "設定",
-    "overview": "概要",
-    "close": "サイドバーを閉じる",
-    "toggle": "切り替え"
-  },
-  "dashboard": {
-    "title": "ダッシュボード",
-    "subtitle": "最近の作業を続けるか、サイドバーからプロジェクトを選択してください。",
-    "recentConversations": "最近の会話",
-    "noConversations": "最近の会話はありません。サイドバーからプロジェクトを選択して開始してください！"
-  },
-  "inbox": {
-    "pending": "承認待ち",
-    "history": "履歴",
-    "planRequest": "プラン承認リクエスト",
-    "view": "表示",
-    "empty": {
-      "title": "承認リクエストはありません",
-      "description": "プランモードからの承認リクエストがここに表示されます。"
-    },
-    "status": {
-      "pending": "保留中",
-      "approved": "承認済み",
-      "rejected": "却下",
-      "expired": "期限切れ"
-    },
-    "dialog": {
-      "title": "プランを確認",
-      "description": "プランを確認し、実行するモデルを選択してください。",
-      "modelLabel": "実行モデル",
-      "approve": "承認して実行",
-      "reject": "却下"
-    }
-  },
-  "plan": {
-    "title": "実装計画",
-    "empty": "まだプランが生成されていません。",
-    "approve": "承認",
-    "approveDialog": {
-      "title": "プランを承認して実行",
-      "description": "このプランをエージェントモードで実行するモデルを選択してください。",
-      "modelLabel": "実行モデル",
-      "confirm": "プランを実行"
-    }
-  },
-  "common": {
-    "cancel": "キャンセル"
-  },
-  "agents": {
-    "title": "エージェント管理",
-    "description": "オーケストレーション機能は現在無効化されているか、リファクタリング中です。"
-  },
-  "mcp": {
-    "title": "MCPサーバー",
-    "description": "AI CLIツールで設定されたMCP (Model Context Protocol) サーバーを表示します",
-    "refresh": "更新",
-    "allServers": "設定済みの全MCPサーバー",
-    "allServersDesc": "すべてのサポートされているCLIツールからのサーバー",
-    "sourceServers": "{source} サーバー",
-    "sourceServersDesc": "{source} 用に設定されたサーバー",
-    "noServers": "MCPサーバーが設定されていません",
-    "noServersIn": "{source} にMCPサーバーが設定されていません",
-    "configureHint": "Gemini CLIまたはClaudeでサーバーを設定すると、ここに表示されます。",
-    "comingSoon": "近日公開: MCPサーバーのセッションごとの有効化/無効化、カスタムサーバーの追加、各サーバーから利用可能なツールの表示。",
-    "table": {
-      "name": "名前",
-      "source": "ソース",
-      "type": "タイプ",
-      "connection": "接続",
-      "status": "ステータス"
-    }
-  },
-  "rules": {
-    "title": "グローバルルール",
-    "noRules": "ルールが見つかりません。",
-    "selectRule": "編集するルールを選択してください",
-    "saveRule": "ルールを保存",
-    "createTitle": "グローバルルールの作成",
-    "createDesc": "新しいルールの名前を入力してください（例：「コーディング規約」、「Gitワークフロー」）。",
-    "placeholder": "ルール名",
-    "confirmDelete": "このルールを削除してもよろしいですか？"
-  },
-  "settings": {
-    "title": "設定",
-    "description": "アプリケーションの設定を行います。",
-    "generalSettings": "一般設定",
-    "generalSettingsDesc": "アプリケーションの一般的な設定を行います。",
-    "language": "言語",
-    "languageDesc": "ユーザーインターフェースの言語を選択します。",
-    "notifications": {
-      "title": "通知",
-      "desc": "エージェントの実行完了時にOS通知を送ります。",
-      "onCompletion": "完了時に通知する",
-      "approvalsTitle": "プラン承認",
-      "approvalsDesc": "プラン承認リクエストを追加チャンネルに送信します。",
-      "approvalsHint": "Inbox の通知は常に有効です。",
-      "channels": {
-        "slack": "Slack",
-        "discord": "Discord"
-      }
-    },
-    "newConversion": {
-      "title": "新しい会話",
-      "desc": "新しい会話の開き方を設定します。",
-      "openMode": "オープンモード",
-      "page": "ページ",
-      "dialog": "ダイアログ"
-    },
-    "webServer": {
-      "title": "Webサーバー",
-      "desc": "内蔵Webサーバーを操作してリモートアクセスを有効にします。",
-      "status": "ステータス",
-      "running": "稼働中",
-      "stopped": "停止中",
-      "statusDesc": "サーバーの起動・停止とURLの確認ができます。",
-      "host": "ホスト",
-      "port": "ポート",
-      "start": "Webサーバーを起動",
-      "stop": "Webサーバーを停止",
-      "autoStart": "起動時にWebサーバーを開始",
-      "autoOpen": "自動起動時にブラウザを開く"
-    },
-    "apiSettings": "API設定",
-    "loading": "API設定を読み込み中...",
-    "openai": {
-      "title": "OpenAI API",
-      "desc": "OpenAI APIエージェントおよび互換サービスに使用されます。",
-      "configured": "設定済み",
-      "notSet": "未設定",
-      "apiKey": "APIキー",
-      "baseUrl": "ベースURL（オプション）",
-      "baseUrlDesc": "Azure OpenAIまたは互換API用のカスタムエンドポイント。"
-    },
-    "gemini": {
-      "title": "Gemini API",
-      "desc": "Gemini APIエージェントに使用されます。",
-      "configured": "設定済み",
-      "notSet": "未設定",
-      "apiKey": "APIキー",
-      "baseUrl": "ベースURL（オプション）",
-      "baseUrlDesc": "Gemini APIプロキシ用のカスタムエンドポイント。"
-    },
-    "saveButton": "API設定を保存"
-  },
-  "time": {
-    "justNow": "たった今",
-    "ago": "{time}前"
-  },
-  "chat": {
-    "placeholder": "実は、Enterで改行することができます...",
-    "startConversation": "会話を開始",
-    "startPrompt": "メッセージを送信して、エージェントとの作業を開始してください。",
-    "agent": "エージェント",
-    "you": "あなた",
-    "model": "モデル",
-    "mode": "モード",
-    "reasoning": "推論",
-    "toolCall": "ツール呼び出し",
-    "toolResult": "ツール結果",
-    "output": "出力",
-    "fileChange": "ファイル変更",
-    "error": "エラー",
-    "thinking": "思考中",
-    "system": "システム",
-    "noContent": "_コンテンツなし_"
-  }
+	"general": {
+		"cancel": "キャンセル",
+		"save": "保存",
+		"saved": "保存しました！",
+		"delete": "削除",
+		"create": "作成",
+		"loading": "読み込み中...",
+		"refresh": "更新",
+		"enabled": "有効",
+		"disabled": "無効",
+		"clear": "クリア",
+		"inbox": "Inbox"
+	},
+	"sidebar": {
+		"dashboard": "ダッシュボード",
+		"search": "検索",
+		"projects": "プロジェクト",
+		"addProject": "プロジェクトを追加",
+		"newConversion": "新しい会話",
+		"viewAll": "すべて見る",
+		"noConversations": "会話はありません",
+		"agentsManager": "Agents Manager",
+		"mcpServers": "MCP Servers",
+		"rules": "ルール",
+		"settings": "設定",
+		"overview": "概要",
+		"close": "サイドバーを閉じる",
+		"toggle": "切り替え"
+	},
+	"dashboard": {
+		"title": "ダッシュボード",
+		"subtitle": "最近の作業を続けるか、サイドバーからプロジェクトを選択してください。",
+		"recentConversations": "最近の会話",
+		"noConversations": "最近の会話はありません。サイドバーからプロジェクトを選択して開始してください！"
+	},
+	"inbox": {
+		"pending": "承認待ち",
+		"history": "履歴",
+		"planRequest": "プラン承認リクエスト",
+		"view": "表示",
+		"empty": {
+			"title": "承認リクエストはありません",
+			"description": "プランモードからの承認リクエストがここに表示されます。"
+		},
+		"status": {
+			"pending": "保留中",
+			"approved": "承認済み",
+			"rejected": "却下",
+			"expired": "期限切れ"
+		},
+		"dialog": {
+			"title": "プランを確認",
+			"description": "プランを確認し、実行するモデルを選択してください。",
+			"modelLabel": "実行モデル",
+			"approve": "承認して実行",
+			"reject": "却下"
+		}
+	},
+	"plan": {
+		"title": "実装計画",
+		"empty": "まだプランが生成されていません。",
+		"approve": "承認",
+		"approveDialog": {
+			"title": "プランを承認して実行",
+			"description": "このプランをエージェントモードで実行するモデルを選択してください。",
+			"modelLabel": "実行モデル",
+			"confirm": "プランを実行"
+		}
+	},
+	"common": {
+		"cancel": "キャンセル"
+	},
+	"agents": {
+		"title": "エージェント管理",
+		"description": "オーケストレーション機能は現在無効化されているか、リファクタリング中です。"
+	},
+	"mcp": {
+		"title": "MCPサーバー",
+		"description": "AI CLIツールで設定されたMCP (Model Context Protocol) サーバーを表示します",
+		"refresh": "更新",
+		"allServers": "設定済みの全MCPサーバー",
+		"allServersDesc": "すべてのサポートされているCLIツールからのサーバー",
+		"sourceServers": "{source} サーバー",
+		"sourceServersDesc": "{source} 用に設定されたサーバー",
+		"noServers": "MCPサーバーが設定されていません",
+		"noServersIn": "{source} にMCPサーバーが設定されていません",
+		"configureHint": "Gemini CLIまたはClaudeでサーバーを設定すると、ここに表示されます。",
+		"comingSoon": "近日公開: MCPサーバーのセッションごとの有効化/無効化、カスタムサーバーの追加、各サーバーから利用可能なツールの表示。",
+		"table": {
+			"name": "名前",
+			"source": "ソース",
+			"type": "タイプ",
+			"connection": "接続",
+			"status": "ステータス"
+		}
+	},
+	"rules": {
+		"title": "グローバルルール",
+		"noRules": "ルールが見つかりません。",
+		"selectRule": "編集するルールを選択してください",
+		"saveRule": "ルールを保存",
+		"createTitle": "グローバルルールの作成",
+		"createDesc": "新しいルールの名前を入力してください（例：「コーディング規約」、「Gitワークフロー」）。",
+		"placeholder": "ルール名",
+		"confirmDelete": "このルールを削除してもよろしいですか？"
+	},
+	"settings": {
+		"title": "設定",
+		"description": "アプリケーションの設定を行います。",
+		"generalSettings": "一般設定",
+		"generalSettingsDesc": "アプリケーションの一般的な設定を行います。",
+		"language": "言語",
+		"languageDesc": "ユーザーインターフェースの言語を選択します。",
+		"notifications": {
+			"title": "通知",
+			"desc": "エージェントの実行完了時にOS通知を送ります。",
+			"onCompletion": "完了時に通知する",
+			"approvalsTitle": "プラン承認",
+			"approvalsDesc": "プラン承認リクエストを追加チャンネルに送信します。",
+			"approvalsHint": "Inbox の通知は常に有効です。",
+			"channels": {
+				"slack": "Slack",
+				"discord": "Discord"
+			}
+		},
+		"newConversion": {
+			"title": "新しい会話",
+			"desc": "新しい会話の開き方を設定します。",
+			"openMode": "オープンモード",
+			"page": "ページ",
+			"dialog": "ダイアログ"
+		},
+		"webServer": {
+			"title": "Webサーバー",
+			"desc": "内蔵Webサーバーを操作してリモートアクセスを有効にします。",
+			"status": "ステータス",
+			"running": "稼働中",
+			"stopped": "停止中",
+			"statusDesc": "サーバーの起動・停止とURLの確認ができます。",
+			"host": "ホスト",
+			"port": "ポート",
+			"start": "Webサーバーを起動",
+			"stop": "Webサーバーを停止",
+			"autoStart": "起動時にWebサーバーを開始",
+			"autoOpen": "自動起動時にブラウザを開く"
+		},
+		"apiSettings": "API設定",
+		"loading": "API設定を読み込み中...",
+		"openai": {
+			"title": "OpenAI API",
+			"desc": "OpenAI APIエージェントおよび互換サービスに使用されます。",
+			"configured": "設定済み",
+			"notSet": "未設定",
+			"apiKey": "APIキー",
+			"baseUrl": "ベースURL（オプション）",
+			"baseUrlDesc": "Azure OpenAIまたは互換API用のカスタムエンドポイント。"
+		},
+		"gemini": {
+			"title": "Gemini API",
+			"desc": "Gemini APIエージェントに使用されます。",
+			"configured": "設定済み",
+			"notSet": "未設定",
+			"apiKey": "APIキー",
+			"baseUrl": "ベースURL（オプション）",
+			"baseUrlDesc": "Gemini APIプロキシ用のカスタムエンドポイント。"
+		},
+		"saveButton": "API設定を保存"
+	},
+	"time": {
+		"justNow": "たった今",
+		"ago": "{time}前"
+	},
+	"chat": {
+		"placeholder": "実は、Enterで改行することができます...",
+		"startConversation": "会話を開始",
+		"startPrompt": "メッセージを送信して、エージェントとの作業を開始してください。",
+		"agent": "エージェント",
+		"you": "あなた",
+		"model": "モデル",
+		"mode": "モード",
+		"reasoning": "推論",
+		"toolCall": "ツール呼び出し",
+		"toolResult": "ツール結果",
+		"output": "出力",
+		"fileChange": "ファイル変更",
+		"error": "エラー",
+		"thinking": "思考中",
+		"system": "システム",
+		"noContent": "_コンテンツなし_"
+	}
 }

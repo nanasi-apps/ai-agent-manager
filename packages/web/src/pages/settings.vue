@@ -1,10 +1,19 @@
 <script setup lang="ts">
-import { Check, Eye, EyeOff, Key, Loader2, Globe } from "lucide-vue-next";
-import { onMounted, ref, watch, computed, nextTick } from "vue";
-import { useI18n } from "vue-i18n";
-import { watchDebounced } from "@vueuse/core";
 import { useQuery } from "@tanstack/vue-query";
 import { useVirtualizer } from "@tanstack/vue-virtual";
+import { watchDebounced } from "@vueuse/core";
+import {
+	Check,
+	ChevronDown,
+	Eye,
+	EyeOff,
+	Globe,
+	Key,
+	Loader2,
+	Search,
+} from "lucide-vue-next";
+import { computed, nextTick, onMounted, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,10 +26,9 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useSettingsStore, type ApprovalChannel } from "@/stores/settings";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, ChevronDown } from "lucide-vue-next";
 import { orpc, orpcQuery } from "@/services/orpc";
+import { type ApprovalChannel, useSettingsStore } from "@/stores/settings";
 
 const { t, locale } = useI18n();
 const settingsStore = useSettingsStore();
@@ -29,150 +37,166 @@ const localProviders = ref<any[]>([]);
 // Model Management State
 const modelSearchQuery = ref("");
 const { data: allModels, refetch: refetchModels } = useQuery(
-    orpcQuery.listModelTemplates.queryOptions({ input: { includeDisabled: true } })
+	orpcQuery.listModelTemplates.queryOptions({
+		input: { includeDisabled: true },
+	}),
 );
 
 // Grouping Logic for Models Tab
 const modelsByProvider = computed(() => {
-    if (!allModels.value || !localProviders.value.length) return [];
-    
-    // Iterate over local providers to build structure
-    // We only care about models that belong to configured providers
-    // We match by providerId attached to model ID (e.g. ::providerId) or we need to match by other means?
-    // listModelTemplates now returns `providerId`.
-    
-    const groups = localProviders.value.map(provider => {
-        const providerModels = allModels.value!.filter(m => m.providerId === provider.id);
-        
-        // Apply search filter
-        const filtered = providerModels.filter(m => 
-            !modelSearchQuery.value || 
-            m.name.toLowerCase().includes(modelSearchQuery.value.toLowerCase())
-        );
+	if (!allModels.value || !localProviders.value.length) return [];
 
-        if (filtered.length === 0) return null;
+	// Iterate over local providers to build structure
+	// We only care about models that belong to configured providers
+	// We match by providerId attached to model ID (e.g. ::providerId) or we need to match by other means?
+	// listModelTemplates now returns `providerId`.
 
-        // Group by Developer (prefix before /)
-        const developerGroups: Record<string, typeof filtered> = {};
-        const standaloneModels: typeof filtered = [];
+	const groups = localProviders.value
+		.map((provider) => {
+			const providerModels = allModels.value!.filter(
+				(m) => m.providerId === provider.id,
+			);
 
-        for (const model of filtered) {
-           const parts = model.name.split('/');
-           if (parts.length > 1) {
-               const devName = parts[0];
-               if (devName) {
-                   if (!developerGroups[devName]) developerGroups[devName] = [];
-                   developerGroups[devName].push(model);
-               }
-           } else {
-               standaloneModels.push(model);
-           }
-        }
+			// Apply search filter
+			const filtered = providerModels.filter(
+				(m) =>
+					!modelSearchQuery.value ||
+					m.name.toLowerCase().includes(modelSearchQuery.value.toLowerCase()),
+			);
 
-        return {
-            provider,
-            developerGroups,
-            standaloneModels,
-            totalCount: filtered.length
-        };
-    }).filter(g => g !== null);
+			if (filtered.length === 0) return null;
 
-    return groups;
+			// Group by Developer (prefix before /)
+			const developerGroups: Record<string, typeof filtered> = {};
+			const standaloneModels: typeof filtered = [];
+
+			for (const model of filtered) {
+				const parts = model.name.split("/");
+				if (parts.length > 1) {
+					const devName = parts[0];
+					if (devName) {
+						if (!developerGroups[devName]) developerGroups[devName] = [];
+						developerGroups[devName].push(model);
+					}
+				} else {
+					standaloneModels.push(model);
+				}
+			}
+
+			return {
+				provider,
+				developerGroups,
+				standaloneModels,
+				totalCount: filtered.length,
+			};
+		})
+		.filter((g) => g !== null);
+
+	return groups;
 });
 
 // Flat list structure for true virtualization
-type FlatItem = 
-  | { type: 'provider-header', provider: any, totalCount: number, key: string }
-  | { type: 'dev-group-header', providerId: string, groupName: string, models: any[], key: string }
-  | { type: 'model', providerId: string, model: any, key: string };
+type FlatItem =
+	| { type: "provider-header"; provider: any; totalCount: number; key: string }
+	| {
+			type: "dev-group-header";
+			providerId: string;
+			groupName: string;
+			models: any[];
+			key: string;
+	  }
+	| { type: "model"; providerId: string; model: any; key: string };
 
 const flatItems = computed(() => {
-    const items: FlatItem[] = [];
-    
-    for (const group of modelsByProvider.value) {
-        // 1. Provider Header
-        items.push({
-            type: 'provider-header',
-            provider: group.provider,
-            totalCount: group.totalCount,
-            key: `provider-${group.provider.id}`
-        });
+	const items: FlatItem[] = [];
 
-        // If provider is collapsed (default logic is confusing: !collapsed means OPEN)
-        // In template: :open="!collapsedProviders[...]"
-        // So if collapsedProviders is TRUE, it is CLOSED.
-        // if collapsedProviders is FALSE/Undefined, it is OPEN.
-        const isProviderOpen = !collapsedProviders.value[group.provider.id];
+	for (const group of modelsByProvider.value) {
+		// 1. Provider Header
+		items.push({
+			type: "provider-header",
+			provider: group.provider,
+			totalCount: group.totalCount,
+			key: `provider-${group.provider.id}`,
+		});
 
-        if (isProviderOpen) {
-            // 2. Developer Groups
-            for (const [devName, models] of Object.entries(group.developerGroups)) {
-                const groupKey = `${group.provider.id}::${devName}`;
-                items.push({
-                    type: 'dev-group-header',
-                    providerId: group.provider.id,
-                    groupName: devName,
-                    models: models as any[],
-                    key: `group-${groupKey}`
-                });
+		// If provider is collapsed (default logic is confusing: !collapsed means OPEN)
+		// In template: :open="!collapsedProviders[...]"
+		// So if collapsedProviders is TRUE, it is CLOSED.
+		// if collapsedProviders is FALSE/Undefined, it is OPEN.
+		const isProviderOpen = !collapsedProviders.value[group.provider.id];
 
-                const isGroupOpen = !collapsedDeveloperGroups.value[groupKey];
-                if (isGroupOpen) {
-                    for (const model of (models as any[])) {
-                        items.push({
-                            type: 'model',
-                            providerId: group.provider.id,
-                            model,
-                            key: `model-${model.id}`
-                        });
-                    }
-                }
-            }
+		if (isProviderOpen) {
+			// 2. Developer Groups
+			for (const [devName, models] of Object.entries(group.developerGroups)) {
+				const groupKey = `${group.provider.id}::${devName}`;
+				items.push({
+					type: "dev-group-header",
+					providerId: group.provider.id,
+					groupName: devName,
+					models: models as any[],
+					key: `group-${groupKey}`,
+				});
 
-            // 3. Standalone Models
-            for (const model of group.standaloneModels) {
-                items.push({
-                    type: 'model',
-                    providerId: group.provider.id,
-                    model,
-                    key: `model-${model.id}`
-                });
-            }
-        }
-    }
-    return items;
+				const isGroupOpen = !collapsedDeveloperGroups.value[groupKey];
+				if (isGroupOpen) {
+					for (const model of models as any[]) {
+						items.push({
+							type: "model",
+							providerId: group.provider.id,
+							model,
+							key: `model-${model.id}`,
+						});
+					}
+				}
+			}
+
+			// 3. Standalone Models
+			for (const model of group.standaloneModels) {
+				items.push({
+					type: "model",
+					providerId: group.provider.id,
+					model,
+					key: `model-${model.id}`,
+				});
+			}
+		}
+	}
+	return items;
 });
 
 // Helper for template
 const getVirtualItemData = (index: number): any => flatItems.value[index];
 
 const isModelEnabled = (providerId: string, modelName: string) => {
-    const provider = localProviders.value.find(p => p.id === providerId);
-    return !provider?.disabledModels?.includes(modelName);
+	const provider = localProviders.value.find((p) => p.id === providerId);
+	return !provider?.disabledModels?.includes(modelName);
 };
 
-const setModelEnabled = (providerId: string, modelName: string, enabled: boolean) => {
-    const provider = localProviders.value.find(p => p.id === providerId);
-    if (!provider) return;
-    
-    if (!provider.disabledModels) provider.disabledModels = [];
-    
-    if (enabled) {
-        // Enable: remove from disabledModels
-        provider.disabledModels = provider.disabledModels.filter((m: string) => m !== modelName);
-    } else {
-         // Disable: add to disabledModels
-        if (!provider.disabledModels.includes(modelName)) {
-            provider.disabledModels.push(modelName);
-        }
-    }
-};
+const setModelEnabled = (
+	providerId: string,
+	modelName: string,
+	enabled: boolean,
+) => {
+	const provider = localProviders.value.find((p) => p.id === providerId);
+	if (!provider) return;
 
+	if (!provider.disabledModels) provider.disabledModels = [];
+
+	if (enabled) {
+		// Enable: remove from disabledModels
+		provider.disabledModels = provider.disabledModels.filter(
+			(m: string) => m !== modelName,
+		);
+	} else {
+		// Disable: add to disabledModels
+		if (!provider.disabledModels.includes(modelName)) {
+			provider.disabledModels.push(modelName);
+		}
+	}
+};
 
 const collapsedProviders = ref<Record<string, boolean>>({});
 const collapsedDeveloperGroups = ref<Record<string, boolean>>({});
-
-
 
 // Virtual scroll setup for models
 const modelsScrollContainerRef = ref<HTMLElement | null>(null);
@@ -181,117 +205,148 @@ const modelsListOffset = ref(0);
 const ESTIMATED_ITEM_HEIGHT = 40;
 
 const getScrollParent = (node: HTMLElement | null): HTMLElement => {
-    if (!node) return document.documentElement;
-    let parent = node.parentElement;
-    while (parent) {
-        const { overflowY } = window.getComputedStyle(parent);
-        if (overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay') {
-            return parent;
-        }
-        parent = parent.parentElement;
-    }
-    return document.documentElement;
+	if (!node) return document.documentElement;
+	let parent = node.parentElement;
+	while (parent) {
+		const { overflowY } = window.getComputedStyle(parent);
+		if (
+			overflowY === "auto" ||
+			overflowY === "scroll" ||
+			overflowY === "overlay"
+		) {
+			return parent;
+		}
+		parent = parent.parentElement;
+	}
+	return document.documentElement;
 };
 
 const updateListOffset = () => {
-    if (modelsScrollContainerRef.value && parentScrollElement.value) {
-        // If parent is document element, calculation is same as window
-        if (parentScrollElement.value === document.documentElement || parentScrollElement.value === document.body) {
-             const rect = modelsScrollContainerRef.value.getBoundingClientRect();
-             modelsListOffset.value = rect.top + window.scrollY;
-        } else {
-             const parentRect = parentScrollElement.value.getBoundingClientRect();
-             const containerRect = modelsScrollContainerRef.value.getBoundingClientRect();
-             modelsListOffset.value = containerRect.top - parentRect.top + parentScrollElement.value.scrollTop;
-        }
-    }
+	if (modelsScrollContainerRef.value && parentScrollElement.value) {
+		// If parent is document element, calculation is same as window
+		if (
+			parentScrollElement.value === document.documentElement ||
+			parentScrollElement.value === document.body
+		) {
+			const rect = modelsScrollContainerRef.value.getBoundingClientRect();
+			modelsListOffset.value = rect.top + window.scrollY;
+		} else {
+			const parentRect = parentScrollElement.value.getBoundingClientRect();
+			const containerRect =
+				modelsScrollContainerRef.value.getBoundingClientRect();
+			modelsListOffset.value =
+				containerRect.top -
+				parentRect.top +
+				parentScrollElement.value.scrollTop;
+		}
+	}
 };
 
 const modelsVirtualizer = useVirtualizer({
-    get count() {
-        return flatItems.value.length;
-    },
-    getScrollElement: () => parentScrollElement.value,
-    estimateSize: () => ESTIMATED_ITEM_HEIGHT,
-    overscan: 20,
-    get scrollMargin() {
-        return modelsListOffset.value;
-    }
+	get count() {
+		return flatItems.value.length;
+	},
+	getScrollElement: () => parentScrollElement.value,
+	estimateSize: () => ESTIMATED_ITEM_HEIGHT,
+	overscan: 20,
+	get scrollMargin() {
+		return modelsListOffset.value;
+	},
 });
 
 const virtualModels = computed(() => modelsVirtualizer.value.getVirtualItems());
 const totalModelsSize = computed(() => modelsVirtualizer.value.getTotalSize());
 
 // Re-measure when providers expand/collapse or developer groups expand/collapse
-watch([collapsedProviders, collapsedDeveloperGroups], () => {
-    nextTick(() => {
-        modelsVirtualizer.value.measure();
-    });
-}, { deep: true });
+watch(
+	[collapsedProviders, collapsedDeveloperGroups],
+	() => {
+		nextTick(() => {
+			modelsVirtualizer.value.measure();
+		});
+	},
+	{ deep: true },
+);
 
 // Update offset when tab changes or component mounts
-watch(() => modelsScrollContainerRef.value, () => {
-    if (modelsScrollContainerRef.value) {
-         parentScrollElement.value = getScrollParent(modelsScrollContainerRef.value);
-         nextTick(updateListOffset);
-    }
-});
+watch(
+	() => modelsScrollContainerRef.value,
+	() => {
+		if (modelsScrollContainerRef.value) {
+			parentScrollElement.value = getScrollParent(
+				modelsScrollContainerRef.value,
+			);
+			nextTick(updateListOffset);
+		}
+	},
+);
 
 onMounted(() => {
-    window.addEventListener('resize', updateListOffset);
-    // Initial check
-    setTimeout(() => {
-        if (modelsScrollContainerRef.value) {
-            parentScrollElement.value = getScrollParent(modelsScrollContainerRef.value);
-            updateListOffset();
-        }
-    }, 100);
+	window.addEventListener("resize", updateListOffset);
+	// Initial check
+	setTimeout(() => {
+		if (modelsScrollContainerRef.value) {
+			parentScrollElement.value = getScrollParent(
+				modelsScrollContainerRef.value,
+			);
+			updateListOffset();
+		}
+	}, 100);
 });
 
 // Since we are unmounting, we should cleanup?
 // settings.vue is a page, so onUnmounted is fine
 
-
 const getDeveloperGroupState = (providerId: string, models: any[]) => {
-    const total = models.length;
-    const enabledCount = models.filter(m => isModelEnabled(providerId, m.name)).length;
-    
-    if (enabledCount === 0) return false;
-    if (enabledCount === total) return true;
-    return 'indeterminate';
+	const total = models.length;
+	const enabledCount = models.filter((m) =>
+		isModelEnabled(providerId, m.name),
+	).length;
+
+	if (enabledCount === 0) return false;
+	if (enabledCount === total) return true;
+	return "indeterminate";
 };
 
-const setDeveloperGroupEnabled = (providerId: string, models: any[], enabled: boolean) => {
-     models.forEach(m => setModelEnabled(providerId, m.name, enabled));
+const setDeveloperGroupEnabled = (
+	providerId: string,
+	models: any[],
+	enabled: boolean,
+) => {
+	models.forEach((m) => setModelEnabled(providerId, m.name, enabled));
 };
-
 
 const toggleAllModels = (providerId: string, enabled: boolean) => {
-    const provider = localProviders.value.find(p => p.id === providerId);
-    if (!provider) return;
-    
-    if (!Array.isArray(provider.disabledModels)) {
-        provider.disabledModels = [];
-    }
+	const provider = localProviders.value.find((p) => p.id === providerId);
+	if (!provider) return;
 
-    if (!allModels.value) return;
+	if (!Array.isArray(provider.disabledModels)) {
+		provider.disabledModels = [];
+	}
 
-    const providerModels = allModels.value.filter(m => m.providerId === provider.id);
-    if (!enabled) {
-         // Disable all found models
-         const allNames = providerModels.map(m => m.name);
-         // Add all names to disabledModels, ensuring uniqueness
-         provider.disabledModels = [...new Set([...provider.disabledModels, ...allNames])];
-    } else {
-        // Enable all: remove all provider models from disabledModels
-        const relevantNames = providerModels.map(m => m.name);
-        provider.disabledModels = provider.disabledModels.filter((m: string) => !relevantNames.includes(m));
-    }
+	if (!allModels.value) return;
+
+	const providerModels = allModels.value.filter(
+		(m) => m.providerId === provider.id,
+	);
+	if (!enabled) {
+		// Disable all found models
+		const allNames = providerModels.map((m) => m.name);
+		// Add all names to disabledModels, ensuring uniqueness
+		provider.disabledModels = [
+			...new Set([...provider.disabledModels, ...allNames]),
+		];
+	} else {
+		// Enable all: remove all provider models from disabledModels
+		const relevantNames = providerModels.map((m) => m.name);
+		provider.disabledModels = provider.disabledModels.filter(
+			(m: string) => !relevantNames.includes(m),
+		);
+	}
 };
 
-
 const { data: webServerStatus, refetch: refetchWebServerStatus } = useQuery(
-	orpcQuery.webServer.getStatus.queryOptions({})
+	orpcQuery.webServer.getStatus.queryOptions({}),
 );
 const webServerHost = ref("0.0.0.0");
 const webServerPort = ref<number | undefined>();
@@ -367,33 +422,38 @@ const toggleApprovalChannel = (channel: ApprovalChannel, enabled: boolean) => {
 function syncFromStore() {
 	selectedLanguage.value = settingsStore.language;
 	locale.value = settingsStore.language;
-	
+
 	notifyOnAgentComplete.value = settingsStore.notifyOnAgentComplete;
-	approvalNotificationChannels.value = [...settingsStore.approvalNotificationChannels];
+	approvalNotificationChannels.value = [
+		...settingsStore.approvalNotificationChannels,
+	];
 	newConversionOpenMode.value = settingsStore.newConversionOpenMode;
 	slackWebhookUrl.value = settingsStore.appSettings.slackWebhookUrl || "";
 	discordWebhookUrl.value = settingsStore.appSettings.discordWebhookUrl || "";
 
-	webServerAutoStart.value = settingsStore.appSettings.webServerAutoStart ?? false;
+	webServerAutoStart.value =
+		settingsStore.appSettings.webServerAutoStart ?? false;
 	webServerAutoOpenBrowser.value =
 		settingsStore.appSettings.webServerAutoOpenBrowser ?? false;
 	webServerHost.value = settingsStore.appSettings.webServerHost || "0.0.0.0";
 	webServerPort.value = settingsStore.appSettings.webServerPort;
-	
-	// Sync local providers copy, but preserve local edits if possible? 
+
+	// Sync local providers copy, but preserve local edits if possible?
 	// For now, simplistic sync (overwrite local on store update)
 	// We need to clone to avoid mutating store directly
-    // Also, we need to handle potential 'undefined' for providers
-    // NOTE: If we are midway through editing models, refreshing this might kill uncommitted changes?
-    // watchDebounced commits changes, which triggers update, which triggers store update, which triggers this watcher.
-    // If we blindly overwrite `localProviders` with `settingsStore.providers`, we might lose transient UI state if it's not fast enough?
-    // Actually, `settingsStore` is the source of truth for saving. `localProviders` is just a buffer.
-    // When `watchDebounced` fires, it saves `localProviders` TO `store`.
-    // Then `store` updates and fires this watcher.
-    // If we overwrite here, it should be matching what we just saved, so it's fine.
-    // Deep clone to ensure reactivity break
-	localProviders.value = JSON.parse(JSON.stringify(settingsStore.providers || []));
-    refetchModels(); // Reload models when settings change (in case API keys changed)
+	// Also, we need to handle potential 'undefined' for providers
+	// NOTE: If we are midway through editing models, refreshing this might kill uncommitted changes?
+	// watchDebounced commits changes, which triggers update, which triggers store update, which triggers this watcher.
+	// If we blindly overwrite `localProviders` with `settingsStore.providers`, we might lose transient UI state if it's not fast enough?
+	// Actually, `settingsStore` is the source of truth for saving. `localProviders` is just a buffer.
+	// When `watchDebounced` fires, it saves `localProviders` TO `store`.
+	// Then `store` updates and fires this watcher.
+	// If we overwrite here, it should be matching what we just saved, so it's fine.
+	// Deep clone to ensure reactivity break
+	localProviders.value = JSON.parse(
+		JSON.stringify(settingsStore.providers || []),
+	);
+	refetchModels(); // Reload models when settings change (in case API keys changed)
 }
 
 async function loadSettings() {
@@ -411,7 +471,7 @@ async function saveSettings() {
 	if (notifyOnAgentComplete.value !== settingsStore.notifyOnAgentComplete) {
 		appUpdates.notifyOnAgentComplete = notifyOnAgentComplete.value;
 	}
-	
+
 	const currentChannels = settingsStore.normalizeChannels(
 		settingsStore.appSettings.approvalNotificationChannels,
 	);
@@ -446,10 +506,15 @@ async function saveSettings() {
 	if (normalizedWebServerPort !== settingsStore.appSettings.webServerPort) {
 		appUpdates.webServerPort = normalizedWebServerPort;
 	}
-	if (slackWebhookUrl.value !== (settingsStore.appSettings.slackWebhookUrl || "")) {
+	if (
+		slackWebhookUrl.value !== (settingsStore.appSettings.slackWebhookUrl || "")
+	) {
 		appUpdates.slackWebhookUrl = slackWebhookUrl.value || undefined;
 	}
-	if (discordWebhookUrl.value !== (settingsStore.appSettings.discordWebhookUrl || "")) {
+	if (
+		discordWebhookUrl.value !==
+		(settingsStore.appSettings.discordWebhookUrl || "")
+	) {
 		appUpdates.discordWebhookUrl = discordWebhookUrl.value || undefined;
 	}
 
@@ -457,12 +522,14 @@ async function saveSettings() {
 		if (Object.keys(appUpdates).length > 0) {
 			await settingsStore.updateAppSettings(appUpdates);
 		}
-		
+
 		// Update API providers
 		// We send the current state of localProviders
 		// The backend handles masked keys (***) by preserving existing values
 		if (localProviders.value) {
-			await settingsStore.updateApiSettings({ providers: localProviders.value });
+			await settingsStore.updateApiSettings({
+				providers: localProviders.value,
+			});
 		}
 
 		// Update locale immediately
@@ -481,8 +548,6 @@ const newProvider = ref({
 	envKey: "",
 	apiKey: "",
 });
-
-
 
 const isNewProviderValid = computed(() => {
 	if (!newProvider.value.name) return false;
@@ -519,7 +584,6 @@ async function addProvider() {
 		};
 	}
 
-
 	newProvider.value = {
 		name: "",
 		type: "codex",
@@ -527,14 +591,12 @@ async function addProvider() {
 		envKey: "",
 		apiKey: "",
 	};
-    localProviders.value.push(provider);
+	localProviders.value.push(provider);
 }
 
 function deleteProvider(index: number) {
-    localProviders.value.splice(index, 1);
+	localProviders.value.splice(index, 1);
 }
-
-
 
 // Auto-save watcher
 watchDebounced(
@@ -556,8 +618,6 @@ watchDebounced(
 	},
 	{ debounce: 1000, maxWait: 5000, deep: true },
 );
-
-
 
 onMounted(() => {
 	if (settingsStore.isLoaded) {

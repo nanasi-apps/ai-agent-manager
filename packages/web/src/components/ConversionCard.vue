@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ExternalLink, MessageSquare, Loader2 } from "lucide-vue-next";
+import { ExternalLink, Loader2, MessageSquare } from "lucide-vue-next";
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { Card, CardContent } from "@/components/ui/card";
@@ -18,9 +18,11 @@ const formattedTime = computed(() => {
 	const now = new Date();
 	const diff = now.getTime() - date.getTime();
 
-	if (diff < 60000) return t('time.justNow');
-	if (diff < 3600000) return t('time.ago', { time: `${Math.floor(diff / 60000)}m` });
-	if (diff < 86400000) return t('time.ago', { time: `${Math.floor(diff / 3600000)}h` });
+	if (diff < 60000) return t("time.justNow");
+	if (diff < 3600000)
+		return t("time.ago", { time: `${Math.floor(diff / 60000)}m` });
+	if (diff < 86400000)
+		return t("time.ago", { time: `${Math.floor(diff / 3600000)}h` });
 	return date.toLocaleDateString();
 });
 </script>

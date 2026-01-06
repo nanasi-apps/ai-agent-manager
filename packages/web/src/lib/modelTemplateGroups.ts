@@ -1,5 +1,5 @@
-import type { ModelProvider } from "@/stores/settings";
 import type { ModelTemplate } from "@/stores/conversation";
+import type { ModelProvider } from "@/stores/settings";
 
 export interface ModelTemplateGroup {
 	agentType: string;
@@ -21,7 +21,9 @@ const getGroupLabel = (template: ModelTemplate, options?: GroupOptions) => {
 	}
 
 	if (template.providerId && options?.providers) {
-		const provider = options.providers.find((p) => p.id === template.providerId);
+		const provider = options.providers.find(
+			(p) => p.id === template.providerId,
+		);
 		if (provider) {
 			// Avoid duplication if the backend-provided name already includes the provider name
 			if (base.includes(provider.name)) {
@@ -47,7 +49,7 @@ export const groupModelTemplates = (
 		const customApi = isCustomApiTemplate(template);
 		// Group by agentType AND providerId
 		// Treat undefined providerId as 'default'
-		const providerId = template.providerId || 'default';
+		const providerId = template.providerId || "default";
 		const groupKey = `${template.agentType}:${customApi ? "custom" : "default"}:${providerId}`;
 
 		let group = byGroupKey.get(groupKey);

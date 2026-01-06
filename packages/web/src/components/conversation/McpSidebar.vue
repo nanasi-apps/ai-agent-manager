@@ -11,7 +11,11 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useConversationStore, type McpServerEntry, type McpTool } from "@/stores/conversation";
+import {
+	type McpServerEntry,
+	type McpTool,
+	useConversationStore,
+} from "@/stores/conversation";
 
 const conversation = useConversationStore();
 

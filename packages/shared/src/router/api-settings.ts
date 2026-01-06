@@ -47,27 +47,29 @@ export const apiSettingsRouter = {
 	updateApiSettings: os
 		.input(
 			z.object({
-				providers: z.array(
-					z.union([
-						z.object({
-							id: z.string(),
-							name: z.string(),
-							type: z.literal("gemini"),
-							baseUrl: z.string().optional(),
-							apiKey: z.string().optional(),
-							disabledModels: z.array(z.string()).optional(),
-						}),
-						z.object({
-							id: z.string(),
-							name: z.string(),
-							type: z.enum(["codex", "openai", "openai_compatible"]),
-							baseUrl: z.string().optional(),
-							apiKey: z.string().optional(),
-							envKey: z.string().optional(),
-							disabledModels: z.array(z.string()).optional(),
-						}),
-					]),
-				).optional(),
+				providers: z
+					.array(
+						z.union([
+							z.object({
+								id: z.string(),
+								name: z.string(),
+								type: z.literal("gemini"),
+								baseUrl: z.string().optional(),
+								apiKey: z.string().optional(),
+								disabledModels: z.array(z.string()).optional(),
+							}),
+							z.object({
+								id: z.string(),
+								name: z.string(),
+								type: z.enum(["codex", "openai", "openai_compatible"]),
+								baseUrl: z.string().optional(),
+								apiKey: z.string().optional(),
+								envKey: z.string().optional(),
+								disabledModels: z.array(z.string()).optional(),
+							}),
+						]),
+					)
+					.optional(),
 			}),
 		)
 		.output(z.object({ success: z.boolean() }))

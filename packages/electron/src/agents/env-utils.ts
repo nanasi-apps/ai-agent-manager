@@ -142,7 +142,9 @@ async function ensureOAuthFilesExist(homeDir: string): Promise<void> {
 				await fs.copyFile(sourceFile, targetFile);
 				console.log(`[EnvUtils] Copied missing OAuth file: ${file}`);
 			} catch (_e) {
-				console.log(`[EnvUtils] Could not copy OAuth file ${file} (may not exist in user home)`);
+				console.log(
+					`[EnvUtils] Could not copy OAuth file ${file} (may not exist in user home)`,
+				);
 			}
 		}
 	}
@@ -188,7 +190,10 @@ async function ensureGeminiSettings(
 		// Log directory contents after copy
 		try {
 			const files = await fs.readdir(settingsDir);
-			console.log(`[EnvUtils] Files in temp Gemini dir (${settingsDir}):`, files);
+			console.log(
+				`[EnvUtils] Files in temp Gemini dir (${settingsDir}):`,
+				files,
+			);
 		} catch (_e) {
 			console.log(`[EnvUtils] Could not list temp Gemini dir`);
 		}

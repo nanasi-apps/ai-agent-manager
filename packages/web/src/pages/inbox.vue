@@ -1,5 +1,10 @@
 <script setup lang="ts">
-import { useQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
+import type {
+	ApprovalRequest,
+	ApprovalStatus,
+	ModelTemplate,
+} from "@agent-manager/shared";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
 import {
 	CheckCircle2,
 	Clock,
@@ -26,9 +31,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { renderMarkdown } from "@/lib/markdown";
-import type { ApprovalRequest, ApprovalStatus, ModelTemplate } from "@agent-manager/shared";
 import { orpcQuery } from "@/services/orpc";
-
 
 const { t } = useI18n();
 const router = useRouter();
@@ -38,14 +41,14 @@ const queryClient = useQueryClient();
 const { data: approvals, isLoading } = useQuery(
 	orpcQuery.listApprovals.queryOptions({
 		input: {},
-	})
+	}),
 );
 
 const { data: modelTemplates } = useQuery(
 	orpcQuery.listModelTemplates.queryOptions({
 		input: {},
 		staleTime: 5 * 60 * 1000, // 5 minutes
-	})
+	}),
 );
 
 // Dialog state
@@ -79,23 +82,25 @@ const approveMutation = useMutation(
 		onError: (err) => {
 			console.error("Failed to approve:", err);
 		},
-	})
+	}),
 );
 
 const rejectMutation = useMutation(
 	orpcQuery.rejectApproval.mutationOptions({
 		onSuccess: () => {
 			isDialogOpen.value = false;
-			queryClient.invalidateQueries({ queryKey: orpcQuery.listApprovals.key() });
+			queryClient.invalidateQueries({
+				queryKey: orpcQuery.listApprovals.key(),
+			});
 		},
 		onError: (err) => {
 			console.error("Failed to reject:", err);
 		},
-	})
+	}),
 );
 
-const isProcessing = computed(() => 
-	approveMutation.isPending.value || rejectMutation.isPending.value
+const isProcessing = computed(
+	() => approveMutation.isPending.value || rejectMutation.isPending.value,
 );
 
 // Helpers
@@ -118,13 +123,25 @@ const formatDate = (timestamp: number) => {
 const getStatusBadge = (status: ApprovalStatus) => {
 	switch (status) {
 		case "pending":
-			return { variant: "secondary" as const, label: t("inbox.status.pending", "Pending") };
+			return {
+				variant: "secondary" as const,
+				label: t("inbox.status.pending", "Pending"),
+			};
 		case "approved":
-			return { variant: "default" as const, label: t("inbox.status.approved", "Approved") };
+			return {
+				variant: "default" as const,
+				label: t("inbox.status.approved", "Approved"),
+			};
 		case "rejected":
-			return { variant: "destructive" as const, label: t("inbox.status.rejected", "Rejected") };
+			return {
+				variant: "destructive" as const,
+				label: t("inbox.status.rejected", "Rejected"),
+			};
 		case "expired":
-			return { variant: "outline" as const, label: t("inbox.status.expired", "Expired") };
+			return {
+				variant: "outline" as const,
+				label: t("inbox.status.expired", "Expired"),
+			};
 		default:
 			return { variant: "outline" as const, label: status };
 	}

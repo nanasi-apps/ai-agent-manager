@@ -10,8 +10,8 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { useProjectsStore } from "@/stores/projects";
 import { orpcQuery } from "@/services/orpc";
+import { useProjectsStore } from "@/stores/projects";
 
 const props = defineProps<{
 	open: boolean;

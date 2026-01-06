@@ -1,194 +1,194 @@
 {
-  "general": {
-    "cancel": "Cancel",
-    "save": "Save",
-    "saved": "Saved!",
-    "delete": "Delete",
-    "create": "Create",
-    "loading": "Loading...",
-    "refresh": "Refresh",
-    "enabled": "Enabled",
-    "disabled": "Disabled",
-    "clear": "Clear",
-    "inbox": "Inbox"
-  },
-  "sidebar": {
-    "dashboard": "Dashboard",
-    "inbox": "Inbox",
-    "search": "Search",
-    "projects": "Projects",
-    "addProject": "Add Project",
-    "newConversion": "New Conversion",
-    "viewAll": "View all...",
-    "noConversations": "No conversations",
-    "agentsManager": "Agents Manager",
-    "mcpServers": "MCP Servers",
-    "rules": "Rules",
-    "settings": "Settings",
-    "overview": "Overview",
-    "close": "Close Sidebar",
-    "toggle": "Toggle"
-  },
-  "dashboard": {
-    "title": "Dashboard",
-    "subtitle": "Continue your recent work or select a project from the sidebar.",
-    "recentConversations": "Recent Conversations",
-    "noConversations": "No recent conversations. Select a project from the sidebar to start one!"
-  },
-  "inbox": {
-    "title": "Inbox",
-    "pending": "Pending Approval",
-    "history": "History",
-    "planRequest": "Plan Approval Request",
-    "view": "View",
-    "empty": {
-      "title": "No approval requests",
-      "description": "Approval requests from Plan mode will appear here."
-    },
-    "status": {
-      "pending": "Pending",
-      "approved": "Approved",
-      "rejected": "Rejected",
-      "expired": "Expired"
-    },
-    "dialog": {
-      "title": "Review Plan",
-      "description": "Review the plan and select a model to execute it.",
-      "modelLabel": "Execution Model",
-      "approve": "Approve & Execute",
-      "reject": "Reject"
-    }
-  },
-  "plan": {
-    "title": "Implementation Plan",
-    "empty": "No plan generated yet.",
-    "approve": "Approve",
-    "approveDialog": {
-      "title": "Approve & Execute Plan",
-      "description": "Select a model to execute this plan in Agent mode.",
-      "modelLabel": "Execution Model",
-      "confirm": "Execute Plan"
-    }
-  },
-  "common": {
-    "cancel": "Cancel"
-  },
-  "agents": {
-    "title": "Agent Manager",
-    "description": "Orchestration features are currently disabled or undergoing refactoring."
-  },
-  "mcp": {
-    "title": "MCP Servers",
-    "description": "View MCP (Model Context Protocol) servers configured in your AI CLI tools",
-    "refresh": "Refresh",
-    "allServers": "All Configured MCP Servers",
-    "allServersDesc": "Servers from all supported CLI tools",
-    "sourceServers": "{source} Servers",
-    "sourceServersDesc": "Servers configured for {source}",
-    "noServers": "No MCP servers configured",
-    "noServersIn": "No MCP servers configured in {source}",
-    "configureHint": "Configure servers in Gemini CLI or Claude to see them here.",
-    "comingSoon": "Coming Soon: Enable/disable MCP servers per session, add custom servers, and view available tools from each server.",
-    "table": {
-      "name": "Name",
-      "source": "Source",
-      "type": "Type",
-      "connection": "Connection",
-      "status": "Status"
-    }
-  },
-  "rules": {
-    "title": "Global Rules",
-    "noRules": "No rules found.",
-    "selectRule": "Select a rule to edit",
-    "saveRule": "Save Rule",
-    "createTitle": "Create Global Rule",
-    "createDesc": "Enter a name for the new rule (e.g., \"Coding Standards\", \"Git Workflow\").",
-    "placeholder": "Rule Name",
-    "confirmDelete": "Are you sure you want to delete this rule?"
-  },
-  "settings": {
-    "title": "Settings",
-    "description": "Configure your application settings.",
-    "generalSettings": "General Settings",
-    "generalSettingsDesc": "Configure general application preferences.",
-    "language": "Language",
-    "languageDesc": "Select the language for the user interface.",
-    "notifications": {
-      "title": "Notifications",
-      "desc": "Control OS notifications for agent runs.",
-      "onCompletion": "Notify when an agent finishes",
-      "approvalsTitle": "Plan approvals",
-      "approvalsDesc": "Send approval requests to additional channels.",
-      "approvalsHint": "Inbox notifications are always enabled.",
-      "channels": {
-        "slack": "Slack",
-        "discord": "Discord"
-      }
-    },
-    "newConversion": {
-      "title": "New Conversion",
-      "desc": "Configure how new conversions open.",
-      "openMode": "Open Mode",
-      "page": "Page",
-      "dialog": "Dialog"
-    },
-    "webServer": {
-      "title": "Web Server",
-      "desc": "Control the built-in web server for remote access.",
-      "status": "Status",
-      "running": "Running",
-      "stopped": "Stopped",
-      "statusDesc": "Start or stop the server and copy its URLs.",
-      "host": "Host",
-      "port": "Port",
-      "start": "Start Web Server",
-      "stop": "Stop Web Server",
-      "autoStart": "Start on launch",
-      "autoOpen": "Open browser when auto-starting"
-    },
-    "apiSettings": "API Settings",
-    "loading": "Loading API settings...",
-    "openai": {
-      "title": "OpenAI API",
-      "desc": "Used for OpenAI API agent and compatible services.",
-      "configured": "Configured",
-      "notSet": "Not Set",
-      "apiKey": "API Key",
-      "baseUrl": "Base URL (optional)",
-      "baseUrlDesc": "Custom endpoint for Azure OpenAI or compatible APIs."
-    },
-    "gemini": {
-      "title": "Gemini API",
-      "desc": "Used for Gemini API agent.",
-      "configured": "Configured",
-      "notSet": "Not Set",
-      "apiKey": "API Key",
-      "baseUrl": "Base URL (optional)",
-      "baseUrlDesc": "Custom endpoint for Gemini API proxy."
-    },
-    "saveButton": "Save API Settings"
-  },
-  "time": {
-    "justNow": "Just now",
-    "ago": "{time} ago"
-  },
-  "chat": {
-    "placeholder": "Send a message...",
-    "startConversation": "Start a conversation",
-    "startPrompt": "Send a message to start working with your agent.",
-    "agent": "Agent",
-    "you": "You",
-    "model": "Model",
-    "mode": "Mode",
-    "reasoning": "Reasoning",
-    "toolCall": "Tool Call",
-    "toolResult": "Tool Result",
-    "output": "Output",
-    "fileChange": "File Change",
-    "error": "Error",
-    "thinking": "Thinking",
-    "system": "System",
-    "noContent": "_No content_"
-  }
+	"general": {
+		"cancel": "Cancel",
+		"save": "Save",
+		"saved": "Saved!",
+		"delete": "Delete",
+		"create": "Create",
+		"loading": "Loading...",
+		"refresh": "Refresh",
+		"enabled": "Enabled",
+		"disabled": "Disabled",
+		"clear": "Clear",
+		"inbox": "Inbox"
+	},
+	"sidebar": {
+		"dashboard": "Dashboard",
+		"inbox": "Inbox",
+		"search": "Search",
+		"projects": "Projects",
+		"addProject": "Add Project",
+		"newConversion": "New Conversion",
+		"viewAll": "View all...",
+		"noConversations": "No conversations",
+		"agentsManager": "Agents Manager",
+		"mcpServers": "MCP Servers",
+		"rules": "Rules",
+		"settings": "Settings",
+		"overview": "Overview",
+		"close": "Close Sidebar",
+		"toggle": "Toggle"
+	},
+	"dashboard": {
+		"title": "Dashboard",
+		"subtitle": "Continue your recent work or select a project from the sidebar.",
+		"recentConversations": "Recent Conversations",
+		"noConversations": "No recent conversations. Select a project from the sidebar to start one!"
+	},
+	"inbox": {
+		"title": "Inbox",
+		"pending": "Pending Approval",
+		"history": "History",
+		"planRequest": "Plan Approval Request",
+		"view": "View",
+		"empty": {
+			"title": "No approval requests",
+			"description": "Approval requests from Plan mode will appear here."
+		},
+		"status": {
+			"pending": "Pending",
+			"approved": "Approved",
+			"rejected": "Rejected",
+			"expired": "Expired"
+		},
+		"dialog": {
+			"title": "Review Plan",
+			"description": "Review the plan and select a model to execute it.",
+			"modelLabel": "Execution Model",
+			"approve": "Approve & Execute",
+			"reject": "Reject"
+		}
+	},
+	"plan": {
+		"title": "Implementation Plan",
+		"empty": "No plan generated yet.",
+		"approve": "Approve",
+		"approveDialog": {
+			"title": "Approve & Execute Plan",
+			"description": "Select a model to execute this plan in Agent mode.",
+			"modelLabel": "Execution Model",
+			"confirm": "Execute Plan"
+		}
+	},
+	"common": {
+		"cancel": "Cancel"
+	},
+	"agents": {
+		"title": "Agent Manager",
+		"description": "Orchestration features are currently disabled or undergoing refactoring."
+	},
+	"mcp": {
+		"title": "MCP Servers",
+		"description": "View MCP (Model Context Protocol) servers configured in your AI CLI tools",
+		"refresh": "Refresh",
+		"allServers": "All Configured MCP Servers",
+		"allServersDesc": "Servers from all supported CLI tools",
+		"sourceServers": "{source} Servers",
+		"sourceServersDesc": "Servers configured for {source}",
+		"noServers": "No MCP servers configured",
+		"noServersIn": "No MCP servers configured in {source}",
+		"configureHint": "Configure servers in Gemini CLI or Claude to see them here.",
+		"comingSoon": "Coming Soon: Enable/disable MCP servers per session, add custom servers, and view available tools from each server.",
+		"table": {
+			"name": "Name",
+			"source": "Source",
+			"type": "Type",
+			"connection": "Connection",
+			"status": "Status"
+		}
+	},
+	"rules": {
+		"title": "Global Rules",
+		"noRules": "No rules found.",
+		"selectRule": "Select a rule to edit",
+		"saveRule": "Save Rule",
+		"createTitle": "Create Global Rule",
+		"createDesc": "Enter a name for the new rule (e.g., \"Coding Standards\", \"Git Workflow\").",
+		"placeholder": "Rule Name",
+		"confirmDelete": "Are you sure you want to delete this rule?"
+	},
+	"settings": {
+		"title": "Settings",
+		"description": "Configure your application settings.",
+		"generalSettings": "General Settings",
+		"generalSettingsDesc": "Configure general application preferences.",
+		"language": "Language",
+		"languageDesc": "Select the language for the user interface.",
+		"notifications": {
+			"title": "Notifications",
+			"desc": "Control OS notifications for agent runs.",
+			"onCompletion": "Notify when an agent finishes",
+			"approvalsTitle": "Plan approvals",
+			"approvalsDesc": "Send approval requests to additional channels.",
+			"approvalsHint": "Inbox notifications are always enabled.",
+			"channels": {
+				"slack": "Slack",
+				"discord": "Discord"
+			}
+		},
+		"newConversion": {
+			"title": "New Conversion",
+			"desc": "Configure how new conversions open.",
+			"openMode": "Open Mode",
+			"page": "Page",
+			"dialog": "Dialog"
+		},
+		"webServer": {
+			"title": "Web Server",
+			"desc": "Control the built-in web server for remote access.",
+			"status": "Status",
+			"running": "Running",
+			"stopped": "Stopped",
+			"statusDesc": "Start or stop the server and copy its URLs.",
+			"host": "Host",
+			"port": "Port",
+			"start": "Start Web Server",
+			"stop": "Stop Web Server",
+			"autoStart": "Start on launch",
+			"autoOpen": "Open browser when auto-starting"
+		},
+		"apiSettings": "API Settings",
+		"loading": "Loading API settings...",
+		"openai": {
+			"title": "OpenAI API",
+			"desc": "Used for OpenAI API agent and compatible services.",
+			"configured": "Configured",
+			"notSet": "Not Set",
+			"apiKey": "API Key",
+			"baseUrl": "Base URL (optional)",
+			"baseUrlDesc": "Custom endpoint for Azure OpenAI or compatible APIs."
+		},
+		"gemini": {
+			"title": "Gemini API",
+			"desc": "Used for Gemini API agent.",
+			"configured": "Configured",
+			"notSet": "Not Set",
+			"apiKey": "API Key",
+			"baseUrl": "Base URL (optional)",
+			"baseUrlDesc": "Custom endpoint for Gemini API proxy."
+		},
+		"saveButton": "Save API Settings"
+	},
+	"time": {
+		"justNow": "Just now",
+		"ago": "{time} ago"
+	},
+	"chat": {
+		"placeholder": "Send a message...",
+		"startConversation": "Start a conversation",
+		"startPrompt": "Send a message to start working with your agent.",
+		"agent": "Agent",
+		"you": "You",
+		"model": "Model",
+		"mode": "Mode",
+		"reasoning": "Reasoning",
+		"toolCall": "Tool Call",
+		"toolResult": "Tool Result",
+		"output": "Output",
+		"fileChange": "File Change",
+		"error": "Error",
+		"thinking": "Thinking",
+		"system": "System",
+		"noContent": "_No content_"
+	}
 }

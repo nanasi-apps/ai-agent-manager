@@ -18,17 +18,27 @@ export interface ElectronAPI {
 	) => () => void;
 	getOrpcPort: () => number;
 	listBranchNameRequests: () => Promise<BranchNameRequest[]>;
-	onBranchNameRequest: (callback: (payload: BranchNameRequest) => void) => () => void;
+	onBranchNameRequest: (
+		callback: (payload: BranchNameRequest) => void,
+	) => () => void;
 	onBranchNameOpen: (
 		callback: (payload: { requestId: string }) => void,
 	) => () => void;
 	onBranchNameResolved: (
-		callback: (payload: { requestId: string; branchName?: string; cancelled?: boolean }) => void,
+		callback: (payload: {
+			requestId: string;
+			branchName?: string;
+			cancelled?: boolean;
+		}) => void,
 	) => () => void;
 	submitBranchName: (
 		requestId: string,
 		branchName: string,
-	) => Promise<{ success: boolean; error?: string; request?: BranchNameRequest }>;
+	) => Promise<{
+		success: boolean;
+		error?: string;
+		request?: BranchNameRequest;
+	}>;
 	generateBranchName: (
 		requestId: string,
 	) => Promise<{ success: boolean; error?: string; suggestion?: string }>;

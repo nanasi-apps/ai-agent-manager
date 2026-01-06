@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { McpServerEntry } from "@agent-manager/shared";
 import {
 	AlertCircle,
 	CheckCircle,
@@ -30,10 +31,8 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { orpcQuery } from "@/services/orpc";
-import type { McpServerEntry } from "@agent-manager/shared";
 
 const { t } = useI18n();
-
 
 interface McpServersBySource {
 	gemini: McpServerEntry[];

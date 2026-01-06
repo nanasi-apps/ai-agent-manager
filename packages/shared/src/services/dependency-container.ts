@@ -30,13 +30,13 @@ export interface IAgentManager {
 		event: "state-changed",
 		listener: (payload: AgentStatePayload) => void,
 	): void;
-	getSessionMetadata(
-		sessionId: string,
-	): {
-		geminiSessionId?: string;
-		codexSessionId?: string;
-		codexThreadId?: string;
-	} | undefined;
+	getSessionMetadata(sessionId: string):
+		| {
+				geminiSessionId?: string;
+				codexSessionId?: string;
+				codexThreadId?: string;
+		  }
+		| undefined;
 	/** Store handover context to prepend to next user message */
 	setPendingHandover(sessionId: string, context: string): void;
 	/** Retrieve and clear pending handover context */
@@ -185,7 +185,7 @@ export interface IRunningProcess {
 	url?: string;
 	conversationId?: string;
 	logs: string[];
-	status: 'running' | 'stopped' | 'error';
+	status: "running" | "stopped" | "error";
 	exitCode?: number | null;
 }
 
@@ -198,7 +198,12 @@ export interface IDevServerService {
 	stopProject(projectId: string, conversationId?: string): Promise<boolean>;
 	launchProject(
 		projectId: string,
-		options?: { timeout?: number; cwd?: string; conversationId?: string; configName?: string },
+		options?: {
+			timeout?: number;
+			cwd?: string;
+			conversationId?: string;
+			configName?: string;
+		},
 	): Promise<IRunningProcess>;
 	getProjectLogs(projectId: string, conversationId?: string): string[];
 }

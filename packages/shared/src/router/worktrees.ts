@@ -32,9 +32,12 @@ export const worktreesRouter = {
 			const project = getStoreOrThrow().getProject(input.projectId);
 			if (!project || !project.rootPath)
 				throw new Error("Project has no root path");
-			const worktrees =
-				await getWorktreeManagerOrThrow().getWorktrees(project.rootPath);
-			const conversations = getStoreOrThrow().listConversations(input.projectId);
+			const worktrees = await getWorktreeManagerOrThrow().getWorktrees(
+				project.rootPath,
+			);
+			const conversations = getStoreOrThrow().listConversations(
+				input.projectId,
+			);
 			const byPath = new Map<string, { id: string; title: string }[]>();
 
 			for (const conversation of conversations) {
