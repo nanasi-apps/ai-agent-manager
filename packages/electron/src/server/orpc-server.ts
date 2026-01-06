@@ -1,3 +1,5 @@
+import type { IncomingMessage, Server } from "node:http";
+import type { Duplex } from "node:stream";
 import { appRouter } from "@agent-manager/shared";
 import { onError } from "@orpc/server";
 import { RPCHandler as MessagePortRPCHandler } from "@orpc/server/message-port";
@@ -26,23 +28,26 @@ export function setupElectronOrpc() {
 	});
 }
 
-export function attachOrpcToServer(server: any) {
+export function attachOrpcToServer(server: Server) {
 	const wss = new WebSocketServer({ noServer: true });
 	console.log("[ORPC] WebSocket attached to HTTP server");
 	const handler = createWsHandler();
 
-	server.on("upgrade", (request: any, socket: any, head: any) => {
-		const requestUrl = request?.url ?? "";
-		const path = requestUrl.split("?")[0];
-		if (path !== ORPC_WS_PATH) {
-			socket.destroy();
-			return;
-		}
+	server.on(
+		"upgrade",
+		(request: IncomingMessage, socket: Duplex, head: Buffer) => {
+			const requestUrl = request?.url ?? "";
+			const path = requestUrl.split("?")[0];
+			if (path !== ORPC_WS_PATH) {
+				socket.destroy();
+				return;
+			}
 
-		wss.handleUpgrade(request, socket, head, (ws) => {
-			wss.emit("connection", ws, request);
-		});
-	});
+			wss.handleUpgrade(request, socket, head, (ws) => {
+				wss.emit("connection", ws, request);
+			});
+		},
+	);
 
 	wss.on("connection", (ws) => {
 		console.log("[ORPC] Client connected");

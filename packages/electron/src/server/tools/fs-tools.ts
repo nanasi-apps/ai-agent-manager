@@ -17,7 +17,8 @@ export function registerFsTools(registerTool: ToolRegistrar) {
 			},
 		},
 		async ({ path: pathArg, file_path: filePathArg }) => {
-			const filePath = pathArg || filePathArg;
+			const filePath =
+				(pathArg as string | undefined) || (filePathArg as string | undefined);
 			if (!filePath) {
 				return {
 					content: [
@@ -31,10 +32,13 @@ export function registerFsTools(registerTool: ToolRegistrar) {
 				return {
 					content: [{ type: "text", text: content }],
 				};
-			} catch (error: any) {
+			} catch (error: unknown) {
 				return {
 					content: [
-						{ type: "text", text: `Error reading file: ${error.message}` },
+						{
+							type: "text",
+							text: `Error reading file: ${error instanceof Error ? error.message : String(error)}`,
+						},
 					],
 					isError: true,
 				};
@@ -56,7 +60,8 @@ export function registerFsTools(registerTool: ToolRegistrar) {
 			},
 		},
 		async ({ path: pathArg, file_path: filePathArg, content }) => {
-			const filePath = pathArg || filePathArg;
+			const filePath =
+				(pathArg as string | undefined) || (filePathArg as string | undefined);
 			if (!filePath) {
 				return {
 					content: [
@@ -67,16 +72,19 @@ export function registerFsTools(registerTool: ToolRegistrar) {
 			}
 			try {
 				await fs.mkdir(path.dirname(filePath), { recursive: true });
-				await fs.writeFile(filePath, content, "utf-8");
+				await fs.writeFile(filePath, content as string, "utf-8");
 				return {
 					content: [
 						{ type: "text", text: `Successfully wrote to ${filePath}` },
 					],
 				};
-			} catch (error: any) {
+			} catch (error: unknown) {
 				return {
 					content: [
-						{ type: "text", text: `Error writing file: ${error.message}` },
+						{
+							type: "text",
+							text: `Error writing file: ${error instanceof Error ? error.message : String(error)}`,
+						},
 					],
 					isError: true,
 				};
@@ -99,7 +107,8 @@ export function registerFsTools(registerTool: ToolRegistrar) {
 			},
 		},
 		async ({ path: pathArg, file_path: filePathArg, target, replacement }) => {
-			const filePath = pathArg || filePathArg;
+			const filePath =
+				(pathArg as string | undefined) || (filePathArg as string | undefined);
 			if (!filePath) {
 				return {
 					content: [
@@ -110,7 +119,7 @@ export function registerFsTools(registerTool: ToolRegistrar) {
 			}
 			try {
 				const content = await fs.readFile(filePath, "utf-8");
-				if (!content.includes(target)) {
+				if (!content.includes(target as string)) {
 					return {
 						content: [
 							{
@@ -121,7 +130,10 @@ export function registerFsTools(registerTool: ToolRegistrar) {
 						isError: true,
 					};
 				}
-				const newContent = content.replace(target, replacement);
+				const newContent = content.replace(
+					target as string,
+					replacement as string,
+				);
 				await fs.writeFile(filePath, newContent, "utf-8");
 				return {
 					content: [
@@ -131,10 +143,13 @@ export function registerFsTools(registerTool: ToolRegistrar) {
 						},
 					],
 				};
-			} catch (error: any) {
+			} catch (error: unknown) {
 				return {
 					content: [
-						{ type: "text", text: `Error replacing content: ${error.message}` },
+						{
+							type: "text",
+							text: `Error replacing content: ${error instanceof Error ? error.message : String(error)}`,
+						},
 					],
 					isError: true,
 				};
@@ -219,7 +234,9 @@ export function registerFsTools(registerTool: ToolRegistrar) {
 			},
 		},
 		async ({ path: dirPathArg, dir_path: altDirPathArg }) => {
-			const dirPath = dirPathArg || altDirPathArg;
+			const dirPath =
+				(dirPathArg as string | undefined) ||
+				(altDirPathArg as string | undefined);
 			if (!dirPath) {
 				return {
 					content: [
@@ -233,10 +250,13 @@ export function registerFsTools(registerTool: ToolRegistrar) {
 				return {
 					content: [{ type: "text", text: JSON.stringify(files, null, 2) }],
 				};
-			} catch (error: any) {
+			} catch (error: unknown) {
 				return {
 					content: [
-						{ type: "text", text: `Error listing directory: ${error.message}` },
+						{
+							type: "text",
+							text: `Error listing directory: ${error instanceof Error ? error.message : String(error)}`,
+						},
 					],
 					isError: true,
 				};

@@ -152,50 +152,50 @@ const closeApproveDialog = () => {
 	</div>
 </template>
 
-<style scoped>
+<style>
 /* Reuse markdown styles from chat or define specific ones here */
-.markdown-content :deep(h1) {
-  font-size: 1.5rem;
-  font-weight: 700;
-  margin-top: 1.5rem;
-  margin-bottom: 1rem;
+.markdown-content h1 {
+	font-size: 1.5rem;
+	font-weight: 700;
+	margin-top: 1.5rem;
+	margin-bottom: 1rem;
 }
-.markdown-content :deep(h2) {
-  font-size: 1.25rem;
-  font-weight: 600;
-  margin-top: 1.5rem;
-  margin-bottom: 0.75rem;
+.markdown-content h2 {
+	font-size: 1.25rem;
+	font-weight: 600;
+	margin-top: 1.5rem;
+	margin-bottom: 0.75rem;
 }
-.markdown-content :deep(ul) {
-  list-style-type: disc;
-  padding-left: 1.5rem;
-  margin-bottom: 1rem;
+.markdown-content ul {
+	list-style-type: disc;
+	padding-left: 1.5rem;
+	margin-bottom: 1rem;
 }
-.markdown-content :deep(ol) {
-  list-style-type: decimal;
-  padding-left: 1.5rem;
-  margin-bottom: 1rem;
+.markdown-content ol {
+	list-style-type: decimal;
+	padding-left: 1.5rem;
+	margin-bottom: 1rem;
 }
-.markdown-content :deep(p) {
-  margin-bottom: 1rem;
-  line-height: 1.6;
+.markdown-content p {
+	margin-bottom: 1rem;
+	line-height: 1.6;
 }
-.markdown-content :deep(pre) {
-  background-color: hsl(var(--muted));
-  padding: 1rem;
-  border-radius: 0.5rem;
-  overflow-x: auto;
-  margin-bottom: 1rem;
+.markdown-content pre {
+	background-color: hsl(var(--muted));
+	padding: 1rem;
+	border-radius: 0.5rem;
+	overflow-x: auto;
+	margin-bottom: 1rem;
 }
-.markdown-content :deep(code) {
-  font-family: monospace;
-  background-color: hsl(var(--muted));
-  padding: 0.2em 0.4em;
-  border-radius: 0.25rem;
-  font-size: 0.9em;
+.markdown-content code {
+	font-family: monospace;
+	background-color: hsl(var(--muted));
+	padding: 0.2em 0.4em;
+	border-radius: 0.25rem;
+	font-size: 0.9em;
 }
-.markdown-content :deep(pre code) {
-  background-color: transparent;
-  padding: 0;
+.markdown-content pre code {
+	background-color: transparent;
+	padding: 0;
 }
 </style>

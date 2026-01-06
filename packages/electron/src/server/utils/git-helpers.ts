@@ -1,5 +1,23 @@
 import { execFileAsync } from "./exec-helpers";
 
+interface ExecError extends Error {
+	stdout?: Buffer | string;
+	stderr?: Buffer | string;
+}
+
+function isExecError(error: unknown): error is ExecError {
+	return error instanceof Error;
+}
+
+function getErrorMessage(error: unknown): string {
+	if (isExecError(error)) {
+		const stdout = error.stdout?.toString()?.trim();
+		const stderr = error.stderr?.toString()?.trim();
+		return stdout || stderr || error.message;
+	}
+	return error instanceof Error ? error.message : String(error);
+}
+
 export async function getCurrentBranch(repoPath: string): Promise<string> {
 	const { stdout } = await execFileAsync(
 		"git",
@@ -39,13 +57,8 @@ export async function runGit(
 		if (out) return out;
 		if (err) return err;
 		return "OK";
-	} catch (error: any) {
-		const stdout = error?.stdout?.toString();
-		const stderr = error?.stderr?.toString();
-		const out = stdout?.trim();
-		const err = stderr?.trim();
-		const message = out || err || error?.message || String(error);
-		throw new Error(message);
+	} catch (error: unknown) {
+		throw new Error(getErrorMessage(error));
 	}
 }
 
@@ -63,12 +76,8 @@ export async function runGtr(
 		if (out) return out;
 		if (err) return err;
 		return "OK";
-	} catch (error: any) {
-		const stdout = error?.stdout?.toString();
-		const stderr = error?.stderr?.toString();
-		const out = stdout?.trim();
-		const err = stderr?.trim();
-		const message = out || err || error?.message || String(error);
+	} catch (error: unknown) {
+		const message = getErrorMessage(error);
 		if (message.includes("is not a git command")) {
 			throw new Error(
 				"git gtr is not installed. Install git-worktree-runner (https://github.com/coderabbitai/git-worktree-runner).",

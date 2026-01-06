@@ -1,4 +1,8 @@
-import { AgentConfigSchema, getStoreOrThrow } from "@agent-manager/shared";
+import {
+	type AgentConfigJson,
+	AgentConfigSchema,
+	getStoreOrThrow,
+} from "@agent-manager/shared";
 import { z } from "zod";
 import { getAgentManager } from "../../agents/agent-manager";
 import { devServerManager } from "../../main/dev-server-manager";
@@ -29,7 +33,8 @@ Use this when implementation is complete and you want to start the development s
 					),
 			},
 		},
-		async ({ timeout = 60000 }): Promise<ToolResult> => {
+		async (args): Promise<ToolResult> => {
+			const timeout = (args.timeout as number | undefined) ?? 60000;
 			const projectId = getSessionProjectId();
 
 			if (!projectId) {
@@ -73,7 +78,7 @@ Use this when implementation is complete and you want to start the development s
 				}
 
 				const processInfo = await devServerManager.launchProject(projectId, {
-					timeout,
+					timeout: timeout as number,
 					cwd: worktreeCwd,
 					conversationId: context?.sessionId,
 				});
@@ -136,7 +141,8 @@ Analyze the project structure (package.json, etc.) and call this tool with the a
 				config: AgentConfigSchema,
 			},
 		},
-		async ({ config }): Promise<ToolResult> => {
+		async (args): Promise<ToolResult> => {
+			const config = args.config as AgentConfigJson;
 			const projectId = getSessionProjectId();
 
 			if (!projectId) {
@@ -173,7 +179,7 @@ Analyze the project structure (package.json, etc.) and call this tool with the a
 
 Type: ${config.type}
 Command: ${config.startCommand}
-Services: ${config.services?.length ? config.services.map((s: any) => `${s.name} (${s.default}${s.argument ? `, ${s.argument}` : ""})`).join(", ") : "(none)"}
+Services: ${config.services?.length ? config.services.map((s) => `${s.name} (${s.default}${s.argument ? `, ${s.argument}` : ""})`).join(", ") : "(none)"}
 
 You can now use 'launch_project' to start this application.`,
 						},

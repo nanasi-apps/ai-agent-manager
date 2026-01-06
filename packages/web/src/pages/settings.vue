@@ -313,7 +313,9 @@ const setDeveloperGroupEnabled = (
 	models: any[],
 	enabled: boolean,
 ) => {
-	models.forEach((m) => setModelEnabled(providerId, m.name, enabled));
+	for (const m of models) {
+		setModelEnabled(providerId, m.name, enabled);
+	}
 };
 
 const toggleAllModels = (providerId: string, enabled: boolean) => {

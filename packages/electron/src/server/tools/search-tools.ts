@@ -6,6 +6,18 @@ import { z } from "zod";
 import { execFileAsync } from "../utils";
 import type { ToolRegistrar } from "./types";
 
+interface McpTool {
+	name: string;
+	description?: string;
+}
+
+interface ServerToolsResult {
+	server: string;
+	source: string;
+	tools?: Array<{ name: string; description?: string }>;
+	error?: string;
+}
+
 export function registerSearchTools(registerTool: ToolRegistrar) {
 	registerTool(
 		"search_files",
@@ -26,15 +38,15 @@ export function registerSearchTools(registerTool: ToolRegistrar) {
 			try {
 				const args = ["-rIn"];
 				if (includes) {
-					for (const inc of includes) {
+					for (const inc of includes as string[]) {
 						args.push(`--include=${inc}`);
 					}
 				}
-				args.push("-e", query);
-				args.push(searchPath);
+				args.push("-e", query as string);
+				args.push(searchPath as string);
 
 				const { stdout } = await execFileAsync("grep", args, {
-					cwd: searchPath,
+					cwd: searchPath as string,
 				});
 
 				const limit = 300;
@@ -50,14 +62,22 @@ export function registerSearchTools(registerTool: ToolRegistrar) {
 						},
 					],
 				};
-			} catch (error: any) {
+			} catch (error: unknown) {
 				// grep returns exit code 1 if not found
-				if (error.code === 1) {
+				if (
+					error &&
+					typeof error === "object" &&
+					"code" in error &&
+					error.code === 1
+				) {
 					return { content: [{ type: "text", text: "No matches found." }] };
 				}
 				return {
 					content: [
-						{ type: "text", text: `Error searching files: ${error.message}` },
+						{
+							type: "text",
+							text: `Error searching files: ${error instanceof Error ? error.message : String(error)}`,
+						},
 					],
 					isError: true,
 				};
@@ -77,10 +97,10 @@ export function registerSearchTools(registerTool: ToolRegistrar) {
 		async ({ sessionId }) => {
 			try {
 				const { sessionServers, globalServers } =
-					await getSessionMcpServersLogic(sessionId);
+					await getSessionMcpServersLogic(sessionId as string);
 
 				const allServers = [...sessionServers, ...globalServers];
-				const allTools: any[] = [];
+				const allTools: ServerToolsResult[] = [];
 
 				for (const serverEntry of allServers) {
 					// Skip ourselves to avoid redundant listing
@@ -91,7 +111,7 @@ export function registerSearchTools(registerTool: ToolRegistrar) {
 						allTools.push({
 							server: serverEntry.name,
 							source: serverEntry.source,
-							tools: tools.map((t: any) => ({
+							tools: tools.map((t: McpTool) => ({
 								name: t.name,
 								description: t.description,
 							})),
@@ -108,10 +128,13 @@ export function registerSearchTools(registerTool: ToolRegistrar) {
 				return {
 					content: [{ type: "text", text: JSON.stringify(allTools, null, 2) }],
 				};
-			} catch (error: any) {
+			} catch (error: unknown) {
 				return {
 					content: [
-						{ type: "text", text: `Error listing MCP tools: ${error.message}` },
+						{
+							type: "text",
+							text: `Error listing MCP tools: ${error instanceof Error ? error.message : String(error)}`,
+						},
 					],
 					isError: true,
 				};

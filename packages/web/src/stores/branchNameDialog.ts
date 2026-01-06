@@ -90,9 +90,13 @@ export const useBranchNameDialogStore = defineStore("branchNameDialog", () => {
 		if (!hasElectron.value) return;
 		try {
 			const pending = await window.electronAPI?.listBranchNameRequests();
-			pending.forEach((req) => upsertRequest(req));
-			if (pending.length > 0) {
-				open(pending[0]?.id);
+			if (pending) {
+				for (const req of pending) {
+					upsertRequest(req);
+				}
+				if (pending.length > 0) {
+					open(pending[0]?.id);
+				}
 			}
 		} catch (error) {
 			console.error("Failed to load pending branch name requests", error);
@@ -113,9 +117,10 @@ export const useBranchNameDialogStore = defineStore("branchNameDialog", () => {
 			}
 			removeRequest(activeRequest.value.id);
 			close();
-		} catch (error: any) {
+		} catch (error: unknown) {
 			console.error("Failed to submit branch name", error);
-			errorMessage.value = error?.message || "Failed to submit branch name";
+			errorMessage.value =
+				error instanceof Error ? error.message : "Failed to submit branch name";
 		} finally {
 			isSubmitting.value = false;
 		}
@@ -135,10 +140,12 @@ export const useBranchNameDialogStore = defineStore("branchNameDialog", () => {
 			}
 			inputValue.value = result.suggestion;
 			generationState.value = "ready";
-		} catch (error: any) {
+		} catch (error: unknown) {
 			console.error("Failed to generate branch name", error);
 			errorMessage.value =
-				error?.message || "Failed to generate branch name suggestion";
+				error instanceof Error
+					? error.message
+					: "Failed to generate branch name suggestion";
 			generationState.value = "idle";
 		}
 	}

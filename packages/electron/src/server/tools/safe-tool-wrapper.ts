@@ -9,16 +9,26 @@ export interface ToolResponse {
 }
 
 /**
+ * Tool extra context type
+ */
+export interface ToolExtra {
+	[key: string]: unknown;
+}
+
+/**
  * Tool handler function type
  */
-export type ToolHandler<T> = (args: T, extra: any) => Promise<ToolResponse>;
+export type ToolHandler<T> = (
+	args: T,
+	extra: ToolExtra,
+) => Promise<ToolResponse>;
 
 /**
  * Tool schema definition
  */
 export interface ToolSchema {
 	description: string;
-	inputSchema: Record<string, z.ZodType<any>>;
+	inputSchema: Record<string, z.ZodType<unknown>>;
 }
 
 /**
@@ -27,7 +37,7 @@ export interface ToolSchema {
 export type ToolRegistrar = (
 	name: string,
 	schema: ToolSchema,
-	handler: ToolHandler<any>,
+	handler: ToolHandler<unknown>,
 ) => void;
 
 /**
@@ -39,10 +49,10 @@ export type ToolRegistrar = (
  * @returns A wrapped handler that catches errors and returns proper error responses
  */
 export function createSafeHandler<T>(
-	handler: (args: T, extra: any) => Promise<string | ToolResponse>,
+	handler: (args: T, extra: ToolExtra) => Promise<string | ToolResponse>,
 	errorPrefix: string,
 ): ToolHandler<T> {
-	return async (args: T, extra: any): Promise<ToolResponse> => {
+	return async (args: T, extra: ToolExtra): Promise<ToolResponse> => {
 		try {
 			const result = await handler(args, extra);
 
@@ -54,8 +64,8 @@ export function createSafeHandler<T>(
 			}
 
 			return result;
-		} catch (error: any) {
-			const message = error?.message || String(error);
+		} catch (error: unknown) {
+			const message = error instanceof Error ? error.message : String(error);
 			return {
 				content: [{ type: "text", text: `${errorPrefix}: ${message}` }],
 				isError: true,
@@ -75,11 +85,11 @@ export function createSafeToolRegistrar(
 	baseRegister: ToolRegistrar,
 ): ToolRegistrar {
 	return (name, schema, handler) => {
-		const safeHandler: ToolHandler<any> = async (args, extra) => {
+		const safeHandler: ToolHandler<unknown> = async (args, extra) => {
 			try {
 				return await handler(args, extra);
-			} catch (error: any) {
-				const message = error?.message || String(error);
+			} catch (error: unknown) {
+				const message = error instanceof Error ? error.message : String(error);
 				return {
 					content: [{ type: "text", text: `Error in ${name}: ${message}` }],
 					isError: true,

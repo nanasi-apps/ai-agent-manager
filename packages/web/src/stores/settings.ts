@@ -100,7 +100,9 @@ export const useSettingsStore = defineStore("settings", () => {
 			}
 
 			saveSuccess.value = true;
-			setTimeout(() => (saveSuccess.value = false), 2000);
+			setTimeout(() => {
+				saveSuccess.value = false;
+			}, 2000);
 		} catch (err) {
 			console.error("Failed to update API settings", err);
 			throw err;
@@ -152,7 +154,9 @@ export const useSettingsStore = defineStore("settings", () => {
 			}
 
 			saveSuccess.value = true;
-			setTimeout(() => (saveSuccess.value = false), 2000);
+			setTimeout(() => {
+				saveSuccess.value = false;
+			}, 2000);
 		} catch (err) {
 			console.error("Failed to update app settings", err);
 			throw err;

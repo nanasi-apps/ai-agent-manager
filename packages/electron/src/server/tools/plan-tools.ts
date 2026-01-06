@@ -99,7 +99,9 @@ export function registerPlanTools(registerTool: ToolRegistrar) {
 					.describe("Optional session ID when not using a session MCP URL"),
 			},
 		},
-		async ({ planContent, sessionId: sessionIdArg }) => {
+		async (args) => {
+			const planContent = args.planContent as string | undefined;
+			const sessionIdArg = args.sessionId as string | undefined;
 			if (!planContent || !planContent.trim()) {
 				return {
 					content: [
@@ -125,7 +127,7 @@ export function registerPlanTools(registerTool: ToolRegistrar) {
 				role: "agent",
 				content: planContent,
 				timestamp: Date.now(),
-				logType: "plan" as any,
+				logType: "plan",
 			});
 
 			return {
@@ -158,7 +160,10 @@ export function registerPlanTools(registerTool: ToolRegistrar) {
 					.describe("Optional session ID when not using a session MCP URL"),
 			},
 		},
-		async ({ planContent, planSummary, sessionId: sessionIdArg }) => {
+		async (args) => {
+			const planContent = args.planContent as string | undefined;
+			const planSummary = args.planSummary as string | undefined;
+			const sessionIdArg = args.sessionId as string | undefined;
 			if (!planContent || !planContent.trim()) {
 				return {
 					content: [
