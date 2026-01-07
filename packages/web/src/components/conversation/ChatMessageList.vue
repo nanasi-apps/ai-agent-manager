@@ -828,9 +828,6 @@ const getItemByIndex = (
 				class="fixed bottom-24 right-8 z-10 flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-primary-foreground shadow-lg transition-all hover:bg-primary/90 hover:shadow-xl"
 			>
 				<ArrowDown class="size-4"/>
-				<span class="text-sm font-medium"
-					>{{ t('chat.scrollToBottom', 'New messages') }}</span
-				>
 			</button>
 		</Transition>
 	</div>

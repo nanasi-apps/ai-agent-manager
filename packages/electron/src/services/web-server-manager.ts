@@ -1,5 +1,6 @@
 import { networkInterfaces } from "node:os";
 import type {
+	AppRouter,
 	IWebServerService,
 	IWebServerStatus,
 } from "@agent-manager/shared";
@@ -9,11 +10,29 @@ import { startWebServer } from "../server/web-server";
 
 const logger = getLogger(["electron", "web-server-manager"]);
 
+/**
+ * Minimal interface for the server returned by Hono's serve function.
+ */
+interface HonoServer {
+	close(): void;
+}
+
 class WebServerManager implements IWebServerService {
-	private server: any | null = null;
+	private server: HonoServer | null = null;
+	private router: AppRouter | null = null;
 	private status: IWebServerStatus = {
 		isRunning: false,
 	};
+
+	/**
+	 * Set the oRPC router to use for WebSocket connections.
+	 * This should be called during bootstrap before starting the server.
+	 *
+	 * @param router - The oRPC router from createRouter(ctx) or appRouter
+	 */
+	setRouter(router: AppRouter): void {
+		this.router = router;
+	}
 
 	async start(options?: {
 		port?: number;
@@ -42,7 +61,8 @@ class WebServerManager implements IWebServerService {
 		}
 
 		try {
-			this.server = startWebServer(port, host);
+			// Pass router if available (enables oRPC over WebSocket)
+			this.server = startWebServer(port, host, this.router ?? undefined);
 
 			const localUrl = `http://${host === "0.0.0.0" ? "localhost" : host}:${port}`;
 

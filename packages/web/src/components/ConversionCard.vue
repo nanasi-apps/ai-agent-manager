@@ -31,7 +31,7 @@ const formattedTime = computed(() => {
 	<Card
 		class="cursor-pointer transition-all hover:shadow-md hover:border-primary/50 group bg-card/50 hover:bg-card"
 	>
-		<CardContent class="p-4 flex items-center justify-between">
+		<CardContent class="p-2 flex items-center justify-between">
 			<div class="flex items-center gap-3 min-w-0">
 				<div
 					class="size-10 rounded-full bg-muted/50 flex items-center justify-center shrink-0 group-hover:bg-primary/10 transition-colors"

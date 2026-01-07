@@ -1,34 +1,34 @@
+/**
+ * Electron Main Process Entry Point
+ *
+ * This file initializes the Electron application and wires up all services.
+ *
+ * Architecture (Milestone 3):
+ * - Bootstrap module creates RouterContext and router via factory
+ * - oRPC adapter connects the router to Electron IPC
+ * - Legacy global DI is still set up for transition period
+ */
+
 import path from "node:path";
-import {
-	getLogger,
-	initLogger,
-	setAgentManager,
-	setDevServerService,
-	setGtrConfigService,
-	setHandoverService,
-	setNativeDialog,
-	setStore,
-	setWebServerService,
-	setWorktreeManager,
-} from "@agent-manager/shared";
-import { app, BrowserWindow, dialog, shell } from "electron";
-import {
-	setAgentManager as setElectronAgentManager,
-	unifiedAgentManager,
-} from "./agents";
+import { getLogger, initLogger } from "@agent-manager/shared";
+import { app, BrowserWindow, shell } from "electron";
+
+// Import bootstrap first (sets up all dependencies)
+import { bootstrap, getStore } from "./app/bootstrap";
+// Import new adapter layer
+import { setupElectronOrpc } from "./adapters/orpc";
+
+// Main process modules
 import { setupAgentLogs } from "./main/agent-logs";
 import { setupAgentState } from "./main/agent-state";
 import { setupBranchNameChannels } from "./main/branch-name-channels";
 import { devServerManager } from "./main/dev-server-manager";
 import { setupIpc } from "./main/ipc";
 import { initializeWindowTheme, setupGlobalThemeHandlers } from "./main/theme";
-import { worktreeManager } from "./main/worktree-manager";
+
+// Infrastructure
 import { startMcpServer } from "./server/mcp-server.js";
-import { setupElectronOrpc } from "./server/orpc-server";
-import { GtrConfigService } from "./services/gtr-config-service";
-import * as handoverSummaryService from "./services/handover-summary-service";
 import { webServerManager } from "./services/web-server-manager";
-import { store } from "./store";
 import { fixProcessPath } from "./utils/path-enhancer";
 
 // Call fixProcessPath BEFORE any other imports that might use git
@@ -37,36 +37,12 @@ initLogger();
 
 const logger = getLogger(["electron", "main"]);
 
-// Set up dependencies for the router
-// Use unifiedAgentManager to support both CLI-based and API-based agents
-setAgentManager(unifiedAgentManager);
-setElectronAgentManager(unifiedAgentManager);
-setStore(store);
-setWorktreeManager(worktreeManager);
-setHandoverService(handoverSummaryService);
-setGtrConfigService(new GtrConfigService());
-setDevServerService(devServerManager);
-setWebServerService(webServerManager);
-setNativeDialog({
-	selectDirectory: async () => {
-		const result = await dialog.showOpenDialog({
-			properties: ["openDirectory"],
-		});
-		if (result.canceled) return null;
-		return result.filePaths[0] ?? null;
-	},
-	selectPaths: async ({ type, multiple }) => {
-		const properties: Array<"openFile" | "openDirectory" | "multiSelections"> =
-			[];
-		if (type === "file") properties.push("openFile");
-		if (type === "dir") properties.push("openDirectory");
-		if (type === "any") properties.push("openFile", "openDirectory");
-		if (multiple) properties.push("multiSelections");
-		const result = await dialog.showOpenDialog({ properties });
-		if (result.canceled) return [];
-		return result.filePaths;
-	},
-});
+// Bootstrap the application - creates RouterContext and router
+// This replaces the scattered setAgentManager/setStore calls
+const { router } = bootstrap();
+
+// Wire the router to services that need it
+webServerManager.setRouter(router);
 
 function createWindow() {
 	const win = new BrowserWindow({
@@ -97,6 +73,7 @@ function createWindow() {
 
 app.whenReady().then(async () => {
 	// Initialize the persistent store with Electron's userData path
+	const store = getStore();
 	const userDataPath = app.getPath("userData");
 	store.setDataPath(userDataPath);
 	logger.info("Store initialized with path: {userDataPath}", { userDataPath });
@@ -115,9 +92,9 @@ app.whenReady().then(async () => {
 	setupAgentLogs();
 	setupAgentState();
 
-	// Start ORPC handlers
+	// Start ORPC handlers using the new adapter (passes router explicitly)
 	logger.info("Setting up ORPC Electron handlers...");
-	setupElectronOrpc();
+	setupElectronOrpc(router);
 
 	// Start optional Web Server (Hono + ORPC)
 	const appSettings = store.getAppSettings();
@@ -181,16 +158,4 @@ app.on("before-quit", async (_event) => {
 
 	// Stop Web Server
 	await webServerManager.stop();
-
-	// We don't need to prevent default if we await above, assuming app.quit() waits for this listener?
-	// Electron 'before-quit' is synchronous unless event.preventDefault() is called.
-	// If we have async cleanup, we MUST prevent default, await, and then quit again.
-	// But let's check existing code structure.
-	// Existing code:
-	// if (running.length === 0) return;
-	// event.preventDefault();
-	// ... await ...
-	// app.quit();
-	//
-	// I should merge this logic.
 });

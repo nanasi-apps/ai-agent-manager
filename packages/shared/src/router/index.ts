@@ -49,7 +49,22 @@ export {
 // Re-export utilities
 export { generateUUID } from "../utils";
 
-// Combined app router
+// Re-export the new factory-based router (Milestone 2)
+// This is the preferred way to create routers going forward
+export { createRouter, getRouterContext } from "./createRouter";
+export type { AppRouterFromFactory, RouterContext } from "./createRouter";
+
+/**
+ * Legacy app router - uses global DI via dependency-container.
+ *
+ * @deprecated For new code, use {@link createRouter} with explicit context.
+ * This export remains for backwards compatibility.
+ *
+ * Migration path:
+ * 1. Build RouterContext in electron bootstrap
+ * 2. Call createRouter(ctx) instead of importing appRouter
+ * 3. The behavior is identical; only the DI mechanism changes
+ */
 export const appRouter = os.router({
 	// Ping endpoint
 	ping: os
