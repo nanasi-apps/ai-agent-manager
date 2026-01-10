@@ -1,16 +1,9 @@
 import { os } from "@orpc/server";
 import { z } from "zod";
-import {
-	getAgentManagerOrThrow,
-	getStoreOrThrow,
-} from "../services/dependency-container";
 import { parseModelId } from "../services/model-fetcher";
-import {
-	buildSessionConfig,
-	startAgentSession,
-} from "../services/session-builder";
 import type { ApprovalChannel, ApprovalRequest } from "../types/approval";
-import { generateUUID } from "../utils";
+import { generateUUID, startAgentSession } from "../utils";
+import { getRouterContext } from "./createRouter";
 
 const approvalChannels = ["inbox", "slack", "discord"] as const;
 const approvalStatusSchema = z.enum([
@@ -66,10 +59,10 @@ export const approvalsRouter = {
 			}),
 		)
 		.handler(async ({ input }) => {
-			const storeInstance = getStoreOrThrow();
+			const ctx = getRouterContext();
 			const now = Date.now();
 			const notificationChannels = resolveNotificationChannels(
-				storeInstance.getAppSettings().approvalNotificationChannels,
+				ctx.store.getAppSettings().approvalNotificationChannels,
 			);
 
 			const approval: ApprovalRequest = {
@@ -86,7 +79,7 @@ export const approvalsRouter = {
 				updatedAt: now,
 			};
 
-			storeInstance.addApproval(approval);
+			ctx.store.addApproval(approval);
 
 			return { id: approval.id, success: true };
 		}),
@@ -118,7 +111,8 @@ export const approvalsRouter = {
 				.nullable(),
 		)
 		.handler(async ({ input }) => {
-			const approval = getStoreOrThrow().getApproval(input.id);
+			const ctx = getRouterContext();
+			const approval = ctx.store.getApproval(input.id);
 			return approval || null;
 		}),
 
@@ -147,7 +141,8 @@ export const approvalsRouter = {
 			),
 		)
 		.handler(async ({ input }) => {
-			const approvals = getStoreOrThrow().listApprovals(input.status);
+			const ctx = getRouterContext();
+			const approvals = ctx.store.listApprovals(input.status);
 			// Return without planContent for list view to reduce payload
 			return approvals.map((a) => ({
 				id: a.id,
@@ -169,7 +164,8 @@ export const approvalsRouter = {
 		.input(z.object({}))
 		.output(z.object({ count: z.number() }))
 		.handler(async () => {
-			const pending = getStoreOrThrow().listApprovals("pending");
+			const ctx = getRouterContext();
+			const pending = ctx.store.listApprovals("pending");
 			return { count: pending.length };
 		}),
 
@@ -192,10 +188,9 @@ export const approvalsRouter = {
 			}),
 		)
 		.handler(async ({ input }) => {
-			const storeInstance = getStoreOrThrow();
-			const agentManagerInstance = getAgentManagerOrThrow();
+			const ctx = getRouterContext();
 
-			const approval = storeInstance.getApproval(input.id);
+			const approval = ctx.store.getApproval(input.id);
 			if (!approval) {
 				return { success: false, message: "Approval request not found" };
 			}
@@ -214,10 +209,10 @@ export const approvalsRouter = {
 			}
 
 			// Delete approval request as it is now approved and being executed
-			storeInstance.deleteApproval(input.id);
+			ctx.store.deleteApproval(input.id);
 
 			// Get the conversation
-			const conv = storeInstance.getConversation(approval.sessionId);
+			const conv = ctx.store.getConversation(approval.sessionId);
 			if (!conv) {
 				return { success: false, message: "Conversation not found" };
 			}
@@ -230,8 +225,12 @@ ${approval.planContent}
 The plan above was approved for execution. Please proceed now.
 ${input.message ? `Additional instructions: ${input.message}` : "Execute the plan as specified."}`;
 
+			if (!ctx.sessionBuilder) {
+				throw new Error("Session builder service not available");
+			}
+
 			// Build session config
-			const sessionConfig = await buildSessionConfig({
+			const sessionConfig = await ctx.sessionBuilder.buildSessionConfig({
 				projectId: conv.projectId,
 				agentType: parsedModel.agentType,
 				model: parsedModel.model,
@@ -240,14 +239,14 @@ ${input.message ? `Additional instructions: ${input.message}` : "Execute the pla
 			});
 
 			// Update conversation with new agent settings
-			storeInstance.updateConversation(approval.sessionId, {
+			ctx.store.updateConversation(approval.sessionId, {
 				agentType: parsedModel.agentType,
 				agentModel: parsedModel.model,
 				agentMode: "regular",
 			});
 
 			// Add system message about approval
-			storeInstance.addMessage(approval.sessionId, {
+			ctx.store.addMessage(approval.sessionId, {
 				id: generateUUID(),
 				role: "system",
 				content: `Plan approved and execution started with ${parsedModel.agentType}${parsedModel.model ? ` - ${parsedModel.model}` : ""}.`,
@@ -258,17 +257,13 @@ ${input.message ? `Additional instructions: ${input.message}` : "Execute the pla
 			// Stop any existing session and start fresh
 			// This ensures that old session IDs (e.g., geminiSessionId) are cleared,
 			// preventing the CLI from attempting to --resume an invalid session.
-			if (agentManagerInstance.isRunning(approval.sessionId)) {
-				agentManagerInstance.stopSession(approval.sessionId);
+			if (ctx.agentManager.isRunning(approval.sessionId)) {
+				ctx.agentManager.stopSession(approval.sessionId);
 			}
-			startAgentSession(
-				agentManagerInstance,
-				approval.sessionId,
-				sessionConfig,
-			);
+			startAgentSession(ctx.agentManager, approval.sessionId, sessionConfig);
 
 			// Send the execution prompt
-			agentManagerInstance.sendToSession(approval.sessionId, executionPrompt);
+			ctx.agentManager.sendToSession(approval.sessionId, executionPrompt);
 
 			return {
 				success: true,
@@ -289,9 +284,9 @@ ${input.message ? `Additional instructions: ${input.message}` : "Execute the pla
 		)
 		.output(z.object({ success: z.boolean() }))
 		.handler(async ({ input }) => {
-			const storeInstance = getStoreOrThrow();
+			const ctx = getRouterContext();
 
-			const approval = storeInstance.getApproval(input.id);
+			const approval = ctx.store.getApproval(input.id);
 			if (!approval) {
 				return { success: false };
 			}
@@ -300,14 +295,14 @@ ${input.message ? `Additional instructions: ${input.message}` : "Execute the pla
 				return { success: false };
 			}
 
-			storeInstance.updateApproval(input.id, {
+			ctx.store.updateApproval(input.id, {
 				status: "rejected",
 				respondedAt: Date.now(),
 				responseMessage: input.message,
 			});
 
 			// Add a message to the conversation
-			storeInstance.addMessage(approval.sessionId, {
+			ctx.store.addMessage(approval.sessionId, {
 				id: generateUUID(),
 				role: "system",
 				content: `Plan was rejected.${input.message ? ` Reason: ${input.message}` : ""}`,
@@ -325,7 +320,8 @@ ${input.message ? `Additional instructions: ${input.message}` : "Execute the pla
 		.input(z.object({ id: z.string() }))
 		.output(z.object({ success: z.boolean() }))
 		.handler(async ({ input }) => {
-			getStoreOrThrow().deleteApproval(input.id);
+			const ctx = getRouterContext();
+			ctx.store.deleteApproval(input.id);
 			return { success: true };
 		}),
 };

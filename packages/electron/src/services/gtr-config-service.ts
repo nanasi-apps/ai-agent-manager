@@ -1,5 +1,5 @@
 import type { GtrConfig, IGtrConfigService } from "@agent-manager/shared";
-import { runGit } from "../server/utils";
+import { runGit } from "../infrastructure/mcp/utils";
 
 export class GtrConfigService implements IGtrConfigService {
 	async getGtrConfig(rootPath: string): Promise<GtrConfig> {

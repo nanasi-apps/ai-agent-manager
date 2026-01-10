@@ -48,11 +48,10 @@ export {
 } from "../services/model-fetcher";
 // Re-export utilities
 export { generateUUID } from "../utils";
-
+export type { AppRouterFromFactory, RouterContext } from "./createRouter";
 // Re-export the new factory-based router (Milestone 2)
 // This is the preferred way to create routers going forward
 export { createRouter, getRouterContext } from "./createRouter";
-export type { AppRouterFromFactory, RouterContext } from "./createRouter";
 
 /**
  * Legacy app router - uses global DI via dependency-container.

@@ -6,7 +6,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { os } from "@orpc/server";
 import { z } from "zod";
-import { getAgentManagerOrThrow } from "../services/dependency-container";
+import { getRouterContext } from "./createRouter";
 
 // MCP Server config types
 export interface McpServerEntry {
@@ -196,7 +196,8 @@ export async function getSessionMcpServersLogic(sessionId: string): Promise<{
 	globalServers: McpServerEntry[];
 	agentType?: string;
 }> {
-	const agentManager = getAgentManagerOrThrow();
+	const ctx = getRouterContext();
+	const agentManager = ctx.agentManager;
 
 	// Get session homes for reading session-specific MCP config
 	const homes = agentManager.getSessionHomes?.(sessionId);

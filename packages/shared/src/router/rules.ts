@@ -1,15 +1,6 @@
-import {
-	mkdir,
-	readdir,
-	readFile,
-	stat,
-	unlink,
-	writeFile,
-} from "node:fs/promises";
-import { join } from "node:path";
 import { os } from "@orpc/server";
 import { z } from "zod";
-import { RULES_DIR } from "../services/rules-resolver";
+import { getRouterContext } from "./createRouter";
 
 export const rulesRouter = {
 	listGlobalRules: os
@@ -23,26 +14,9 @@ export const rulesRouter = {
 			),
 		)
 		.handler(async () => {
-			await mkdir(RULES_DIR, { recursive: true });
-			try {
-				const files = await readdir(RULES_DIR);
-				const rules = [];
-				for (const file of files) {
-					if (file.endsWith(".md")) {
-						const filePath = join(RULES_DIR, file);
-						const stats = await stat(filePath);
-						if (stats.isFile()) {
-							rules.push({
-								id: file,
-								name: file.replace(/\.md$/, ""),
-							});
-						}
-					}
-				}
-				return rules;
-			} catch (e) {
-				return [];
-			}
+			const ctx = getRouterContext();
+			if (!ctx.rulesService) return [];
+			return ctx.rulesService.listGlobalRules();
 		}),
 
 	getGlobalRule: os
@@ -57,17 +31,15 @@ export const rulesRouter = {
 				.nullable(),
 		)
 		.handler(async ({ input }) => {
-			const filePath = join(RULES_DIR, input.id);
-			try {
-				const content = await readFile(filePath, "utf-8");
-				return {
-					id: input.id,
-					name: input.id.replace(/\.md$/, ""),
-					content,
-				};
-			} catch (e) {
-				return null;
-			}
+			const ctx = getRouterContext();
+			if (!ctx.rulesService) return null;
+			const rule = await ctx.rulesService.getGlobalRule(input.id);
+			if (!rule) return null;
+			return {
+				id: rule.id,
+				name: rule.name,
+				content: rule.content || "",
+			};
 		}),
 
 	createGlobalRule: os
@@ -84,12 +56,9 @@ export const rulesRouter = {
 			}),
 		)
 		.handler(async ({ input }) => {
-			const safeName = input.name.replace(/[^a-zA-Z0-9_-]/g, "_");
-			const filename = `${safeName}.md`;
-			const filePath = join(RULES_DIR, filename);
-			await mkdir(RULES_DIR, { recursive: true });
-			await writeFile(filePath, input.content, "utf-8");
-			return { id: filename, success: true };
+			const ctx = getRouterContext();
+			if (!ctx.rulesService) return { id: "", success: false };
+			return ctx.rulesService.createGlobalRule(input.name, input.content);
 		}),
 
 	updateGlobalRule: os
@@ -101,21 +70,22 @@ export const rulesRouter = {
 		)
 		.output(z.object({ success: z.boolean() }))
 		.handler(async ({ input }) => {
-			const filePath = join(RULES_DIR, input.id);
-			await writeFile(filePath, input.content, "utf-8");
-			return { success: true };
+			const ctx = getRouterContext();
+			if (!ctx.rulesService) return { success: false };
+			const success = await ctx.rulesService.updateGlobalRule(
+				input.id,
+				input.content,
+			);
+			return { success };
 		}),
 
 	deleteGlobalRule: os
 		.input(z.object({ id: z.string() }))
 		.output(z.object({ success: z.boolean() }))
 		.handler(async ({ input }) => {
-			const filePath = join(RULES_DIR, input.id);
-			try {
-				await unlink(filePath);
-				return { success: true };
-			} catch (e) {
-				return { success: false };
-			}
+			const ctx = getRouterContext();
+			if (!ctx.rulesService) return { success: false };
+			const success = await ctx.rulesService.deleteGlobalRule(input.id);
+			return { success };
 		}),
 };

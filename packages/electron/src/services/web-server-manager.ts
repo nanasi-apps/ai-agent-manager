@@ -1,6 +1,7 @@
 import { networkInterfaces } from "node:os";
 import type {
 	AppRouter,
+	AppRouterFromFactory,
 	IWebServerService,
 	IWebServerStatus,
 } from "@agent-manager/shared";
@@ -11,6 +12,11 @@ import { startWebServer } from "../server/web-server";
 const logger = getLogger(["electron", "web-server-manager"]);
 
 /**
+ * Union type accepting both legacy AppRouter and factory-created router.
+ */
+type AnyAppRouter = AppRouter | AppRouterFromFactory;
+
+/**
  * Minimal interface for the server returned by Hono's serve function.
  */
 interface HonoServer {
@@ -19,7 +25,7 @@ interface HonoServer {
 
 class WebServerManager implements IWebServerService {
 	private server: HonoServer | null = null;
-	private router: AppRouter | null = null;
+	private router: AnyAppRouter | null = null;
 	private status: IWebServerStatus = {
 		isRunning: false,
 	};
@@ -30,7 +36,7 @@ class WebServerManager implements IWebServerService {
 	 *
 	 * @param router - The oRPC router from createRouter(ctx) or appRouter
 	 */
-	setRouter(router: AppRouter): void {
+	setRouter(router: AnyAppRouter): void {
 		this.router = router;
 	}
 

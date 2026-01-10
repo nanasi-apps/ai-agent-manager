@@ -10,24 +10,23 @@
  */
 
 import path from "node:path";
-import { getLogger, initLogger } from "@agent-manager/shared";
+import { type AppRouter, getLogger, initLogger } from "@agent-manager/shared";
 import { app, BrowserWindow, shell } from "electron";
-
-// Import bootstrap first (sets up all dependencies)
-import { bootstrap, getStore } from "./app/bootstrap";
 // Import new adapter layer
 import { setupElectronOrpc } from "./adapters/orpc";
+// Import bootstrap first (sets up all dependencies)
+import { bootstrap, getStore } from "./app/bootstrap";
 
 // Main process modules
-import { setupAgentLogs } from "./main/agent-logs";
-import { setupAgentState } from "./main/agent-state";
-import { setupBranchNameChannels } from "./main/branch-name-channels";
-import { devServerManager } from "./main/dev-server-manager";
-import { setupIpc } from "./main/ipc";
-import { initializeWindowTheme, setupGlobalThemeHandlers } from "./main/theme";
+import { setupAgentLogs } from "./infrastructure/logging/agent-logs";
+import { setupAgentState } from "./application/services/agent-state";
+import { setupBranchNameChannels } from "./services/branch-name-channels";
+import { devServerManager } from "./infrastructure/dev-server/dev-server-manager";
+import { setupIpc } from "./infrastructure/ipc/ipc";
+import { initializeWindowTheme, setupGlobalThemeHandlers } from "./infrastructure/desktop/theme";
 
 // Infrastructure
-import { startMcpServer } from "./server/mcp-server.js";
+import { startMcpServer } from "./infrastructure/mcp/mcp-server.js";
 import { webServerManager } from "./services/web-server-manager";
 import { fixProcessPath } from "./utils/path-enhancer";
 
@@ -42,7 +41,8 @@ const logger = getLogger(["electron", "main"]);
 const { router } = bootstrap();
 
 // Wire the router to services that need it
-webServerManager.setRouter(router);
+// Cast is safe - createRouter() returns a compatible router structure
+webServerManager.setRouter(router as AppRouter);
 
 function createWindow() {
 	const win = new BrowserWindow({
@@ -94,7 +94,7 @@ app.whenReady().then(async () => {
 
 	// Start ORPC handlers using the new adapter (passes router explicitly)
 	logger.info("Setting up ORPC Electron handlers...");
-	setupElectronOrpc(router);
+	setupElectronOrpc(router as AppRouter);
 
 	// Start optional Web Server (Hono + ORPC)
 	const appSettings = store.getAppSettings();

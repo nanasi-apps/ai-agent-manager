@@ -7,10 +7,10 @@
  */
 
 export interface INativeDialog {
-    selectDirectory(): Promise<string | null>;
+	selectDirectory(): Promise<string | null>;
 
-    selectPaths(options: {
-        type: "file" | "dir" | "any";
-        multiple?: boolean;
-    }): Promise<string[]>;
+	selectPaths(options: {
+		type: "file" | "dir" | "any";
+		multiple?: boolean;
+	}): Promise<string[]>;
 }

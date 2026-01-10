@@ -6,38 +6,38 @@
  */
 
 export interface IRunningProcess {
-    pid: number;
-    command: string;
-    projectId: string;
-    ports: Record<string, number>;
-    startedAt: number;
-    type: "web" | "process" | "other";
-    url?: string;
-    conversationId?: string;
-    logs: string[];
-    status: "running" | "stopped" | "error";
-    exitCode?: number | null;
+	pid: number;
+	command: string;
+	projectId: string;
+	ports: Record<string, number>;
+	startedAt: number;
+	type: "web" | "process" | "other";
+	url?: string;
+	conversationId?: string;
+	logs: string[];
+	status: "running" | "stopped" | "error";
+	exitCode?: number | null;
 }
 
 export interface IDevServerService {
-    getRunningProject(
-        projectId: string,
-        conversationId?: string,
-    ): IRunningProcess | undefined;
+	getRunningProject(
+		projectId: string,
+		conversationId?: string,
+	): IRunningProcess | undefined;
 
-    listRunningProjects(): IRunningProcess[];
+	listRunningProjects(): IRunningProcess[];
 
-    stopProject(projectId: string, conversationId?: string): Promise<boolean>;
+	stopProject(projectId: string, conversationId?: string): Promise<boolean>;
 
-    launchProject(
-        projectId: string,
-        options?: {
-            timeout?: number;
-            cwd?: string;
-            conversationId?: string;
-            configName?: string;
-        },
-    ): Promise<IRunningProcess>;
+	launchProject(
+		projectId: string,
+		options?: {
+			timeout?: number;
+			cwd?: string;
+			conversationId?: string;
+			configName?: string;
+		},
+	): Promise<IRunningProcess>;
 
-    getProjectLogs(projectId: string, conversationId?: string): string[];
+	getProjectLogs(projectId: string, conversationId?: string): string[];
 }

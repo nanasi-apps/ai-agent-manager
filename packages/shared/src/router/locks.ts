@@ -1,6 +1,6 @@
 import { os } from "@orpc/server";
 import { z } from "zod";
-import { getStoreOrThrow } from "../services/dependency-container";
+import { getRouterContext } from "./createRouter";
 
 export const locksRouter = {
 	acquireLock: os
@@ -14,8 +14,9 @@ export const locksRouter = {
 		)
 		.output(z.boolean())
 		.handler(async ({ input }) => {
+			const ctx = getRouterContext();
 			const expiresAt = input.ttlMs ? Date.now() + input.ttlMs : undefined;
-			return getStoreOrThrow().acquireLock({
+			return ctx.store.acquireLock({
 				resourceId: input.resourceId,
 				agentId: input.agentId,
 				intent: input.intent,
@@ -33,7 +34,8 @@ export const locksRouter = {
 		)
 		.output(z.boolean())
 		.handler(async ({ input }) => {
-			return getStoreOrThrow().releaseLock(input.resourceId, input.agentId);
+			const ctx = getRouterContext();
+			return ctx.store.releaseLock(input.resourceId, input.agentId);
 		}),
 
 	getLock: os
@@ -50,7 +52,8 @@ export const locksRouter = {
 				.optional(),
 		)
 		.handler(async ({ input }) => {
-			return getStoreOrThrow().getLock(input.resourceId);
+			const ctx = getRouterContext();
+			return ctx.store.getLock(input.resourceId);
 		}),
 
 	listLocks: os
@@ -66,13 +69,15 @@ export const locksRouter = {
 			),
 		)
 		.handler(async () => {
-			return getStoreOrThrow().listLocks();
+			const ctx = getRouterContext();
+			return ctx.store.listLocks();
 		}),
 
 	forceReleaseLock: os
 		.input(z.object({ resourceId: z.string() }))
 		.output(z.void())
 		.handler(async ({ input }) => {
-			getStoreOrThrow().forceReleaseLock(input.resourceId);
+			const ctx = getRouterContext();
+			ctx.store.forceReleaseLock(input.resourceId);
 		}),
 };

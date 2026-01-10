@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { type BranchNameRequest, getLogger } from "@agent-manager/shared";
 import { BrowserWindow, Notification } from "electron";
-import { store } from "../store/file-store";
+import { store } from "../infrastructure/store/file-store";
 
 type PendingEntry = {
 	request: BranchNameRequest;

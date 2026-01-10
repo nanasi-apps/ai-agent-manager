@@ -1,7 +1,7 @@
 import { os } from "@orpc/server";
 import { z } from "zod";
-import { getStoreOrThrow } from "../services/dependency-container";
 import type { AppSettings } from "../types/store";
+import { getRouterContext } from "./createRouter";
 
 const approvalChannels = ["inbox", "slack", "discord"] as const;
 const approvalChannelSchema = z.enum(approvalChannels);
@@ -21,7 +21,8 @@ export const appSettingsRouter = {
 			}),
 		)
 		.handler(async () => {
-			const settings = getStoreOrThrow().getAppSettings();
+			const ctx = getRouterContext();
+			const settings = ctx.store.getAppSettings();
 			return {
 				language: settings.language,
 				notifyOnAgentComplete: settings.notifyOnAgentComplete,
@@ -49,6 +50,7 @@ export const appSettingsRouter = {
 		)
 		.output(z.object({ success: z.boolean() }))
 		.handler(async ({ input }) => {
+			const ctx = getRouterContext();
 			const updates: Partial<AppSettings> = {};
 			if (input.language !== undefined) {
 				updates.language = input.language || undefined;
@@ -75,7 +77,7 @@ export const appSettingsRouter = {
 			if (input.webServerPort !== undefined) {
 				updates.webServerPort = input.webServerPort;
 			}
-			getStoreOrThrow().updateAppSettings(updates);
+			ctx.store.updateAppSettings(updates);
 			return { success: true };
 		}),
 };

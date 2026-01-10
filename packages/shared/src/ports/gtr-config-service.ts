@@ -8,6 +8,6 @@
 import type { GtrConfig } from "../types/gtr-config";
 
 export interface IGtrConfigService {
-    getGtrConfig(rootPath: string): Promise<GtrConfig>;
-    updateGtrConfig(rootPath: string, config: GtrConfig): Promise<void>;
+	getGtrConfig(rootPath: string): Promise<GtrConfig>;
+	updateGtrConfig(rootPath: string, config: GtrConfig): Promise<void>;
 }

@@ -35,7 +35,11 @@ import type { IAgentManager } from "../ports/agent-manager";
 import type { IDevServerService } from "../ports/dev-server-service";
 import type { IGtrConfigService } from "../ports/gtr-config-service";
 import type { IHandoverService } from "../ports/handover-service";
+import type { IModelFetcher } from "../ports/model-fetcher";
 import type { INativeDialog } from "../ports/native-dialog";
+import type { IRulesResolver } from "../ports/rules-resolver";
+import type { IRulesService } from "../ports/rules-service";
+import type { ISessionBuilder } from "../ports/session-builder";
 import type { IStore } from "../ports/store";
 import type { IWebServerService } from "../ports/web-server-service";
 import type { IWorktreeManager } from "../ports/worktree-manager";
@@ -47,29 +51,46 @@ import type { IWorktreeManager } from "../ports/worktree-manager";
  * The electron package is responsible for creating and providing these.
  */
 export interface RouterContext {
-    /** Agent session management */
-    agentManager: IAgentManager;
+	/** Agent session management */
+	agentManager: IAgentManager;
 
-    /** Persistent storage for projects, conversations, etc. */
-    store: IStore;
+	/** Persistent storage for projects, conversations, etc. */
+	store: IStore;
 
-    /** Git worktree operations */
-    worktreeManager: IWorktreeManager;
+	/** Git worktree operations */
+	worktreeManager: IWorktreeManager;
 
-    /** Native OS dialogs (optional - null in web context) */
-    nativeDialog: INativeDialog | null;
+	/** Native OS dialogs (optional - null in web context) */
+	nativeDialog: INativeDialog | null;
 
-    /** Development server management */
-    devServerService: IDevServerService;
+	/** Development server management */
+	devServerService: IDevServerService;
 
-    /** Web server management */
-    webServerService: IWebServerService;
+	/** Web server management */
+	webServerService: IWebServerService;
 
-    /** Agent handover/summary generation */
-    handoverService: IHandoverService;
+	/** Agent handover/summary generation */
+	handoverService: IHandoverService;
 
-    /** GTR configuration management */
-    gtrConfigService: IGtrConfigService;
+	/** GTR configuration management */
+	gtrConfigService: IGtrConfigService;
+
+	/**
+	 * Rules service for managing and resolving rules (Supersedes rulesResolver)
+	 */
+	rulesService?: IRulesService;
+
+	/**
+	 * Rules resolution for projects (deprecated, use rulesService)
+	 * @deprecated Use rulesService instead
+	 */
+	rulesResolver?: IRulesResolver;
+
+	/** Model fetching service (optional during migration) */
+	modelFetcher?: IModelFetcher;
+
+	/** Session configuration builder (optional during migration) */
+	sessionBuilder?: ISessionBuilder;
 }
 
 /**
@@ -82,59 +103,59 @@ export interface RouterContext {
  * @returns The composed oRPC router
  */
 export function createRouter(ctx: RouterContext) {
-    // For now, we create a minimal router that demonstrates the pattern.
-    // The full implementation will gradually migrate handlers from the
-    // existing sub-routers (agents.ts, projects.ts, etc.)
+	// For now, we create a minimal router that demonstrates the pattern.
+	// The full implementation will gradually migrate handlers from the
+	// existing sub-routers (agents.ts, projects.ts, etc.)
 
-    // Import the legacy routers that still use global DI
-    // TODO: Convert each to accept ctx and remove these imports
-    const { agentsRouter } = require("./agents");
-    const { apiSettingsRouter } = require("./api-settings");
-    const { appSettingsRouter } = require("./app-settings");
-    const { approvalsRouter } = require("./approvals");
-    const { conversationsRouter } = require("./conversations");
-    const { devServerRouter } = require("./dev-server");
-    const { locksRouter } = require("./locks");
-    const { mcpRouter } = require("./mcp");
-    const { modelsRouter } = require("./models");
-    const { projectsRouter } = require("./projects");
-    const { rulesRouter } = require("./rules");
-    const { webServerRouter } = require("./web-server");
-    const { worktreesRouter } = require("./worktrees");
+	// Import the legacy routers that still use global DI
+	// TODO: Convert each to accept ctx and remove these imports
+	const { agentsRouter } = require("./agents");
+	const { apiSettingsRouter } = require("./api-settings");
+	const { appSettingsRouter } = require("./app-settings");
+	const { approvalsRouter } = require("./approvals");
+	const { conversationsRouter } = require("./conversations");
+	const { devServerRouter } = require("./dev-server");
+	const { locksRouter } = require("./locks");
+	const { mcpRouter } = require("./mcp");
+	const { modelsRouter } = require("./models");
+	const { projectsRouter } = require("./projects");
+	const { rulesRouter } = require("./rules");
+	const { webServerRouter } = require("./web-server");
+	const { worktreesRouter } = require("./worktrees");
 
-    // Store context in a way that the migrated handlers can access
-    // This is a transition mechanism - eventually all handlers get ctx directly
-    _setRouterContext(ctx);
+	// Store context in a way that the migrated handlers can access
+	// This is a transition mechanism - eventually all handlers get ctx directly
+	_setRouterContext(ctx);
 
-    return os.router({
-        // Core endpoints
-        ping: os
-            .input(z.void())
-            .output(z.string())
-            .handler(async () => {
-                console.log("Ping received on server");
-                return "pong from electron (ORPC)";
-            }),
+	return os.router({
+		// Core endpoints
+		ping: os
+			.input(z.void())
+			.output(z.string())
+			.handler(async () => {
+				console.log("Ping received on server");
+				return "pong from electron (ORPC)";
+			}),
 
-        getPlatform: os
-            .output(z.enum(["electron", "web"]))
-            .handler(async () => "electron" as const),
+		getPlatform: os
+			.output(z.enum(["electron", "web"]))
+			.handler(async () => "electron" as const),
 
-        // Legacy routers (still using global DI, but called via factory)
-        ...rulesRouter,
-        ...appSettingsRouter,
-        ...apiSettingsRouter,
-        ...projectsRouter,
-        ...modelsRouter,
-        ...conversationsRouter,
-        ...worktreesRouter,
-        ...locksRouter,
-        ...agentsRouter,
-        ...mcpRouter,
-        ...approvalsRouter,
-        ...devServerRouter,
-        ...webServerRouter,
-    });
+		// Legacy routers (still using global DI, but called via factory)
+		...rulesRouter,
+		...appSettingsRouter,
+		...apiSettingsRouter,
+		...projectsRouter,
+		...modelsRouter,
+		...conversationsRouter,
+		...worktreesRouter,
+		...locksRouter,
+		...agentsRouter,
+		...mcpRouter,
+		...approvalsRouter,
+		...devServerRouter,
+		...webServerRouter,
+	});
 }
 
 /**
@@ -149,7 +170,7 @@ export function createRouter(ctx: RouterContext) {
 let _routerContext: RouterContext | null = null;
 
 function _setRouterContext(ctx: RouterContext): void {
-    _routerContext = ctx;
+	_routerContext = ctx;
 }
 
 /**
@@ -158,12 +179,12 @@ function _setRouterContext(ctx: RouterContext): void {
  * @deprecated Use ctx parameter directly in handler factories
  */
 export function getRouterContext(): RouterContext {
-    if (!_routerContext) {
-        throw new Error(
-            "Router context not initialized. Call createRouter(ctx) first.",
-        );
-    }
-    return _routerContext;
+	if (!_routerContext) {
+		throw new Error(
+			"Router context not initialized. Call createRouter(ctx) first.",
+		);
+	}
+	return _routerContext;
 }
 
 /**

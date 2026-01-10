@@ -1,5 +1,5 @@
 import type { ApprovalChannel, AppSettings } from "@agent-manager/shared";
-import { store } from "../store/file-store";
+import { store } from "../infrastructure/store/file-store";
 
 export class NotificationService {
 	private async sendToSlack(

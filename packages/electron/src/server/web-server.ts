@@ -1,12 +1,21 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import type { AppRouter, AppRouterFromFactory } from "@agent-manager/shared";
 import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
-import type { AppRouter } from "@agent-manager/shared";
 import { Hono } from "hono";
 import { attachOrpcToServer } from "../adapters/orpc";
 
-export function startWebServer(port: number, host = "0.0.0.0", router?: AppRouter) {
+/**
+ * Union type accepting both legacy AppRouter and factory-created router.
+ */
+type AnyAppRouter = AppRouter | AppRouterFromFactory;
+
+export function startWebServer(
+	port: number,
+	host = "0.0.0.0",
+	router?: AnyAppRouter,
+) {
 	const app = new Hono();
 
 	app.get("/ws", (c) => c.text("WebSocket endpoint", 426));
@@ -57,7 +66,8 @@ export function startWebServer(port: number, host = "0.0.0.0", router?: AppRoute
 
 	// Only attach oRPC if router is provided
 	if (router) {
-		attachOrpcToServer(server, router);
+		// Cast is safe - both AppRouter and AppRouterFromFactory are structurally compatible
+		attachOrpcToServer(server, router as AppRouter);
 	}
 
 	return server;

@@ -1,7 +1,6 @@
 import { os } from "@orpc/server";
 import { z } from "zod";
-import { getStoreOrThrow } from "../services/dependency-container";
-import { modelListCache } from "../services/model-fetcher";
+import { getRouterContext } from "./createRouter";
 
 const MASKED_API_KEY = "********************";
 
@@ -33,7 +32,8 @@ export const apiSettingsRouter = {
 			}),
 		)
 		.handler(async () => {
-			const settings = getStoreOrThrow().getApiSettings();
+			const ctx = getRouterContext();
+			const settings = ctx.store.getApiSettings();
 			// Mask API keys for security
 			const providers = (settings.providers || []).map((p) => {
 				if (p.apiKey) {
@@ -74,9 +74,9 @@ export const apiSettingsRouter = {
 		)
 		.output(z.object({ success: z.boolean() }))
 		.handler(async ({ input }) => {
+			const ctx = getRouterContext();
 			if (input.providers) {
-				const store = getStoreOrThrow();
-				const existingSettings = store.getApiSettings();
+				const existingSettings = ctx.store.getApiSettings();
 				const existingProviders = existingSettings.providers || [];
 
 				const resolvedProviders = input.providers.map((p) => {
@@ -91,9 +91,10 @@ export const apiSettingsRouter = {
 					return p;
 				});
 
-				store.updateApiSettings({ providers: resolvedProviders });
+				ctx.store.updateApiSettings({ providers: resolvedProviders });
 			}
-			modelListCache.clear();
+			// Clear the model cache when API settings change
+			ctx.modelFetcher?.clearCache();
 			return { success: true };
 		}),
 };

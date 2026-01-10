@@ -18,10 +18,14 @@
  */
 
 export * from "./agent-manager";
-export * from "./store";
-export * from "./worktree-manager";
-export * from "./native-dialog";
 export * from "./dev-server-service";
-export * from "./web-server-service";
-export * from "./handover-service";
 export * from "./gtr-config-service";
+export * from "./handover-service";
+export * from "./model-fetcher";
+export * from "./native-dialog";
+export * from "./rules-resolver";
+export * from "./rules-service";
+export * from "./session-builder";
+export * from "./store";
+export * from "./web-server-service";
+export * from "./worktree-manager";

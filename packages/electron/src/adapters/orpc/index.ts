@@ -3,7 +3,7 @@
  */
 
 export {
-    attachOrpcToServer,
-    setupElectronOrpc,
-    startOrpcWsServer,
+	attachOrpcToServer,
+	setupElectronOrpc,
+	startOrpcWsServer,
 } from "./orpc-adapter";

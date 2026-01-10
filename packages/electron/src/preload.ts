@@ -2,6 +2,7 @@ import type {
 	AgentLogPayload,
 	AgentStatePayload,
 	BranchNameRequest,
+	SessionEvent,
 } from "@agent-manager/shared";
 import { contextBridge, ipcRenderer } from "electron";
 
@@ -26,6 +27,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
 			callback(payload);
 		ipcRenderer.on("agent:state-changed", listener);
 		return () => ipcRenderer.removeListener("agent:state-changed", listener);
+	},
+	onAgentEvent: (callback: (payload: SessionEvent) => void) => {
+		const listener = (_event: unknown, payload: SessionEvent) =>
+			callback(payload);
+		ipcRenderer.on("agent-event", listener);
+		return () => ipcRenderer.removeListener("agent-event", listener);
 	},
 	getOrpcPort: () => Number(process.env.ORPC_PORT) || 3002,
 	listBranchNameRequests: () => ipcRenderer.invoke("branch-name:list"),

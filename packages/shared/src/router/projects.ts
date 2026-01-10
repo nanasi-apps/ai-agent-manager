@@ -1,15 +1,9 @@
-import { readdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
 import { os } from "@orpc/server";
 import { z } from "zod";
-import {
-	getGtrConfigServiceOrThrow,
-	getStoreOrThrow,
-} from "../services/dependency-container";
-import { RULES_DIR } from "../services/rules-resolver";
 import { AgentConfigSchema } from "../types/launch-config";
 import type { Project } from "../types/store";
 import { generateUUID } from "../utils";
+import { getRouterContext } from "./createRouter";
 
 const GtrConfigSchema = z.object({
 	copy: z.object({
@@ -30,7 +24,8 @@ export const projectsRouter = {
 		.input(z.object({ projectId: z.string() }))
 		.output(GtrConfigSchema)
 		.handler(async ({ input }) => {
-			const project = getStoreOrThrow().getProject(input.projectId);
+			const ctx = getRouterContext();
+			const project = ctx.store.getProject(input.projectId);
 			if (!project || !project.rootPath) {
 				return {
 					copy: {
@@ -42,7 +37,7 @@ export const projectsRouter = {
 					hooks: { postCreate: [] },
 				};
 			}
-			return getGtrConfigServiceOrThrow().getGtrConfig(project.rootPath);
+			return ctx.gtrConfigService.getGtrConfig(project.rootPath);
 		}),
 
 	updateGtrConfig: os
@@ -54,10 +49,11 @@ export const projectsRouter = {
 		)
 		.output(z.object({ success: z.boolean() }))
 		.handler(async ({ input }) => {
-			const project = getStoreOrThrow().getProject(input.projectId);
+			const ctx = getRouterContext();
+			const project = ctx.store.getProject(input.projectId);
 			if (!project || !project.rootPath) return { success: false };
 
-			await getGtrConfigServiceOrThrow().updateGtrConfig(
+			await ctx.gtrConfigService.updateGtrConfig(
 				project.rootPath,
 				input.config,
 			);
@@ -78,7 +74,8 @@ export const projectsRouter = {
 			),
 		)
 		.handler(async () => {
-			return getStoreOrThrow().listProjects();
+			const ctx = getRouterContext();
+			return ctx.store.listProjects();
 		}),
 
 	createProject: os
@@ -95,9 +92,10 @@ export const projectsRouter = {
 			}),
 		)
 		.handler(async ({ input }) => {
+			const ctx = getRouterContext();
 			const id = generateUUID();
 			const now = Date.now();
-			getStoreOrThrow().addProject({
+			ctx.store.addProject({
 				id,
 				name: input.name,
 				description: input.description,
@@ -134,7 +132,8 @@ export const projectsRouter = {
 				.nullable(),
 		)
 		.handler(async ({ input }) => {
-			const project = getStoreOrThrow().getProject(input.projectId);
+			const ctx = getRouterContext();
+			const project = ctx.store.getProject(input.projectId);
 			if (!project) return null;
 			return {
 				id: project.id,
@@ -170,8 +169,8 @@ export const projectsRouter = {
 		)
 		.output(z.object({ success: z.boolean() }))
 		.handler(async ({ input }) => {
-			const storeInstance = getStoreOrThrow();
-			const project = storeInstance.getProject(input.projectId);
+			const ctx = getRouterContext();
+			const project = ctx.store.getProject(input.projectId);
 			if (!project) return { success: false };
 
 			const updates: Partial<Project> = {};
@@ -191,48 +190,7 @@ export const projectsRouter = {
 				updates.autoConfig = input.autoConfig ?? undefined;
 			}
 
-			storeInstance.updateProject(input.projectId, updates);
-
-			// Generate rule files in project root (commented out - preserved for future use)
-			const updatedProject = storeInstance.getProject(input.projectId);
-			if (updatedProject?.rootPath) {
-				try {
-					const disabledSet = new Set(updatedProject.disabledGlobalRules ?? []);
-					let globalRulesContent = "";
-					const files = await readdir(RULES_DIR).catch(() => [] as string[]);
-					for (const file of files) {
-						if (!file.endsWith(".md")) continue;
-						if (disabledSet.has(file)) continue;
-						try {
-							const ruleContent = await readFile(
-								join(RULES_DIR, file),
-								"utf-8",
-							);
-							globalRulesContent += `\n\n<!-- Rule: ${file} -->\n${ruleContent}`;
-						} catch (e) {
-							console.warn(`Failed to read rule ${file}`, e);
-						}
-					}
-
-					let projectRulesContent = "";
-					if (
-						updatedProject.projectRules &&
-						updatedProject.projectRules.length > 0
-					) {
-						for (const rule of updatedProject.projectRules) {
-							projectRulesContent += `\n\n<!-- Project Rule: ${rule.name} -->\n${rule.content}`;
-						}
-					}
-
-					/*
-					const finalContent = `${globalRulesContent}\n\n<!-- Project Specific Rules -->\n${projectRulesContent}`.trim();
-					// await writeFile(join(updatedProject.rootPath, 'Agents.md'), finalContent, 'utf-8');
-					// await writeFile(join(updatedProject.rootPath, 'Claude.md'), finalContent, 'utf-8');
-					*/
-				} catch (e) {
-					console.error("Failed to generate rule files", e);
-				}
-			}
+			ctx.store.updateProject(input.projectId, updates);
 
 			return { success: true };
 		}),
@@ -241,11 +199,11 @@ export const projectsRouter = {
 		.input(z.object({ projectId: z.string() }))
 		.output(z.object({ success: z.boolean() }))
 		.handler(async ({ input }) => {
-			const storeInstance = getStoreOrThrow();
-			const project = storeInstance.getProject(input.projectId);
+			const ctx = getRouterContext();
+			const project = ctx.store.getProject(input.projectId);
 			if (!project) return { success: false };
 
-			storeInstance.deleteProject(input.projectId);
+			ctx.store.deleteProject(input.projectId);
 			return { success: true };
 		}),
 };

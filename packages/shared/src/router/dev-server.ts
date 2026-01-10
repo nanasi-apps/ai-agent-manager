@@ -1,10 +1,6 @@
 import { os } from "@orpc/server";
 import { z } from "zod";
-import {
-	getAgentManagerOrThrow,
-	getDevServerServiceOrThrow,
-	getStoreOrThrow,
-} from "../services/dependency-container";
+import { getRouterContext } from "./createRouter";
 
 export const devServerRouter = {
 	devServerLaunch: os
@@ -27,6 +23,7 @@ export const devServerRouter = {
 			}),
 		)
 		.handler(async ({ input }) => {
+			const ctx = getRouterContext();
 			// Try to get worktree path from active session
 			let worktreeCwd: string | undefined;
 			console.log(
@@ -35,9 +32,8 @@ export const devServerRouter = {
 
 			if (input.conversationId) {
 				try {
-					const manager = getAgentManagerOrThrow();
 					// Check active session first
-					worktreeCwd = manager.getSessionCwd?.(input.conversationId);
+					worktreeCwd = ctx.agentManager.getSessionCwd?.(input.conversationId);
 
 					if (worktreeCwd) {
 						console.log(
@@ -46,9 +42,9 @@ export const devServerRouter = {
 					} else {
 						// Fallback: try to get worktree cwd from persisted agentState in store
 						try {
-							// const { getStoreOrThrow } = await import("../services/dependency-container");
-							const store = getStoreOrThrow();
-							const conversation = store.getConversation(input.conversationId);
+							const conversation = ctx.store.getConversation(
+								input.conversationId,
+							);
 
 							if (conversation?.agentState) {
 								// agentState is xstate snapshot
@@ -89,7 +85,7 @@ export const devServerRouter = {
 				}
 			}
 
-			const process = await getDevServerServiceOrThrow().launchProject(
+			const process = await ctx.devServerService.launchProject(
 				input.projectId,
 				{
 					timeout: input.timeout,
@@ -117,7 +113,8 @@ export const devServerRouter = {
 		)
 		.output(z.boolean())
 		.handler(async ({ input }) => {
-			return getDevServerServiceOrThrow().stopProject(
+			const ctx = getRouterContext();
+			return ctx.devServerService.stopProject(
 				input.projectId,
 				input.conversationId,
 			);
@@ -145,7 +142,8 @@ export const devServerRouter = {
 				.optional(),
 		)
 		.handler(async ({ input }) => {
-			const process = getDevServerServiceOrThrow().getRunningProject(
+			const ctx = getRouterContext();
+			const process = ctx.devServerService.getRunningProject(
 				input.projectId,
 				input.conversationId,
 			);
@@ -177,7 +175,8 @@ export const devServerRouter = {
 		)
 		.output(z.array(z.string()))
 		.handler(async ({ input }) => {
-			return getDevServerServiceOrThrow().getProjectLogs(
+			const ctx = getRouterContext();
+			return ctx.devServerService.getProjectLogs(
 				input.projectId,
 				input.conversationId,
 			);

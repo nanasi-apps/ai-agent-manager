@@ -6,16 +6,16 @@
  */
 
 export interface IWebServerStatus {
-    isRunning: boolean;
-    port?: number;
-    localUrl?: string;
-    networkUrl?: string;
+	isRunning: boolean;
+	port?: number;
+	localUrl?: string;
+	networkUrl?: string;
 }
 
 export interface IWebServerService {
-    start(options?: { port?: number; host?: string }): Promise<IWebServerStatus>;
+	start(options?: { port?: number; host?: string }): Promise<IWebServerStatus>;
 
-    stop(): Promise<boolean>;
+	stop(): Promise<boolean>;
 
-    getStatus(): Promise<IWebServerStatus>;
+	getStatus(): Promise<IWebServerStatus>;
 }

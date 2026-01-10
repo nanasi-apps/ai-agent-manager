@@ -5,10 +5,10 @@
 	"main": "dist/main.js",
 	"scripts": {
 		"dev": "NODE_ENV=development npm run copy:templates && NODE_ENV=development concurrently -k \"tsc -w\" \"NODE_ENV=development npm run start:electron\"",
-		"start:electron": "wait-on dist/main.js tcp:${WEB_PORT:-5173} && ELECTRON_DISABLE_SECURITY_WARNINGS=true nodemon --watch dist --watch ../shared/dist --exec electron .",
+		"start:electron": "wait-on dist/main.js tcp:${WEB_PORT:-5173} && ELECTRON_DISABLE_SECURITY_WARNINGS=true nodemon --watch dist --watch ../shared/dist --ext js,cjs,mjs --ignore dist/renderer/** --ignore dist/**/*.map --ignore dist/**/.DS_Store --delay 200 --exec electron .",
 		"prebuild": "rm -rf dist",
 		"build": "node esbuild.config.mjs && npm run copy:templates && npm run copy:web && electron-builder --mac --win --linux",
-		"copy:templates": "mkdir -p dist/agents && cp -r src/agents/templates dist/agents/",
+		"copy:templates": "cp -r src/application/sessions/templates dist/",
 		"copy:web": "mkdir -p dist/renderer && cp -r ../web/dist/* dist/renderer/",
 		"typecheck": "tsc --noEmit"
 	},

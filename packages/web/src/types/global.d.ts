@@ -2,6 +2,7 @@ import type {
 	AgentLogPayload,
 	AgentStatePayload,
 	BranchNameRequest,
+	SessionEvent,
 } from "@agent-manager/shared";
 
 /**
@@ -16,6 +17,7 @@ export interface ElectronAPI {
 	onAgentStateChanged: (
 		callback: (payload: AgentStatePayload) => void,
 	) => () => void;
+	onAgentEvent: (callback: (payload: SessionEvent) => void) => () => void;
 	getOrpcPort: () => number;
 	listBranchNameRequests: () => Promise<BranchNameRequest[]>;
 	onBranchNameRequest: (

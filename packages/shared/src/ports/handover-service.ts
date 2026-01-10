@@ -8,5 +8,5 @@
 import type { SummaryOptions } from "../types/agent";
 
 export interface IHandoverService {
-    generateAgentSummary(options: SummaryOptions): Promise<string | null>;
+	generateAgentSummary(options: SummaryOptions): Promise<string | null>;
 }

@@ -21,67 +21,69 @@
  * });
  */
 
-import { dialog } from "electron";
 import {
-    appRouter,
-    type AppRouter,
-    type RouterContext,
-    // Legacy setters - still needed during transition for handlers using global DI
-    setAgentManager,
-    setDevServerService,
-    setGtrConfigService,
-    setHandoverService,
-    setNativeDialog,
-    setStore,
-    setWebServerService,
-    setWorktreeManager,
+	createRouter,
+	type RouterContext,
+	// Legacy setters - still needed during transition for handlers using global DI
+	setAgentManager,
+	setDevServerService,
+	setGtrConfigService,
+	setHandoverService,
+	setNativeDialog,
+	setStore,
+	setWebServerService,
+	setWorktreeManager,
 } from "@agent-manager/shared";
+import { dialog } from "electron";
 
 import {
-    setAgentManager as setElectronAgentManager,
-    unifiedAgentManager,
-} from "../agents";
-import { devServerManager } from "../main/dev-server-manager";
-import { worktreeManager } from "../main/worktree-manager";
+	setAgentManager as setElectronAgentManager,
+	unifiedAgentManager,
+} from "../application/sessions";
+import { devServerManager } from "../infrastructure/dev-server/dev-server-manager";
+import { worktreeManager } from "../infrastructure/worktree/worktree-manager";
 import { GtrConfigService } from "../services/gtr-config-service";
 import * as handoverSummaryService from "../services/handover-summary-service";
 import { webServerManager } from "../services/web-server-manager";
-import { store } from "../store";
+import { store } from "../infrastructure/store";
 
 /**
  * NativeDialog adapter for Electron
  */
 const nativeDialogAdapter = {
-    selectDirectory: async () => {
-        const result = await dialog.showOpenDialog({
-            properties: ["openDirectory"],
-        });
-        if (result.canceled) return null;
-        return result.filePaths[0] ?? null;
-    },
+	selectDirectory: async () => {
+		const result = await dialog.showOpenDialog({
+			properties: ["openDirectory"],
+		});
+		if (result.canceled) return null;
+		return result.filePaths[0] ?? null;
+	},
 
-    selectPaths: async ({
-        type,
-        multiple,
-    }: { type: "file" | "dir" | "any"; multiple?: boolean }) => {
-        const properties: Array<"openFile" | "openDirectory" | "multiSelections"> =
-            [];
-        if (type === "file") properties.push("openFile");
-        if (type === "dir") properties.push("openDirectory");
-        if (type === "any") properties.push("openFile", "openDirectory");
-        if (multiple) properties.push("multiSelections");
-        const result = await dialog.showOpenDialog({ properties });
-        if (result.canceled) return [];
-        return result.filePaths;
-    },
+	selectPaths: async ({
+		type,
+		multiple,
+	}: {
+		type: "file" | "dir" | "any";
+		multiple?: boolean;
+	}) => {
+		const properties: Array<"openFile" | "openDirectory" | "multiSelections"> =
+			[];
+		if (type === "file") properties.push("openFile");
+		if (type === "dir") properties.push("openDirectory");
+		if (type === "any") properties.push("openFile", "openDirectory");
+		if (multiple) properties.push("multiSelections");
+		const result = await dialog.showOpenDialog({ properties });
+		if (result.canceled) return [];
+		return result.filePaths;
+	},
 };
 
 /**
  * Bootstrap result - provides access to the router and context
  */
 export interface BootstrapResult {
-    router: AppRouter;
-    ctx: RouterContext;
+	router: ReturnType<typeof createRouter>;
+	ctx: RouterContext;
 }
 
 /**
@@ -96,39 +98,58 @@ export interface BootstrapResult {
  * @returns The router and context for further setup
  */
 export function bootstrap(): BootstrapResult {
-    // Create service instances
-    const gtrConfigService = new GtrConfigService();
+	// Create service instances
+	const gtrConfigService = new GtrConfigService();
 
-    // Build the RouterContext with all dependencies
-    const ctx: RouterContext = {
-        agentManager: unifiedAgentManager,
-        store: store,
-        worktreeManager: worktreeManager,
-        nativeDialog: nativeDialogAdapter,
-        devServerService: devServerManager,
-        webServerService: webServerManager,
-        handoverService: handoverSummaryService,
-        gtrConfigService: gtrConfigService,
-    };
+	// Import and create rules resolver (Milestone 4)
+	const {
+		createRulesService,
+		createModelFetcher,
+		createSessionBuilder,
+	} = require("../application/services");
+	const rulesService = createRulesService(store);
 
-    // TRANSITION: Also set up legacy global DI
-    // TODO: Remove these once all handlers use ctx directly
-    setAgentManager(unifiedAgentManager);
-    setElectronAgentManager(unifiedAgentManager);
-    setStore(store);
-    setWorktreeManager(worktreeManager);
-    setHandoverService(handoverSummaryService);
-    setGtrConfigService(gtrConfigService);
-    setDevServerService(devServerManager);
-    setWebServerService(webServerManager);
-    setNativeDialog(nativeDialogAdapter);
+	// Create model fetcher service (Milestone 4)
+	const modelFetcher = createModelFetcher();
 
-    // Use the legacy appRouter for now (has proper types)
-    // TODO: Switch to createRouter(ctx) once handlers are migrated
-    // The legacy setters above ensure appRouter works correctly
-    const router = appRouter;
+	// Create session builder service (Milestone 4)
+	// Note: sessionBuilder depends on store and rulesResolver
+	const sessionBuilder = createSessionBuilder(store, rulesService);
 
-    return { router, ctx };
+	// Build the RouterContext with all dependencies
+	const ctx: RouterContext = {
+		agentManager: unifiedAgentManager,
+		store: store,
+		worktreeManager: worktreeManager,
+		nativeDialog: nativeDialogAdapter,
+		devServerService: devServerManager,
+		webServerService: webServerManager,
+		handoverService: handoverSummaryService,
+		gtrConfigService: gtrConfigService,
+		rulesService: rulesService,
+		rulesResolver: rulesService, // Compatible interface
+		modelFetcher: modelFetcher,
+		sessionBuilder: sessionBuilder,
+	};
+
+	// TRANSITION: Also set up legacy global DI
+	// TODO: Remove these once all handlers use ctx directly
+	setAgentManager(unifiedAgentManager);
+	setElectronAgentManager(unifiedAgentManager);
+	setStore(store);
+	setWorktreeManager(worktreeManager);
+	setHandoverService(handoverSummaryService);
+	setGtrConfigService(gtrConfigService);
+	setDevServerService(devServerManager);
+	setWebServerService(webServerManager);
+	setNativeDialog(nativeDialogAdapter);
+
+	// Create router using the factory pattern (Milestone 4)
+	// createRouter(ctx) internally calls _setRouterContext(ctx),
+	// enabling handlers to use getRouterContext() for migration
+	const router = createRouter(ctx);
+
+	return { router, ctx };
 }
 
 /**
@@ -137,5 +158,5 @@ export function bootstrap(): BootstrapResult {
  * @returns The file store instance
  */
 export function getStore() {
-    return store;
+	return store;
 }

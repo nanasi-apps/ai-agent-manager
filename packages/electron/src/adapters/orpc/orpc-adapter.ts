@@ -11,23 +11,31 @@
 
 import type { IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
+import type { AppRouter, AppRouterFromFactory } from "@agent-manager/shared";
 import { onError } from "@orpc/server";
 import { RPCHandler as MessagePortRPCHandler } from "@orpc/server/message-port";
 import { RPCHandler as WSRPCHandler } from "@orpc/server/ws";
 import { ipcMain } from "electron";
 import { WebSocketServer } from "ws";
 
-import type { AppRouter } from "@agent-manager/shared";
+/**
+ * Router type accepted by these functions.
+ * Uses ConstructorParameters to get the exact type the RPCHandler expects.
+ * This enables gradual migration from appRouter to createRouter(ctx).
+ */
+// biome-ignore lint: Using 'any' here because oRPC's Router type is complex
+// and both AppRouter and AppRouterFromFactory are compatible at runtime
+type AnyAppRouter = ConstructorParameters<typeof WSRPCHandler>[0];
 
 /**
  * Server type that supports WebSocket upgrade.
  * This is a minimal interface that works with both HTTP and HTTP/2 servers.
  */
 interface UpgradableServer {
-    on(
-        event: "upgrade",
-        listener: (request: IncomingMessage, socket: Duplex, head: Buffer) => void,
-    ): this;
+	on(
+		event: "upgrade",
+		listener: (request: IncomingMessage, socket: Duplex, head: Buffer) => void,
+	): this;
 }
 
 const ORPC_WS_PATH = "/ws";
@@ -35,14 +43,14 @@ const ORPC_WS_PATH = "/ws";
 /**
  * Creates a WebSocket RPC handler for the given router.
  */
-function createWsHandler(router: AppRouter) {
-    return new WSRPCHandler(router, {
-        interceptors: [
-            onError((error) => {
-                console.error("[ORPC] WebSocket error:", error);
-            }),
-        ],
-    });
+function createWsHandler(router: AnyAppRouter) {
+	return new WSRPCHandler(router, {
+		interceptors: [
+			onError((error) => {
+				console.error("[ORPC] WebSocket error:", error);
+			}),
+		],
+	});
 }
 
 /**
@@ -52,14 +60,14 @@ function createWsHandler(router: AppRouter) {
  *
  * @param router - The oRPC router created by createRouter(ctx)
  */
-export function setupElectronOrpc(router: AppRouter) {
-    const handler = new MessagePortRPCHandler(router);
+export function setupElectronOrpc(router: AnyAppRouter) {
+	const handler = new MessagePortRPCHandler(router);
 
-    ipcMain.on("start-orpc-server", (event) => {
-        const [serverPort] = event.ports;
-        handler.upgrade(serverPort);
-        serverPort.start();
-    });
+	ipcMain.on("start-orpc-server", (event) => {
+		const [serverPort] = event.ports;
+		handler.upgrade(serverPort);
+		serverPort.start();
+	});
 }
 
 /**
@@ -72,44 +80,44 @@ export function setupElectronOrpc(router: AppRouter) {
  * @returns The WebSocket server instance
  */
 export function attachOrpcToServer(
-    server: UpgradableServer,
-    router: AppRouter,
+	server: UpgradableServer,
+	router: AnyAppRouter,
 ) {
-    const wss = new WebSocketServer({ noServer: true });
-    console.log("[ORPC] WebSocket attached to HTTP server");
-    const handler = createWsHandler(router);
+	const wss = new WebSocketServer({ noServer: true });
+	console.log("[ORPC] WebSocket attached to HTTP server");
+	const handler = createWsHandler(router);
 
-    server.on(
-        "upgrade",
-        (request: IncomingMessage, socket: Duplex, head: Buffer) => {
-            const requestUrl = request?.url ?? "";
-            const path = requestUrl.split("?")[0];
-            if (path !== ORPC_WS_PATH) {
-                socket.destroy();
-                return;
-            }
+	server.on(
+		"upgrade",
+		(request: IncomingMessage, socket: Duplex, head: Buffer) => {
+			const requestUrl = request?.url ?? "";
+			const path = requestUrl.split("?")[0];
+			if (path !== ORPC_WS_PATH) {
+				socket.destroy();
+				return;
+			}
 
-            wss.handleUpgrade(request, socket, head, (ws) => {
-                wss.emit("connection", ws, request);
-            });
-        },
-    );
+			wss.handleUpgrade(request, socket, head, (ws) => {
+				wss.emit("connection", ws, request);
+			});
+		},
+	);
 
-    wss.on("connection", (ws) => {
-        console.log("[ORPC] Client connected");
+	wss.on("connection", (ws) => {
+		console.log("[ORPC] Client connected");
 
-        handler.upgrade(ws);
+		handler.upgrade(ws);
 
-        ws.on("close", () => {
-            console.log("[ORPC] Client disconnected");
-        });
+		ws.on("close", () => {
+			console.log("[ORPC] Client disconnected");
+		});
 
-        ws.on("error", (err) => {
-            console.error("[ORPC] Client connection error:", err);
-        });
-    });
+		ws.on("error", (err) => {
+			console.error("[ORPC] Client connection error:", err);
+		});
+	});
 
-    return wss;
+	return wss;
 }
 
 /**
@@ -119,30 +127,27 @@ export function attachOrpcToServer(
  * @param port - Port to listen on (default: 3002)
  * @returns The WebSocket server instance
  */
-export function startOrpcWsServer(
-    router: AppRouter,
-    port: number = 3002,
-) {
-    const wss = new WebSocketServer({ port, path: ORPC_WS_PATH });
-    console.log(
-        `[ORPC] WebSocket server started on port ${port} (path: ${ORPC_WS_PATH})`,
-    );
+export function startOrpcWsServer(router: AnyAppRouter, port: number = 3002) {
+	const wss = new WebSocketServer({ port, path: ORPC_WS_PATH });
+	console.log(
+		`[ORPC] WebSocket server started on port ${port} (path: ${ORPC_WS_PATH})`,
+	);
 
-    const handler = createWsHandler(router);
+	const handler = createWsHandler(router);
 
-    wss.on("connection", (ws) => {
-        console.log("[ORPC] Client connected");
+	wss.on("connection", (ws) => {
+		console.log("[ORPC] Client connected");
 
-        handler.upgrade(ws);
+		handler.upgrade(ws);
 
-        ws.on("close", () => {
-            console.log("[ORPC] Client disconnected");
-        });
+		ws.on("close", () => {
+			console.log("[ORPC] Client disconnected");
+		});
 
-        ws.on("error", (err) => {
-            console.error("[ORPC] Client connection error:", err);
-        });
-    });
+		ws.on("error", (err) => {
+			console.error("[ORPC] Client connection error:", err);
+		});
+	});
 
-    return wss;
+	return wss;
 }

@@ -1,16 +1,9 @@
 import { os } from "@orpc/server";
 import { z } from "zod";
-import { getStoreOrThrow } from "../services/dependency-container";
-import {
-	buildModelId,
-	fetchGeminiModels,
-	fetchOpenAIModels,
-	getModelsForCliType,
-	MODEL_CACHE_TTL_MS,
-	modelListCache,
-} from "../services/model-fetcher";
+import { buildModelId, getModelsForCliType } from "../services/model-fetcher";
 import type { ModelTemplate } from "../types/project";
 import { availableAgents } from "../types/project";
+import { getRouterContext } from "./createRouter";
 
 export const modelsRouter = {
 	listAgentTemplates: os
@@ -44,28 +37,11 @@ export const modelsRouter = {
 			),
 		)
 		.handler(async ({ input }) => {
-			const storeInstance = getStoreOrThrow();
-			const apiSettings = storeInstance.getApiSettings();
+			const ctx = getRouterContext();
+			const apiSettings = ctx.store.getApiSettings();
 			// Use configured providers list
 			const providers = apiSettings.providers || [];
 			const includeDisabled = input?.includeDisabled ?? false;
-
-			// Create a cache key based on providers configuration AND includeDisabled flag
-			// Hash disabledModels too
-			const cacheKey = `models:v2:${includeDisabled}:${JSON.stringify(
-				providers.map((p) => ({
-					id: p.id,
-					type: p.type,
-					baseUrl: p.baseUrl,
-					apiKey: p.apiKey ? "set" : "unset",
-					disabledModels: p.disabledModels,
-				})),
-			)}`;
-			const cached = modelListCache.get(cacheKey);
-			const now = Date.now();
-			if (cached && cached.expiresAt > now) {
-				return cached.models;
-			}
 
 			const results: ModelTemplate[] = [];
 
@@ -108,59 +84,69 @@ export const modelsRouter = {
 			}
 
 			// 2. Add Models from Configured Providers
-			for (const provider of providers) {
-				let targetAgentId = "";
-				if (provider.type === "gemini") targetAgentId = "gemini";
-				// 'openai' and 'openai_compatible' map to 'codex' driver
-				else if (
-					["codex", "openai", "openai_compatible"].includes(provider.type)
-				)
-					targetAgentId = "codex";
-
-				const agentTemplate = availableAgents.find(
-					(a) => a.id === targetAgentId,
-				);
-				if (!agentTemplate) continue;
-
-				let models: string[] = [];
-				const apiKey = provider.apiKey;
-
-				try {
-					if (provider.type === "gemini" && apiKey) {
-						models = await fetchGeminiModels(apiKey, provider.baseUrl);
-					} else if (
+			// Only proceed if modelFetcher service is available (it should be in electron)
+			if (ctx.modelFetcher) {
+				for (const provider of providers) {
+					let targetAgentId = "";
+					if (provider.type === "gemini") targetAgentId = "gemini";
+					// 'openai' and 'openai_compatible' map to 'codex' driver
+					else if (
 						["codex", "openai", "openai_compatible"].includes(provider.type)
-					) {
-						const p = provider as any;
-						if (apiKey) {
-							models = await fetchOpenAIModels(apiKey, p.baseUrl);
-						}
-					}
-				} catch (e) {
-					console.error(
-						`Failed to fetch models for provider ${provider.name}`,
-						e,
+					)
+						targetAgentId = "codex";
+
+					const agentTemplate = availableAgents.find(
+						(a) => a.id === targetAgentId,
 					);
-				}
+					if (!agentTemplate) continue;
 
-				if (models.length > 0) {
-					const groupName = `${agentTemplate.name} - ${provider.name}`;
-					const disabledModels = provider.disabledModels || [];
+					let models: string[] = [];
+					const apiKey = provider.apiKey;
 
-					for (const model of models) {
-						// Filter out disabled models unless requested
-						if (!includeDisabled && disabledModels.includes(model)) {
-							continue;
+					try {
+						// Use ctx.modelFetcher to fetch models (cached internally by the service)
+						if (provider.type === "gemini" && apiKey) {
+							models = await ctx.modelFetcher.fetchGeminiModels(
+								apiKey,
+								provider.baseUrl,
+							);
+						} else if (
+							["codex", "openai", "openai_compatible"].includes(provider.type)
+						) {
+							const p = provider as any;
+							if (apiKey) {
+								models = await ctx.modelFetcher.fetchOpenAIModels(
+									apiKey,
+									p.baseUrl,
+								);
+							}
 						}
+					} catch (e) {
+						console.error(
+							`Failed to fetch models for provider ${provider.name}`,
+							e,
+						);
+					}
 
-						results.push({
-							id: `${buildModelId(targetAgentId, model)}::${provider.id}`,
-							name: model,
-							agentType: targetAgentId,
-							agentName: groupName,
-							model,
-							providerId: provider.id,
-						});
+					if (models.length > 0) {
+						const groupName = `${agentTemplate.name} - ${provider.name}`;
+						const disabledModels = provider.disabledModels || [];
+
+						for (const model of models) {
+							// Filter out disabled models unless requested
+							if (!includeDisabled && disabledModels.includes(model)) {
+								continue;
+							}
+
+							results.push({
+								id: `${buildModelId(targetAgentId, model)}::${provider.id}`,
+								name: model,
+								agentType: targetAgentId,
+								agentName: groupName,
+								model,
+								providerId: provider.id,
+							});
+						}
 					}
 				}
 			}
@@ -170,11 +156,6 @@ export const modelsRouter = {
 				const nameCompare = a.agentName.localeCompare(b.agentName);
 				if (nameCompare !== 0) return nameCompare;
 				return (a.model || "").localeCompare(b.model || "");
-			});
-
-			modelListCache.set(cacheKey, {
-				expiresAt: now + MODEL_CACHE_TTL_MS,
-				models: results,
 			});
 
 			return results;

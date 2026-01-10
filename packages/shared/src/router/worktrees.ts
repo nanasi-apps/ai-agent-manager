@@ -1,9 +1,6 @@
 import { os } from "@orpc/server";
 import { z } from "zod";
-import {
-	getStoreOrThrow,
-	getWorktreeManagerOrThrow,
-} from "../services/dependency-container";
+import { getRouterContext } from "./createRouter";
 
 export const worktreesRouter = {
 	listWorktrees: os
@@ -29,15 +26,14 @@ export const worktreesRouter = {
 			),
 		)
 		.handler(async ({ input }) => {
-			const project = getStoreOrThrow().getProject(input.projectId);
+			const ctx = getRouterContext();
+			const project = ctx.store.getProject(input.projectId);
 			if (!project || !project.rootPath)
 				throw new Error("Project has no root path");
-			const worktrees = await getWorktreeManagerOrThrow().getWorktrees(
+			const worktrees = await ctx.worktreeManager.getWorktrees(
 				project.rootPath,
 			);
-			const conversations = getStoreOrThrow().listConversations(
-				input.projectId,
-			);
+			const conversations = ctx.store.listConversations(input.projectId);
 			const byPath = new Map<string, { id: string; title: string }[]>();
 
 			for (const conversation of conversations) {
@@ -80,10 +76,11 @@ export const worktreesRouter = {
 			}),
 		)
 		.handler(async ({ input }) => {
-			const project = getStoreOrThrow().getProject(input.projectId);
+			const ctx = getRouterContext();
+			const project = ctx.store.getProject(input.projectId);
 			if (!project || !project.rootPath)
 				throw new Error("Project has no root path");
-			const wt = await getWorktreeManagerOrThrow().createWorktree(
+			const wt = await ctx.worktreeManager.createWorktree(
 				project.rootPath,
 				input.branch,
 				input.relativePath,
@@ -101,10 +98,11 @@ export const worktreesRouter = {
 		)
 		.output(z.object({ success: z.boolean() }))
 		.handler(async ({ input }) => {
-			const project = getStoreOrThrow().getProject(input.projectId);
+			const ctx = getRouterContext();
+			const project = ctx.store.getProject(input.projectId);
 			if (!project || !project.rootPath)
 				throw new Error("Project has no root path");
-			await getWorktreeManagerOrThrow().removeWorktree(
+			await ctx.worktreeManager.removeWorktree(
 				project.rootPath,
 				input.path,
 				input.force,
@@ -135,10 +133,11 @@ export const worktreesRouter = {
 			}),
 		)
 		.handler(async ({ input }) => {
-			const project = getStoreOrThrow().getProject(input.projectId);
+			const ctx = getRouterContext();
+			const project = ctx.store.getProject(input.projectId);
 			if (!project || !project.rootPath)
 				throw new Error("Project has no root path");
-			return getWorktreeManagerOrThrow().getWorktreeStatus(input.path);
+			return ctx.worktreeManager.getWorktreeStatus(input.path);
 		}),
 
 	getWorktreeDiff: os
@@ -156,10 +155,11 @@ export const worktreesRouter = {
 			}),
 		)
 		.handler(async ({ input }) => {
-			const project = getStoreOrThrow().getProject(input.projectId);
+			const ctx = getRouterContext();
+			const project = ctx.store.getProject(input.projectId);
 			if (!project || !project.rootPath)
 				throw new Error("Project has no root path");
-			return getWorktreeManagerOrThrow().getWorktreeDiff(input.path);
+			return ctx.worktreeManager.getWorktreeDiff(input.path);
 		}),
 
 	listWorktreeCommits: os
@@ -182,12 +182,10 @@ export const worktreesRouter = {
 			),
 		)
 		.handler(async ({ input }) => {
-			const project = getStoreOrThrow().getProject(input.projectId);
+			const ctx = getRouterContext();
+			const project = ctx.store.getProject(input.projectId);
 			if (!project || !project.rootPath)
 				throw new Error("Project has no root path");
-			return getWorktreeManagerOrThrow().listWorktreeCommits(
-				input.path,
-				input.limit,
-			);
+			return ctx.worktreeManager.listWorktreeCommits(input.path, input.limit);
 		}),
 };
