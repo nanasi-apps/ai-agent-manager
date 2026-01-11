@@ -159,7 +159,7 @@ const openApprovalDetail = async (item: { id: string }) => {
 			selectedApproval.value = detail;
 			// Default to first model
 			if (availableModels.value.length > 0 && !selectedModelId.value) {
-				selectedModelId.value = availableModels.value[0]?.id;
+				selectedModelId.value = availableModels.value[0]?.id ?? "";
 			}
 		}
 	} catch (err) {

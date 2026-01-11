@@ -1,8 +1,9 @@
 import { os } from "@orpc/server";
 import { z } from "zod";
-import { getRouterContext } from "./createRouter";
+import type { RouterContext } from "./createRouter";
 
-export const locksRouter = {
+export function createLocksRouter(ctx: RouterContext) {
+	return {
 	acquireLock: os
 		.input(
 			z.object({
@@ -14,7 +15,6 @@ export const locksRouter = {
 		)
 		.output(z.boolean())
 		.handler(async ({ input }) => {
-			const ctx = getRouterContext();
 			const expiresAt = input.ttlMs ? Date.now() + input.ttlMs : undefined;
 			return ctx.store.acquireLock({
 				resourceId: input.resourceId,
@@ -34,7 +34,6 @@ export const locksRouter = {
 		)
 		.output(z.boolean())
 		.handler(async ({ input }) => {
-			const ctx = getRouterContext();
 			return ctx.store.releaseLock(input.resourceId, input.agentId);
 		}),
 
@@ -52,7 +51,6 @@ export const locksRouter = {
 				.optional(),
 		)
 		.handler(async ({ input }) => {
-			const ctx = getRouterContext();
 			return ctx.store.getLock(input.resourceId);
 		}),
 
@@ -69,7 +67,6 @@ export const locksRouter = {
 			),
 		)
 		.handler(async () => {
-			const ctx = getRouterContext();
 			return ctx.store.listLocks();
 		}),
 
@@ -77,7 +74,7 @@ export const locksRouter = {
 		.input(z.object({ resourceId: z.string() }))
 		.output(z.void())
 		.handler(async ({ input }) => {
-			const ctx = getRouterContext();
 			ctx.store.forceReleaseLock(input.resourceId);
 		}),
-};
+	};
+}

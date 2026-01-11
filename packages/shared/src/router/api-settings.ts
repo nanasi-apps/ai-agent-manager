@@ -1,10 +1,11 @@
 import { os } from "@orpc/server";
 import { z } from "zod";
-import { getRouterContext } from "./createRouter";
+import type { RouterContext } from "./createRouter";
 
 const MASKED_API_KEY = "********************";
 
-export const apiSettingsRouter = {
+export function createApiSettingsRouter(ctx: RouterContext) {
+	return {
 	getApiSettings: os
 		.output(
 			z.object({
@@ -32,7 +33,6 @@ export const apiSettingsRouter = {
 			}),
 		)
 		.handler(async () => {
-			const ctx = getRouterContext();
 			const settings = ctx.store.getApiSettings();
 			// Mask API keys for security
 			const providers = (settings.providers || []).map((p) => {
@@ -74,7 +74,6 @@ export const apiSettingsRouter = {
 		)
 		.output(z.object({ success: z.boolean() }))
 		.handler(async ({ input }) => {
-			const ctx = getRouterContext();
 			if (input.providers) {
 				const existingSettings = ctx.store.getApiSettings();
 				const existingProviders = existingSettings.providers || [];
@@ -97,4 +96,5 @@ export const apiSettingsRouter = {
 			ctx.modelFetcher?.clearCache();
 			return { success: true };
 		}),
-};
+	};
+}

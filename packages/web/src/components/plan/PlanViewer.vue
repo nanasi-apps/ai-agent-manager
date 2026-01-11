@@ -40,7 +40,7 @@ const formatModelLabel = (model: ModelTemplate) => {
 const openApproveDialog = () => {
 	// Default to first available model
 	if (availableModels.value.length > 0 && !selectedModelId.value) {
-		selectedModelId.value = availableModels.value[0]?.id;
+		selectedModelId.value = availableModels.value[0]?.id ?? "";
 	}
 	isApproveDialogOpen.value = true;
 };

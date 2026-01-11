@@ -3,6 +3,7 @@ import {
 	listMcpToolsLogic,
 } from "@agent-manager/shared";
 import { z } from "zod";
+import { getAgentManager } from "../../../application/sessions/agent-manager";
 import { execFileAsync } from "../utils";
 import type { ToolRegistrar } from "./types";
 
@@ -97,7 +98,10 @@ export function registerSearchTools(registerTool: ToolRegistrar) {
 		async ({ sessionId }) => {
 			try {
 				const { sessionServers, globalServers } =
-					await getSessionMcpServersLogic(sessionId as string);
+					await getSessionMcpServersLogic(
+						sessionId as string,
+						getAgentManager(),
+					);
 
 				const allServers = [...sessionServers, ...globalServers];
 				const allTools: ServerToolsResult[] = [];

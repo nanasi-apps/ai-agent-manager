@@ -1,8 +1,9 @@
 import { os } from "@orpc/server";
 import { z } from "zod";
-import { getWebServerServiceOrThrow } from "../services/dependency-container";
+import type { RouterContext } from "./createRouter";
 
-export const webServerRouter = {
+export function createWebServerRouter(ctx: RouterContext) {
+	return {
 	webServer: os.router({
 		start: os
 			.input(
@@ -20,14 +21,14 @@ export const webServerRouter = {
 				}),
 			)
 			.handler(async ({ input }) => {
-				return await getWebServerServiceOrThrow().start(input);
+				return await ctx.webServerService.start(input);
 			}),
 
 		stop: os
 			.input(z.void())
 			.output(z.boolean())
 			.handler(async () => {
-				return await getWebServerServiceOrThrow().stop();
+				return await ctx.webServerService.stop();
 			}),
 
 		getStatus: os
@@ -39,9 +40,10 @@ export const webServerRouter = {
 					localUrl: z.string().optional(),
 					networkUrl: z.string().optional(),
 				}),
-			)
+		)
 			.handler(async () => {
-				return await getWebServerServiceOrThrow().getStatus();
+				return await ctx.webServerService.getStatus();
 			}),
 	}),
-};
+	};
+}

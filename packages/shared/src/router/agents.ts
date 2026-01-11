@@ -1,12 +1,13 @@
 import { os } from "@orpc/server";
 import { z } from "zod";
 import type { AgentType } from "../types/agent";
-import { getRouterContext } from "./createRouter";
+import type { RouterContext } from "./createRouter";
 
 const agentTypeSchema = z.string();
 const reasoningLevelSchema = z.enum(["low", "middle", "high", "extraHigh"]);
 
-export const agentsRouter = {
+export function createAgentsRouter(ctx: RouterContext) {
+	return {
 	startAgent: os
 		.input(
 			z.object({
@@ -26,7 +27,6 @@ export const agentsRouter = {
 			}),
 		)
 		.handler(async ({ input }) => {
-			const ctx = getRouterContext();
 			try {
 				ctx.agentManager.startSession(input.sessionId, input.command, {
 					type: (input.agentType as AgentType) || "custom",
@@ -56,7 +56,6 @@ export const agentsRouter = {
 			}),
 		)
 		.handler(async ({ input }) => {
-			const ctx = getRouterContext();
 			ctx.agentManager.stopSession(input.sessionId);
 			return { success: true, message: "Agent stopped" };
 		}),
@@ -65,7 +64,6 @@ export const agentsRouter = {
 		.input(z.object({ sessionId: z.string() }))
 		.output(z.boolean())
 		.handler(async ({ input }) => {
-			const ctx = getRouterContext();
 			if (ctx.agentManager.isProcessing) {
 				return ctx.agentManager.isProcessing(input.sessionId);
 			}
@@ -73,12 +71,10 @@ export const agentsRouter = {
 		}),
 
 	listActiveSessions: os.output(z.array(z.string())).handler(async () => {
-		const ctx = getRouterContext();
 		return ctx.agentManager.listSessions();
 	}),
 
 	selectDirectory: os.output(z.string().nullable()).handler(async () => {
-		const ctx = getRouterContext();
 		const dialog = ctx.nativeDialog;
 		if (!dialog) return null;
 		return dialog.selectDirectory();
@@ -92,7 +88,6 @@ export const agentsRouter = {
 		)
 		.output(z.array(z.string()))
 		.handler(async ({ input }) => {
-			const ctx = getRouterContext();
 			const dialog = ctx.nativeDialog;
 			if (!dialog) return [];
 			return dialog.selectPaths({
@@ -110,7 +105,6 @@ export const agentsRouter = {
 		)
 		.output(z.string().nullable())
 		.handler(async ({ input }) => {
-			const ctx = getRouterContext();
 			let targetPath: string | null = null;
 
 			// Priority 1: If sessionId is provided, try to get the session's cwd from agent manager (live session)
@@ -147,4 +141,5 @@ export const agentsRouter = {
 				return null;
 			}
 		}),
-};
+	};
+}

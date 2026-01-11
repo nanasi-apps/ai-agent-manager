@@ -6,8 +6,6 @@
  * - Implementation code has been moved to electron/application/services/model-fetcher.ts
  */
 
-import type { ModelTemplate } from "../types/project";
-
 // ============================================================================
 // PURE UTILITIES - These stay in shared (no side effects, no state)
 // ============================================================================

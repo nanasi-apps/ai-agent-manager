@@ -80,7 +80,8 @@ const loadData = async () => {
 			const preferred = modelTemplates.value.find(
 				(model) => model.agentType !== "default",
 			);
-			selectedModelId.value = preferred?.id || modelTemplates.value[0]?.id;
+			selectedModelId.value =
+				preferred?.id ?? modelTemplates.value[0]?.id ?? "";
 		}
 
 		// Auto-select project logic
@@ -106,7 +107,7 @@ const loadData = async () => {
 		) {
 			selectedProjectId.value = routeProjectId;
 		} else if (projects.value.length > 0 && !selectedProjectId.value) {
-			selectedProjectId.value = projects.value[0]?.id;
+			selectedProjectId.value = projects.value[0]?.id ?? "";
 		}
 	} catch (e) {
 		console.error("Failed to load initial data", e);

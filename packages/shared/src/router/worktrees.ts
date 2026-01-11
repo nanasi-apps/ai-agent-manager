@@ -1,8 +1,9 @@
 import { os } from "@orpc/server";
 import { z } from "zod";
-import { getRouterContext } from "./createRouter";
+import type { RouterContext } from "./createRouter";
 
-export const worktreesRouter = {
+export function createWorktreesRouter(ctx: RouterContext) {
+	return {
 	listWorktrees: os
 		.input(z.object({ projectId: z.string() }))
 		.output(
@@ -26,7 +27,6 @@ export const worktreesRouter = {
 			),
 		)
 		.handler(async ({ input }) => {
-			const ctx = getRouterContext();
 			const project = ctx.store.getProject(input.projectId);
 			if (!project || !project.rootPath)
 				throw new Error("Project has no root path");
@@ -76,7 +76,6 @@ export const worktreesRouter = {
 			}),
 		)
 		.handler(async ({ input }) => {
-			const ctx = getRouterContext();
 			const project = ctx.store.getProject(input.projectId);
 			if (!project || !project.rootPath)
 				throw new Error("Project has no root path");
@@ -98,7 +97,6 @@ export const worktreesRouter = {
 		)
 		.output(z.object({ success: z.boolean() }))
 		.handler(async ({ input }) => {
-			const ctx = getRouterContext();
 			const project = ctx.store.getProject(input.projectId);
 			if (!project || !project.rootPath)
 				throw new Error("Project has no root path");
@@ -133,7 +131,6 @@ export const worktreesRouter = {
 			}),
 		)
 		.handler(async ({ input }) => {
-			const ctx = getRouterContext();
 			const project = ctx.store.getProject(input.projectId);
 			if (!project || !project.rootPath)
 				throw new Error("Project has no root path");
@@ -155,7 +152,6 @@ export const worktreesRouter = {
 			}),
 		)
 		.handler(async ({ input }) => {
-			const ctx = getRouterContext();
 			const project = ctx.store.getProject(input.projectId);
 			if (!project || !project.rootPath)
 				throw new Error("Project has no root path");
@@ -182,10 +178,10 @@ export const worktreesRouter = {
 			),
 		)
 		.handler(async ({ input }) => {
-			const ctx = getRouterContext();
 			const project = ctx.store.getProject(input.projectId);
 			if (!project || !project.rootPath)
 				throw new Error("Project has no root path");
 			return ctx.worktreeManager.listWorktreeCommits(input.path, input.limit);
 		}),
-};
+	};
+}

@@ -1,8 +1,9 @@
 import { os } from "@orpc/server";
 import { z } from "zod";
-import { getRouterContext } from "./createRouter";
+import type { RouterContext } from "./createRouter";
 
-export const devServerRouter = {
+export function createDevServerRouter(ctx: RouterContext) {
+	return {
 	devServerLaunch: os
 		.input(
 			z.object({
@@ -23,7 +24,6 @@ export const devServerRouter = {
 			}),
 		)
 		.handler(async ({ input }) => {
-			const ctx = getRouterContext();
 			// Try to get worktree path from active session
 			let worktreeCwd: string | undefined;
 			console.log(
@@ -113,7 +113,6 @@ export const devServerRouter = {
 		)
 		.output(z.boolean())
 		.handler(async ({ input }) => {
-			const ctx = getRouterContext();
 			return ctx.devServerService.stopProject(
 				input.projectId,
 				input.conversationId,
@@ -142,7 +141,6 @@ export const devServerRouter = {
 				.optional(),
 		)
 		.handler(async ({ input }) => {
-			const ctx = getRouterContext();
 			const process = ctx.devServerService.getRunningProject(
 				input.projectId,
 				input.conversationId,
@@ -175,10 +173,10 @@ export const devServerRouter = {
 		)
 		.output(z.array(z.string()))
 		.handler(async ({ input }) => {
-			const ctx = getRouterContext();
 			return ctx.devServerService.getProjectLogs(
 				input.projectId,
 				input.conversationId,
 			);
 		}),
-};
+	};
+}

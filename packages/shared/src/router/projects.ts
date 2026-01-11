@@ -3,7 +3,7 @@ import { z } from "zod";
 import { AgentConfigSchema } from "../types/launch-config";
 import type { Project } from "../types/store";
 import { generateUUID } from "../utils";
-import { getRouterContext } from "./createRouter";
+import type { RouterContext } from "./createRouter";
 
 const GtrConfigSchema = z.object({
 	copy: z.object({
@@ -19,12 +19,12 @@ const GtrConfigSchema = z.object({
 
 const AutoConfigSchema = AgentConfigSchema;
 
-export const projectsRouter = {
+export function createProjectsRouter(ctx: RouterContext) {
+	return {
 	getGtrConfig: os
 		.input(z.object({ projectId: z.string() }))
 		.output(GtrConfigSchema)
 		.handler(async ({ input }) => {
-			const ctx = getRouterContext();
 			const project = ctx.store.getProject(input.projectId);
 			if (!project || !project.rootPath) {
 				return {
@@ -49,7 +49,6 @@ export const projectsRouter = {
 		)
 		.output(z.object({ success: z.boolean() }))
 		.handler(async ({ input }) => {
-			const ctx = getRouterContext();
 			const project = ctx.store.getProject(input.projectId);
 			if (!project || !project.rootPath) return { success: false };
 
@@ -74,7 +73,6 @@ export const projectsRouter = {
 			),
 		)
 		.handler(async () => {
-			const ctx = getRouterContext();
 			return ctx.store.listProjects();
 		}),
 
@@ -92,7 +90,6 @@ export const projectsRouter = {
 			}),
 		)
 		.handler(async ({ input }) => {
-			const ctx = getRouterContext();
 			const id = generateUUID();
 			const now = Date.now();
 			ctx.store.addProject({
@@ -132,7 +129,6 @@ export const projectsRouter = {
 				.nullable(),
 		)
 		.handler(async ({ input }) => {
-			const ctx = getRouterContext();
 			const project = ctx.store.getProject(input.projectId);
 			if (!project) return null;
 			return {
@@ -169,7 +165,6 @@ export const projectsRouter = {
 		)
 		.output(z.object({ success: z.boolean() }))
 		.handler(async ({ input }) => {
-			const ctx = getRouterContext();
 			const project = ctx.store.getProject(input.projectId);
 			if (!project) return { success: false };
 
@@ -199,11 +194,11 @@ export const projectsRouter = {
 		.input(z.object({ projectId: z.string() }))
 		.output(z.object({ success: z.boolean() }))
 		.handler(async ({ input }) => {
-			const ctx = getRouterContext();
 			const project = ctx.store.getProject(input.projectId);
 			if (!project) return { success: false };
 
 			ctx.store.deleteProject(input.projectId);
 			return { success: true };
 		}),
-};
+	};
+}

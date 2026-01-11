@@ -249,7 +249,7 @@ const displayItems = computed<DisplayItem[]>(() => {
 				type: "log-group",
 				group: {
 					id: `log-group-${logs[0]?.id}`,
-					timestamp: logs[0]?.timestamp,
+					timestamp: logs[0]?.timestamp ?? msg.timestamp,
 					logs,
 				},
 			});

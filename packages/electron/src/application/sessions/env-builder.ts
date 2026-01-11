@@ -5,6 +5,7 @@ import {
 } from "@agent-manager/shared";
 import { store } from "../../infrastructure/store/file-store";
 import { getEnhancedEnv } from "../../utils/path-enhancer";
+import { getAgentManager } from "./agent-manager";
 import { prepareClaudeEnv, prepareGeminiEnv } from "./env-utils";
 import type { SessionState } from "./types";
 
@@ -134,7 +135,10 @@ export const EnvBuilder = {
 
 		// Logging MCP configuration (Logic moved to prepare*Env mostly, but keeping log for clarity)
 		if (state.config.cwd) {
-			const mcpConfig = await getSessionMcpServersLogic(state.sessionId);
+			const mcpConfig = await getSessionMcpServersLogic(
+				state.sessionId,
+				getAgentManager(),
+			);
 			if (mcpConfig) {
 				const serverNames = [
 					...mcpConfig.sessionServers,

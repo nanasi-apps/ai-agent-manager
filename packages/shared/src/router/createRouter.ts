@@ -43,6 +43,19 @@ import type { ISessionBuilder } from "../ports/session-builder";
 import type { IStore } from "../ports/store";
 import type { IWebServerService } from "../ports/web-server-service";
 import type { IWorktreeManager } from "../ports/worktree-manager";
+import { createAgentsRouter } from "./agents";
+import { createApiSettingsRouter } from "./api-settings";
+import { createAppSettingsRouter } from "./app-settings";
+import { createApprovalsRouter } from "./approvals";
+import { createConversationsRouter } from "./conversations";
+import { createDevServerRouter } from "./dev-server";
+import { createLocksRouter } from "./locks";
+import { createMcpRouter } from "./mcp";
+import { createModelsRouter } from "./models";
+import { createProjectsRouter } from "./projects";
+import { createRulesRouter } from "./rules";
+import { createWebServerRouter } from "./web-server";
+import { createWorktreesRouter } from "./worktrees";
 
 /**
  * RouterContext - All dependencies needed by the router
@@ -103,25 +116,20 @@ export interface RouterContext {
  * @returns The composed oRPC router
  */
 export function createRouter(ctx: RouterContext) {
-	// For now, we create a minimal router that demonstrates the pattern.
-	// The full implementation will gradually migrate handlers from the
-	// existing sub-routers (agents.ts, projects.ts, etc.)
-
-	// Import the legacy routers that still use global DI
-	// TODO: Convert each to accept ctx and remove these imports
-	const { agentsRouter } = require("./agents");
-	const { apiSettingsRouter } = require("./api-settings");
-	const { appSettingsRouter } = require("./app-settings");
-	const { approvalsRouter } = require("./approvals");
-	const { conversationsRouter } = require("./conversations");
-	const { devServerRouter } = require("./dev-server");
-	const { locksRouter } = require("./locks");
-	const { mcpRouter } = require("./mcp");
-	const { modelsRouter } = require("./models");
-	const { projectsRouter } = require("./projects");
-	const { rulesRouter } = require("./rules");
-	const { webServerRouter } = require("./web-server");
-	const { worktreesRouter } = require("./worktrees");
+	// Create sub-routers with explicit context
+	const agentsRouter = createAgentsRouter(ctx);
+	const apiSettingsRouter = createApiSettingsRouter(ctx);
+	const appSettingsRouter = createAppSettingsRouter(ctx);
+	const approvalsRouter = createApprovalsRouter(ctx);
+	const conversationsRouter = createConversationsRouter(ctx);
+	const devServerRouter = createDevServerRouter(ctx);
+	const locksRouter = createLocksRouter(ctx);
+	const mcpRouter = createMcpRouter(ctx);
+	const modelsRouter = createModelsRouter(ctx);
+	const projectsRouter = createProjectsRouter(ctx);
+	const rulesRouter = createRulesRouter(ctx);
+	const webServerRouter = createWebServerRouter(ctx);
+	const worktreesRouter = createWorktreesRouter(ctx);
 
 	// Store context in a way that the migrated handlers can access
 	// This is a transition mechanism - eventually all handlers get ctx directly

@@ -1,8 +1,9 @@
 import { os } from "@orpc/server";
 import { z } from "zod";
-import { getRouterContext } from "./createRouter";
+import type { RouterContext } from "./createRouter";
 
-export const rulesRouter = {
+export function createRulesRouter(ctx: RouterContext) {
+	return {
 	listGlobalRules: os
 		.output(
 			z.array(
@@ -14,7 +15,6 @@ export const rulesRouter = {
 			),
 		)
 		.handler(async () => {
-			const ctx = getRouterContext();
 			if (!ctx.rulesService) return [];
 			return ctx.rulesService.listGlobalRules();
 		}),
@@ -31,7 +31,6 @@ export const rulesRouter = {
 				.nullable(),
 		)
 		.handler(async ({ input }) => {
-			const ctx = getRouterContext();
 			if (!ctx.rulesService) return null;
 			const rule = await ctx.rulesService.getGlobalRule(input.id);
 			if (!rule) return null;
@@ -56,7 +55,6 @@ export const rulesRouter = {
 			}),
 		)
 		.handler(async ({ input }) => {
-			const ctx = getRouterContext();
 			if (!ctx.rulesService) return { id: "", success: false };
 			return ctx.rulesService.createGlobalRule(input.name, input.content);
 		}),
@@ -70,7 +68,6 @@ export const rulesRouter = {
 		)
 		.output(z.object({ success: z.boolean() }))
 		.handler(async ({ input }) => {
-			const ctx = getRouterContext();
 			if (!ctx.rulesService) return { success: false };
 			const success = await ctx.rulesService.updateGlobalRule(
 				input.id,
@@ -83,9 +80,9 @@ export const rulesRouter = {
 		.input(z.object({ id: z.string() }))
 		.output(z.object({ success: z.boolean() }))
 		.handler(async ({ input }) => {
-			const ctx = getRouterContext();
 			if (!ctx.rulesService) return { success: false };
 			const success = await ctx.rulesService.deleteGlobalRule(input.id);
 			return { success };
 		}),
-};
+	};
+}

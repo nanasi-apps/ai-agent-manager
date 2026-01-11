@@ -326,7 +326,8 @@ export const useConversationStore = defineStore("conversation", () => {
 		const preferred = modelTemplates.value.find(
 			(model) => model.agentType !== "default",
 		);
-		const nextId = match?.id || preferred?.id || modelTemplates.value[0]?.id;
+		const nextId =
+			match?.id ?? preferred?.id ?? modelTemplates.value[0]?.id ?? "";
 		currentModelId.value = nextId;
 		modelIdDraft.value = nextId;
 	};

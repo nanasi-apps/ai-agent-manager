@@ -6,7 +6,8 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { os } from "@orpc/server";
 import { z } from "zod";
-import { getRouterContext } from "./createRouter";
+import type { IAgentManager } from "../ports/agent-manager";
+import type { RouterContext } from "./createRouter";
 
 // MCP Server config types
 export interface McpServerEntry {
@@ -191,14 +192,14 @@ async function readSessionMcpServers(
 /**
  * Get MCP servers for a specific session
  */
-export async function getSessionMcpServersLogic(sessionId: string): Promise<{
+export async function getSessionMcpServersLogic(
+	sessionId: string,
+	agentManager: IAgentManager,
+): Promise<{
 	sessionServers: McpServerEntry[];
 	globalServers: McpServerEntry[];
 	agentType?: string;
 }> {
-	const ctx = getRouterContext();
-	const agentManager = ctx.agentManager;
-
 	// Get session homes for reading session-specific MCP config
 	const homes = agentManager.getSessionHomes?.(sessionId);
 
@@ -303,7 +304,8 @@ export async function listMcpToolsLogic(input: McpServerEntry): Promise<any[]> {
 	return [];
 }
 
-export const mcpRouter = {
+export function createMcpRouter(ctx: RouterContext) {
+	return {
 	/**
 	 * List all configured MCP servers from global Gemini CLI and Claude CLI settings
 	 */
@@ -356,7 +358,7 @@ export const mcpRouter = {
 			}),
 		)
 		.handler(async ({ input }) => {
-			return getSessionMcpServersLogic(input.sessionId);
+			return getSessionMcpServersLogic(input.sessionId, ctx.agentManager);
 		}),
 
 	/**
@@ -368,4 +370,5 @@ export const mcpRouter = {
 		.handler(async ({ input }) => {
 			return listMcpToolsLogic(input);
 		}),
-};
+	};
+}

@@ -3,9 +3,10 @@ import { z } from "zod";
 import { buildModelId, getModelsForCliType } from "../services/model-fetcher";
 import type { ModelTemplate } from "../types/project";
 import { availableAgents } from "../types/project";
-import { getRouterContext } from "./createRouter";
+import type { RouterContext } from "./createRouter";
 
-export const modelsRouter = {
+export function createModelsRouter(ctx: RouterContext) {
+	return {
 	listAgentTemplates: os
 		.output(
 			z.array(
@@ -37,7 +38,6 @@ export const modelsRouter = {
 			),
 		)
 		.handler(async ({ input }) => {
-			const ctx = getRouterContext();
 			const apiSettings = ctx.store.getApiSettings();
 			// Use configured providers list
 			const providers = apiSettings.providers || [];
@@ -160,4 +160,5 @@ export const modelsRouter = {
 
 			return results;
 		}),
-};
+	};
+}

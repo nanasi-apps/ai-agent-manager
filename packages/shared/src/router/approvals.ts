@@ -3,7 +3,7 @@ import { z } from "zod";
 import { parseModelId } from "../services/model-fetcher";
 import type { ApprovalChannel, ApprovalRequest } from "../types/approval";
 import { generateUUID, startAgentSession } from "../utils";
-import { getRouterContext } from "./createRouter";
+import type { RouterContext } from "./createRouter";
 
 const approvalChannels = ["inbox", "slack", "discord"] as const;
 const approvalStatusSchema = z.enum([
@@ -39,7 +39,8 @@ function resolveNotificationChannels(
 	return Array.from(unique);
 }
 
-export const approvalsRouter = {
+export function createApprovalsRouter(ctx: RouterContext) {
+	return {
 	/**
 	 * Create a new approval request
 	 */
@@ -59,7 +60,6 @@ export const approvalsRouter = {
 			}),
 		)
 		.handler(async ({ input }) => {
-			const ctx = getRouterContext();
 			const now = Date.now();
 			const notificationChannels = resolveNotificationChannels(
 				ctx.store.getAppSettings().approvalNotificationChannels,
@@ -111,7 +111,6 @@ export const approvalsRouter = {
 				.nullable(),
 		)
 		.handler(async ({ input }) => {
-			const ctx = getRouterContext();
 			const approval = ctx.store.getApproval(input.id);
 			return approval || null;
 		}),
@@ -141,7 +140,6 @@ export const approvalsRouter = {
 			),
 		)
 		.handler(async ({ input }) => {
-			const ctx = getRouterContext();
 			const approvals = ctx.store.listApprovals(input.status);
 			// Return without planContent for list view to reduce payload
 			return approvals.map((a) => ({
@@ -164,7 +162,6 @@ export const approvalsRouter = {
 		.input(z.object({}))
 		.output(z.object({ count: z.number() }))
 		.handler(async () => {
-			const ctx = getRouterContext();
 			const pending = ctx.store.listApprovals("pending");
 			return { count: pending.length };
 		}),
@@ -188,8 +185,6 @@ export const approvalsRouter = {
 			}),
 		)
 		.handler(async ({ input }) => {
-			const ctx = getRouterContext();
-
 			const approval = ctx.store.getApproval(input.id);
 			if (!approval) {
 				return { success: false, message: "Approval request not found" };
@@ -284,8 +279,6 @@ ${input.message ? `Additional instructions: ${input.message}` : "Execute the pla
 		)
 		.output(z.object({ success: z.boolean() }))
 		.handler(async ({ input }) => {
-			const ctx = getRouterContext();
-
 			const approval = ctx.store.getApproval(input.id);
 			if (!approval) {
 				return { success: false };
@@ -320,8 +313,8 @@ ${input.message ? `Additional instructions: ${input.message}` : "Execute the pla
 		.input(z.object({ id: z.string() }))
 		.output(z.object({ success: z.boolean() }))
 		.handler(async ({ input }) => {
-			const ctx = getRouterContext();
 			ctx.store.deleteApproval(input.id);
 			return { success: true };
 		}),
-};
+	};
+}

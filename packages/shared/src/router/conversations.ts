@@ -6,7 +6,7 @@ import { getModePrompt } from "../templates/mode-prompts";
 import type { AgentMode, ReasoningLevel } from "../types/agent";
 import { getAgentTemplate } from "../types/project";
 import { generateUUID, startAgentSession } from "../utils";
-import { getRouterContext } from "./createRouter";
+import type { RouterContext } from "./createRouter";
 
 const reasoningLevelSchema = z.enum(["low", "middle", "high", "extraHigh"]);
 const agentModeSchema = z.enum(["regular", "plan", "ask"]);
@@ -70,7 +70,8 @@ function buildFallbackSummary(
 		.join("\n");
 }
 
-export const conversationsRouter = {
+export function createConversationsRouter(ctx: RouterContext) {
+	return {
 	createConversation: os
 		.input(
 			z.object({
@@ -89,7 +90,6 @@ export const conversationsRouter = {
 			}),
 		)
 		.handler(async ({ input }) => {
-			const ctx = getRouterContext();
 			const sessionId = generateUUID();
 			const now = Date.now();
 			console.log(
@@ -192,7 +192,6 @@ export const conversationsRouter = {
 				.nullable(),
 		)
 		.handler(async ({ input }) => {
-			const ctx = getRouterContext();
 			const conv = ctx.store.getConversation(input.sessionId);
 			if (!conv) return null;
 			return conv;
@@ -207,7 +206,6 @@ export const conversationsRouter = {
 		)
 		.output(z.object({ success: z.boolean() }))
 		.handler(async ({ input }) => {
-			const ctx = getRouterContext();
 			const conv = ctx.store.getConversation(input.sessionId);
 			if (!conv) return { success: false };
 			ctx.store.updateConversation(input.sessionId, {
@@ -229,7 +227,6 @@ export const conversationsRouter = {
 			}),
 		)
 		.handler(async ({ input }) => {
-			const ctx = getRouterContext();
 
 			if (!ctx.agentManager.isRunning(input.sessionId)) {
 				const conv = ctx.store.getConversation(input.sessionId);
@@ -294,7 +291,6 @@ export const conversationsRouter = {
 		.input(z.object({ sessionId: z.string() }))
 		.output(z.object({ success: z.boolean() }))
 		.handler(async ({ input }) => {
-			const ctx = getRouterContext();
 			const success = ctx.agentManager.stopSession(input.sessionId);
 			if (success) {
 				ctx.store.addMessage(input.sessionId, {
@@ -332,7 +328,6 @@ export const conversationsRouter = {
 			),
 		)
 		.handler(async ({ input }) => {
-			const ctx = getRouterContext();
 			return ctx.store.getMessages(input.sessionId);
 		}),
 
@@ -357,7 +352,6 @@ export const conversationsRouter = {
 		)
 		.output(z.object({ success: z.boolean() }))
 		.handler(async ({ input }) => {
-			const ctx = getRouterContext();
 			ctx.store.addMessage(input.sessionId, {
 				id: generateUUID(),
 				role: input.role,
@@ -388,7 +382,6 @@ export const conversationsRouter = {
 			),
 		)
 		.handler(async ({ input }) => {
-			const ctx = getRouterContext();
 			const conversations = ctx.store.listConversations(input.projectId);
 			return conversations.map((c) => ({
 				...c,
@@ -414,7 +407,6 @@ export const conversationsRouter = {
 			}),
 		)
 		.handler(async ({ input }) => {
-			const ctx = getRouterContext();
 
 			const conv = ctx.store.getConversation(input.sessionId);
 			if (!conv) {
@@ -601,7 +593,6 @@ export const conversationsRouter = {
 		)
 		.output(z.object({ success: z.boolean() }))
 		.handler(async ({ input }) => {
-			const ctx = getRouterContext();
 			const conv = ctx.store.getConversation(input.sessionId);
 			if (!conv) return { success: false };
 
@@ -619,4 +610,5 @@ export const conversationsRouter = {
 			});
 			return { success: true };
 		}),
-};
+	};
+}

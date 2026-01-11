@@ -1,12 +1,13 @@
 import { os } from "@orpc/server";
 import { z } from "zod";
 import type { AppSettings } from "../types/store";
-import { getRouterContext } from "./createRouter";
+import type { RouterContext } from "./createRouter";
 
 const approvalChannels = ["inbox", "slack", "discord"] as const;
 const approvalChannelSchema = z.enum(approvalChannels);
 
-export const appSettingsRouter = {
+export function createAppSettingsRouter(ctx: RouterContext) {
+	return {
 	getAppSettings: os
 		.output(
 			z.object({
@@ -21,7 +22,6 @@ export const appSettingsRouter = {
 			}),
 		)
 		.handler(async () => {
-			const ctx = getRouterContext();
 			const settings = ctx.store.getAppSettings();
 			return {
 				language: settings.language,
@@ -50,7 +50,6 @@ export const appSettingsRouter = {
 		)
 		.output(z.object({ success: z.boolean() }))
 		.handler(async ({ input }) => {
-			const ctx = getRouterContext();
 			const updates: Partial<AppSettings> = {};
 			if (input.language !== undefined) {
 				updates.language = input.language || undefined;
@@ -80,4 +79,5 @@ export const appSettingsRouter = {
 			ctx.store.updateAppSettings(updates);
 			return { success: true };
 		}),
-};
+	};
+}
