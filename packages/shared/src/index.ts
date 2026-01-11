@@ -13,28 +13,13 @@ export type {
 	IWebServerStatus,
 	RouterContext,
 } from "./router";
-// Router
+// Router - Factory pattern (preferred)
 export {
-	appRouter,
 	createRouter,
-	getAgentManagerOrThrow,
-	getGtrConfigServiceOrThrow,
-	getHandoverServiceOrThrow,
 	getRouterContext,
 	getSessionMcpServersLogic,
-	getStoreOrThrow,
-	getWorktreeManagerOrThrow,
 	HARDCODED_MODELS,
 	listMcpToolsLogic,
-	mcpRouter,
-	setAgentManager,
-	setDevServerService,
-	setGtrConfigService,
-	setHandoverService,
-	setNativeDialog,
-	setStore,
-	setWebServerService,
-	setWorktreeManager,
 } from "./router";
 export type { McpServerEntry } from "./router/mcp";
 // Model fetcher utilities - pure functions that can stay in shared

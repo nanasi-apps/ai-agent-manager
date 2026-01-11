@@ -5,13 +5,23 @@ import { RPCLink as WSRPCLink } from "@orpc/client/websocket";
 import type { ContractRouterClient } from "@orpc/contract";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
 
+declare global {
+	interface Window {
+		electronAPI?: {
+			isElectron: boolean;
+		};
+	}
+}
+
 // Initialize the ORPC client
 export const createClient = () => {
 	// 1. Electron Mode (MessagePort)
-	if (typeof window !== "undefined" && window.electronAPI) {
+	// Check for the minimal Electron detection flag we left in preload.ts
+	if (typeof window !== "undefined" && window.electronAPI?.isElectron) {
 		console.log("Web: Connecting to ORPC via Electron MessagePort...");
 		const { port1: clientPort, port2: serverPort } = new MessageChannel();
 
+		// Send port2 to the main process via preload's message handler
 		window.postMessage("start-orpc-client", "*", [serverPort]);
 
 		const link = new MessagePortRPCLink({

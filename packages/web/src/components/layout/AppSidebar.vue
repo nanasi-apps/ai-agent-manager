@@ -45,10 +45,10 @@ import {
 	SidebarMenuSubItem,
 	useSidebar,
 } from "@/components/ui/sidebar";
-import { onAgentStateChangedPort } from "@/services/agent-state-port";
 import { useNewConversionDialogStore } from "@/stores/newConversionDialog";
 import { useProjectsStore } from "@/stores/projects";
 import { useSettingsStore } from "@/stores/settings";
+import { orpc } from "@/services/orpc";
 
 const { t } = useI18n();
 
@@ -126,16 +126,40 @@ onMounted(async () => {
 	);
 	refreshInterval = setInterval(() => projectsStore.loadAll(true), 3000);
 
-	stateChangeUnsubscribe = onAgentStateChangedPort(() => {
-		projectsStore.loadAll(true);
-	});
+	// oRPC State Subscription
+	// We need to reload projects when agent state changes (e.g. starts/stops)
+	try {
+		// Subscribe to state changes via oRPC (Universal)
+		const iterator = await orpc.electron.agent.subscribeState({});
+
+		// Start background listener
+		(async () => {
+			stateChangeUnsubscribe = () => {
+				// Logic to stop iterator if needed
+			};
+
+			try {
+				for await (const _ of iterator) {
+					projectsStore.loadAll(true);
+					if (!refreshInterval) break; // Component unmounted
+				}
+			} catch (err) {
+				console.error("AppSidebar agent state subscription error:", err);
+			}
+		})();
+	} catch (err) {
+		console.error("Failed to setup AppSidebar agent listeners:", err);
+	}
 });
 
 onUnmounted(() => {
 	window.removeEventListener("agent-manager:data-change", () =>
 		projectsStore.loadAll(true),
 	);
-	if (refreshInterval) clearInterval(refreshInterval);
+	if (refreshInterval) {
+		clearInterval(refreshInterval);
+		refreshInterval = null;
+	}
 	if (stateChangeUnsubscribe) stateChangeUnsubscribe();
 });
 

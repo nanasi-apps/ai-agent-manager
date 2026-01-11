@@ -30,9 +30,7 @@ const isLoading = ref(true);
 const isSavingProject = ref(false);
 const isDeletingProject = ref(false);
 
-const hasNativePicker = computed(() => {
-	return typeof window !== "undefined" && !!window.electronAPI;
-});
+
 const globalRules = ref<{ id: string; name: string }[]>([]);
 const disabledGlobalRulesDraft = ref<string[]>([]);
 const projectRulesDraft = ref<ProjectRule[]>([]);
@@ -348,7 +346,6 @@ const addExcludeEntries = () => {
 };
 
 const pickIncludeEntries = async () => {
-	if (!hasNativePicker.value) return;
 	const selected = await orpcQuery.selectPaths.call({
 		type: includeAddType.value === "file" ? "file" : "dir",
 		multiple: true,
@@ -364,7 +361,6 @@ const pickIncludeEntries = async () => {
 };
 
 const pickExcludeEntries = async () => {
-	if (!hasNativePicker.value) return;
 	const selected = await orpcQuery.selectPaths.call({
 		type: excludeAddType.value === "file" ? "file" : "dir",
 		multiple: true,
@@ -542,7 +538,6 @@ const saveProjectSettings = async () => {
 };
 
 const browseRootPath = async () => {
-	if (!hasNativePicker.value) return;
 	try {
 		const selected = await orpcQuery.selectDirectory.call();
 		if (selected) {
@@ -601,7 +596,7 @@ watch(projectId, loadProject, { immediate: true });
 								<Button
 									variant="secondary"
 									type="button"
-									:disabled="!hasNativePicker || isSavingProject"
+									:disabled="isSavingProject"
 									@click="browseRootPath"
 								>
 									Browse
@@ -777,7 +772,6 @@ watch(projectId, loadProject, { immediate: true });
 										<Button
 											variant="secondary"
 											type="button"
-											:disabled="!hasNativePicker"
 											@click="pickIncludeEntries"
 										>
 											Pick
@@ -851,7 +845,6 @@ watch(projectId, loadProject, { immediate: true });
 										<Button
 											variant="secondary"
 											type="button"
-											:disabled="!hasNativePicker"
 											@click="pickExcludeEntries"
 										>
 											Pick

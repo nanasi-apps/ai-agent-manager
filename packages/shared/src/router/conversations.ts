@@ -72,178 +72,51 @@ function buildFallbackSummary(
 
 export function createConversationsRouter(ctx: RouterContext) {
 	return {
-	createConversation: os
-		.input(
-			z.object({
-				projectId: z.string(),
-				initialMessage: z.string(),
-				modelId: z.string().optional(),
-				agentType: z.string().optional(),
-				agentModel: z.string().optional(),
-				reasoning: reasoningLevelSchema.optional(),
-				mode: agentModeSchema.optional(),
-			}),
-		)
-		.output(
-			z.object({
-				sessionId: z.string(),
-			}),
-		)
-		.handler(async ({ input }) => {
-			const sessionId = generateUUID();
-			const now = Date.now();
-			console.log(
-				`Creating conversation session ${sessionId} for project ${input.projectId}`,
-			);
-
-			// Verify project exists
-			const project = ctx.store.getProject(input.projectId);
-			if (!project) {
-				throw new Error(`Project not found: ${input.projectId}`);
-			}
-
-			const parsedModel = input.modelId ? parseModelId(input.modelId) : null;
-			const resolvedAgentType = parsedModel?.agentType || input.agentType;
-
-			if (!resolvedAgentType) {
-				throw new Error("Model or agent type is required.");
-			}
-
-			const resolvedModel = parsedModel?.model || input.agentModel;
-			const resolvedReasoning = resolveReasoning(
-				resolvedAgentType,
-				resolvedModel,
-				input.reasoning,
-			);
-			const resolvedMode = input.mode ?? DEFAULT_AGENT_MODE;
-			const resolvedProvider = parsedModel?.providerId;
-
-			if (!ctx.sessionBuilder) {
-				throw new Error("Session builder service not available");
-			}
-
-			// Build session config using the shared utility
-			const sessionConfig = await ctx.sessionBuilder.buildSessionConfig({
-				projectId: input.projectId,
-				agentType: resolvedAgentType,
-				model: resolvedModel,
-				mode: resolvedMode,
-				reasoning: resolvedReasoning,
-				provider: resolvedProvider,
-			});
-
-			// Save to store with initialMessage and messages array
-			ctx.store.addConversation({
-				id: sessionId,
-				projectId: input.projectId,
-				title: input.initialMessage.slice(0, 30) || "New Conversation",
-				initialMessage: input.initialMessage,
-				createdAt: now,
-				updatedAt: now,
-				agentType: resolvedAgentType,
-				agentModel: resolvedModel,
-				agentReasoning: resolvedReasoning,
-				agentMode: resolvedMode,
-				agentProvider: resolvedProvider,
-				cwd: sessionConfig.cwd,
-				messages: [
-					{
-						id: generateUUID(),
-						role: "user",
-						content: input.initialMessage,
-						timestamp: now,
-					},
-				],
-			});
-
-			if (!ctx.agentManager.isRunning(sessionId)) {
-				console.log(
-					`Starting agent for project ${input.projectId} (Session: ${sessionId})`,
-				);
-				console.log(`Command: ${sessionConfig.agentTemplate.agent.command}`);
-
-				startAgentSession(ctx.agentManager, sessionId, sessionConfig);
-			}
-
-			await ctx.agentManager.sendToSession(sessionId, input.initialMessage);
-
-			return { sessionId };
-		}),
-
-	getConversation: os
-		.input(z.object({ sessionId: z.string() }))
-		.output(
-			z
-				.object({
-					id: z.string(),
+		createConversation: os
+			.input(
+				z.object({
 					projectId: z.string(),
-					title: z.string(),
 					initialMessage: z.string(),
-					createdAt: z.number(),
-					updatedAt: z.number(),
+					modelId: z.string().optional(),
 					agentType: z.string().optional(),
 					agentModel: z.string().optional(),
-					agentReasoning: reasoningLevelSchema.optional(),
-					agentMode: agentModeSchema.optional(),
-					agentProvider: z.string().optional(),
-					cwd: z.string().optional(),
-					disabledMcpTools: z.array(z.string()).optional(),
-				})
-				.nullable(),
-		)
-		.handler(async ({ input }) => {
-			const conv = ctx.store.getConversation(input.sessionId);
-			if (!conv) return null;
-			return conv;
-		}),
-
-	updateConversationTitle: os
-		.input(
-			z.object({
-				sessionId: z.string(),
-				title: z.string().min(1).max(120),
-			}),
-		)
-		.output(z.object({ success: z.boolean() }))
-		.handler(async ({ input }) => {
-			const conv = ctx.store.getConversation(input.sessionId);
-			if (!conv) return { success: false };
-			ctx.store.updateConversation(input.sessionId, {
-				title: input.title,
-			});
-			return { success: true };
-		}),
-
-	sendMessage: os
-		.input(
-			z.object({
-				sessionId: z.string(),
-				message: z.string(),
-			}),
-		)
-		.output(
-			z.object({
-				success: z.boolean(),
-			}),
-		)
-		.handler(async ({ input }) => {
-
-			if (!ctx.agentManager.isRunning(input.sessionId)) {
-				const conv = ctx.store.getConversation(input.sessionId);
-				if (!conv) {
-					return { success: false };
-				}
-
-				const resolvedReasoning = resolveReasoning(
-					conv.agentType || "gemini",
-					conv.agentModel,
-					conv.agentReasoning,
+					reasoning: reasoningLevelSchema.optional(),
+					mode: agentModeSchema.optional(),
+				}),
+			)
+			.output(
+				z.object({
+					sessionId: z.string(),
+				}),
+			)
+			.handler(async ({ input }) => {
+				const sessionId = generateUUID();
+				const now = Date.now();
+				console.log(
+					`Creating conversation session ${sessionId} for project ${input.projectId}`,
 				);
-				if (!conv.agentReasoning && resolvedReasoning) {
-					ctx.store.updateConversation(input.sessionId, {
-						agentReasoning: resolvedReasoning,
-					});
+
+				// Verify project exists
+				const project = ctx.store.getProject(input.projectId);
+				if (!project) {
+					throw new Error(`Project not found: ${input.projectId}`);
 				}
+
+				const parsedModel = input.modelId ? parseModelId(input.modelId) : null;
+				const resolvedAgentType = parsedModel?.agentType || input.agentType;
+
+				if (!resolvedAgentType) {
+					throw new Error("Model or agent type is required.");
+				}
+
+				const resolvedModel = parsedModel?.model || input.agentModel;
+				const resolvedReasoning = resolveReasoning(
+					resolvedAgentType,
+					resolvedModel,
+					input.reasoning,
+				);
+				const resolvedMode = input.mode ?? DEFAULT_AGENT_MODE;
+				const resolvedProvider = parsedModel?.providerId;
 
 				if (!ctx.sessionBuilder) {
 					throw new Error("Session builder service not available");
@@ -251,68 +124,218 @@ export function createConversationsRouter(ctx: RouterContext) {
 
 				// Build session config using the shared utility
 				const sessionConfig = await ctx.sessionBuilder.buildSessionConfig({
-					projectId: conv.projectId,
-					agentType: conv.agentType || "gemini",
-					model: conv.agentModel,
-					mode: conv.agentMode,
+					projectId: input.projectId,
+					agentType: resolvedAgentType,
+					model: resolvedModel,
+					mode: resolvedMode,
 					reasoning: resolvedReasoning,
-					cwd: conv.cwd,
-					provider: conv.agentProvider,
+					provider: resolvedProvider,
 				});
 
-				console.warn(
-					`Session ${input.sessionId} not found, restarting with command: ${sessionConfig.agentTemplate.agent.command}`,
-				);
+				// Save to store with initialMessage and messages array
+				ctx.store.addConversation({
+					id: sessionId,
+					projectId: input.projectId,
+					title: input.initialMessage.slice(0, 30) || "New Conversation",
+					initialMessage: input.initialMessage,
+					createdAt: now,
+					updatedAt: now,
+					agentType: resolvedAgentType,
+					agentModel: resolvedModel,
+					agentReasoning: resolvedReasoning,
+					agentMode: resolvedMode,
+					agentProvider: resolvedProvider,
+					cwd: sessionConfig.cwd,
+					messages: [
+						{
+							id: generateUUID(),
+							role: "user",
+							content: input.initialMessage,
+							timestamp: now,
+						},
+					],
+				});
 
-				startAgentSession(ctx.agentManager, input.sessionId, sessionConfig);
-			}
+				if (!ctx.agentManager.isRunning(sessionId)) {
+					console.log(
+						`Starting agent for project ${input.projectId} (Session: ${sessionId})`,
+					);
+					console.log(`Command: ${sessionConfig.agentTemplate.agent.command}`);
 
-			// Save the user message to store
-			ctx.store.addMessage(input.sessionId, {
-				id: generateUUID(),
-				role: "user",
-				content: input.message,
-				timestamp: Date.now(),
-			});
+					startAgentSession(ctx.agentManager, sessionId, sessionConfig);
+				}
 
-			const pendingHandover = ctx.agentManager.consumePendingHandover(
-				input.sessionId,
-			);
-			const messageToSend = pendingHandover
-				? `${pendingHandover}\n${input.message}`
-				: input.message;
+				await ctx.agentManager.sendToSession(sessionId, input.initialMessage);
 
-			ctx.agentManager.sendToSession(input.sessionId, messageToSend);
+				return { sessionId };
+			}),
 
-			return { success: true };
-		}),
+		getConversation: os
+			.input(z.object({ sessionId: z.string() }))
+			.output(
+				z
+					.object({
+						id: z.string(),
+						projectId: z.string(),
+						title: z.string(),
+						initialMessage: z.string(),
+						createdAt: z.number(),
+						updatedAt: z.number(),
+						agentType: z.string().optional(),
+						agentModel: z.string().optional(),
+						agentReasoning: reasoningLevelSchema.optional(),
+						agentMode: agentModeSchema.optional(),
+						agentProvider: z.string().optional(),
+						cwd: z.string().optional(),
+						disabledMcpTools: z.array(z.string()).optional(),
+					})
+					.nullable(),
+			)
+			.handler(async ({ input }) => {
+				const conv = ctx.store.getConversation(input.sessionId);
+				if (!conv) return null;
+				return conv;
+			}),
 
-	stopSession: os
-		.input(z.object({ sessionId: z.string() }))
-		.output(z.object({ success: z.boolean() }))
-		.handler(async ({ input }) => {
-			const success = ctx.agentManager.stopSession(input.sessionId);
-			if (success) {
+		updateConversationTitle: os
+			.input(
+				z.object({
+					sessionId: z.string(),
+					title: z.string().min(1).max(120),
+				}),
+			)
+			.output(z.object({ success: z.boolean() }))
+			.handler(async ({ input }) => {
+				const conv = ctx.store.getConversation(input.sessionId);
+				if (!conv) return { success: false };
+				ctx.store.updateConversation(input.sessionId, {
+					title: input.title,
+				});
+				return { success: true };
+			}),
+
+		sendMessage: os
+			.input(
+				z.object({
+					sessionId: z.string(),
+					message: z.string(),
+				}),
+			)
+			.output(
+				z.object({
+					success: z.boolean(),
+				}),
+			)
+			.handler(async ({ input }) => {
+				if (!ctx.agentManager.isRunning(input.sessionId)) {
+					const conv = ctx.store.getConversation(input.sessionId);
+					if (!conv) {
+						return { success: false };
+					}
+
+					const resolvedReasoning = resolveReasoning(
+						conv.agentType || "gemini",
+						conv.agentModel,
+						conv.agentReasoning,
+					);
+					if (!conv.agentReasoning && resolvedReasoning) {
+						ctx.store.updateConversation(input.sessionId, {
+							agentReasoning: resolvedReasoning,
+						});
+					}
+
+					if (!ctx.sessionBuilder) {
+						throw new Error("Session builder service not available");
+					}
+
+					// Build session config using the shared utility
+					const sessionConfig = await ctx.sessionBuilder.buildSessionConfig({
+						projectId: conv.projectId,
+						agentType: conv.agentType || "gemini",
+						model: conv.agentModel,
+						mode: conv.agentMode,
+						reasoning: resolvedReasoning,
+						cwd: conv.cwd,
+						provider: conv.agentProvider,
+					});
+
+					console.warn(
+						`Session ${input.sessionId} not found, restarting with command: ${sessionConfig.agentTemplate.agent.command}`,
+					);
+
+					startAgentSession(ctx.agentManager, input.sessionId, sessionConfig);
+				}
+
+				// Save the user message to store
 				ctx.store.addMessage(input.sessionId, {
 					id: generateUUID(),
-					role: "system",
-					content: "Generation stopped by user.",
+					role: "user",
+					content: input.message,
 					timestamp: Date.now(),
-					logType: "system",
 				});
-			}
-			return { success };
-		}),
 
-	getMessages: os
-		.input(z.object({ sessionId: z.string() }))
-		.output(
-			z.array(
+				const pendingHandover = ctx.agentManager.consumePendingHandover(
+					input.sessionId,
+				);
+				const messageToSend = pendingHandover
+					? `${pendingHandover}\n${input.message}`
+					: input.message;
+
+				ctx.agentManager.sendToSession(input.sessionId, messageToSend);
+
+				return { success: true };
+			}),
+
+		stopSession: os
+			.input(z.object({ sessionId: z.string() }))
+			.output(z.object({ success: z.boolean() }))
+			.handler(async ({ input }) => {
+				const success = ctx.agentManager.stopSession(input.sessionId);
+				if (success) {
+					ctx.store.addMessage(input.sessionId, {
+						id: generateUUID(),
+						role: "system",
+						content: "Generation stopped by user.",
+						timestamp: Date.now(),
+						logType: "system",
+					});
+				}
+				return { success };
+			}),
+
+		getMessages: os
+			.input(z.object({ sessionId: z.string() }))
+			.output(
+				z.array(
+					z.object({
+						id: z.string(),
+						role: z.enum(["user", "agent", "system"]),
+						content: z.string(),
+						timestamp: z.number(),
+						logType: z
+							.enum([
+								"text",
+								"tool_call",
+								"tool_result",
+								"thinking",
+								"error",
+								"system",
+								"plan",
+							])
+							.optional(),
+					}),
+				),
+			)
+			.handler(async ({ input }) => {
+				return ctx.store.getMessages(input.sessionId);
+			}),
+
+		addMessage: os
+			.input(
 				z.object({
-					id: z.string(),
+					sessionId: z.string(),
 					role: z.enum(["user", "agent", "system"]),
 					content: z.string(),
-					timestamp: z.number(),
 					logType: z
 						.enum([
 							"text",
@@ -325,290 +348,268 @@ export function createConversationsRouter(ctx: RouterContext) {
 						])
 						.optional(),
 				}),
-			),
-		)
-		.handler(async ({ input }) => {
-			return ctx.store.getMessages(input.sessionId);
-		}),
-
-	addMessage: os
-		.input(
-			z.object({
-				sessionId: z.string(),
-				role: z.enum(["user", "agent", "system"]),
-				content: z.string(),
-				logType: z
-					.enum([
-						"text",
-						"tool_call",
-						"tool_result",
-						"thinking",
-						"error",
-						"system",
-						"plan",
-					])
-					.optional(),
-			}),
-		)
-		.output(z.object({ success: z.boolean() }))
-		.handler(async ({ input }) => {
-			ctx.store.addMessage(input.sessionId, {
-				id: generateUUID(),
-				role: input.role,
-				content: input.content,
-				timestamp: Date.now(),
-				logType: input.logType,
-			});
-			return { success: true };
-		}),
-
-	listConversations: os
-		.input(
-			z.object({
-				projectId: z.string().optional(),
-			}),
-		)
-		.output(
-			z.array(
-				z.object({
-					id: z.string(),
-					projectId: z.string(),
-					title: z.string(),
-					createdAt: z.number(),
-					updatedAt: z.number(),
-					agentType: z.string().optional(),
-					isProcessing: z.boolean().optional(),
-				}),
-			),
-		)
-		.handler(async ({ input }) => {
-			const conversations = ctx.store.listConversations(input.projectId);
-			return conversations.map((c) => ({
-				...c,
-				isProcessing: ctx.agentManager.isProcessing?.(c.id) ?? false,
-			}));
-		}),
-
-	swapConversationAgent: os
-		.input(
-			z.object({
-				sessionId: z.string(),
-				modelId: z.string().optional(),
-				agentType: z.string().optional(),
-				agentModel: z.string().optional(),
-				reasoning: reasoningLevelSchema.optional(),
-				mode: agentModeSchema.optional(),
-			}),
-		)
-		.output(
-			z.object({
-				success: z.boolean(),
-				message: z.string().optional(),
-			}),
-		)
-		.handler(async ({ input }) => {
-
-			const conv = ctx.store.getConversation(input.sessionId);
-			if (!conv) {
-				return {
-					success: false,
-					message: `Conversation not found: ${input.sessionId}`,
-				};
-			}
-
-			const parsedModel = input.modelId ? parseModelId(input.modelId) : null;
-			const resolvedAgentType =
-				parsedModel?.agentType || input.agentType || conv.agentType;
-
-			if (!resolvedAgentType) {
-				return { success: false, message: "Model or agent type is required." };
-			}
-
-			const nextTemplate = getAgentTemplate(resolvedAgentType);
-			if (!nextTemplate) {
-				return {
-					success: false,
-					message: `Agent type not found: ${resolvedAgentType}`,
-				};
-			}
-
-			const currentTemplate = conv.agentType
-				? getAgentTemplate(conv.agentType)
-				: undefined;
-			const resolvedModel =
-				parsedModel?.model || input.agentModel || conv.agentModel;
-			const resolvedProvider = parsedModel?.providerId || conv.agentProvider;
-			const resolvedReasoning = resolveReasoning(
-				nextTemplate.agent.type,
-				resolvedModel,
-				input.reasoning ?? conv.agentReasoning,
-			);
-
-			const project = ctx.store.getProject(conv.projectId);
-			const cwd = project?.rootPath || nextTemplate.agent.cwd;
-
-			const previousCliName =
-				currentTemplate?.name || conv.agentType || "unknown";
-			const previousModel = conv.agentModel || "default";
-			const previousLabel = `${previousCliName} - ${previousModel}`;
-
-			const nextCliName = nextTemplate.name;
-			const nextModel = resolvedModel || "default";
-			const nextLabel = `${nextCliName} - ${nextModel}`;
-
-			const agentChanged = conv.agentType !== resolvedAgentType;
-			const modelChanged = conv.agentModel !== resolvedModel;
-			const providerChanged = conv.agentProvider !== resolvedProvider;
-			const reasoningChanged = conv.agentReasoning !== resolvedReasoning;
-			const modeChanged = input.mode && input.mode !== conv.agentMode;
-			const agentOrModelChanged =
-				agentChanged || modelChanged || modeChanged || providerChanged;
-			if (!agentOrModelChanged && !reasoningChanged) {
-				return { success: true, message: "Agent settings unchanged." };
-			}
-			const systemMessage = agentOrModelChanged
-				? `Switched agent from ${previousLabel} to ${nextLabel}.`
-				: `Updated reasoning for ${nextLabel} to ${formatReasoningLabel(resolvedReasoning)}.`;
-
-			if (modeChanged) {
-				ctx.store.updateConversation(input.sessionId, {
-					agentMode: input.mode,
+			)
+			.output(z.object({ success: z.boolean() }))
+			.handler(async ({ input }) => {
+				ctx.store.addMessage(input.sessionId, {
+					id: generateUUID(),
+					role: input.role,
+					content: input.content,
+					timestamp: Date.now(),
+					logType: input.logType,
 				});
-			}
+				return { success: true };
+			}),
 
-			ctx.store.updateConversation(input.sessionId, {
-				agentType: resolvedAgentType,
-				agentModel: resolvedModel,
-				agentReasoning: resolvedReasoning,
-				agentProvider: resolvedProvider,
-			});
+		listConversations: os
+			.input(
+				z.object({
+					projectId: z.string().optional(),
+				}),
+			)
+			.output(
+				z.array(
+					z.object({
+						id: z.string(),
+						projectId: z.string(),
+						title: z.string(),
+						createdAt: z.number(),
+						updatedAt: z.number(),
+						agentType: z.string().optional(),
+						isProcessing: z.boolean().optional(),
+					}),
+				),
+			)
+			.handler(async ({ input }) => {
+				const conversations = ctx.store.listConversations(input.projectId);
+				return conversations.map((c) => ({
+					...c,
+					isProcessing: ctx.agentManager.isProcessing?.(c.id) ?? false,
+				}));
+			}),
 
-			ctx.store.addMessage(input.sessionId, {
-				id: generateUUID(),
-				role: "system",
-				content: systemMessage,
-				timestamp: Date.now(),
-				logType: "system",
-			});
+		swapConversationAgent: os
+			.input(
+				z.object({
+					sessionId: z.string(),
+					modelId: z.string().optional(),
+					agentType: z.string().optional(),
+					agentModel: z.string().optional(),
+					reasoning: reasoningLevelSchema.optional(),
+					mode: agentModeSchema.optional(),
+				}),
+			)
+			.output(
+				z.object({
+					success: z.boolean(),
+					message: z.string().optional(),
+				}),
+			)
+			.handler(async ({ input }) => {
+				const conv = ctx.store.getConversation(input.sessionId);
+				if (!conv) {
+					return {
+						success: false,
+						message: `Conversation not found: ${input.sessionId}`,
+					};
+				}
 
-			// Prepare context handover data BEFORE resetting the session
-			let handoverSummary: string | null = null;
-			let handoverPreviousName = "";
-			const pastMessages = ctx.store.getMessages(input.sessionId);
-			const recent = pastMessages
-				.filter(
-					(m) =>
-						(m.role === "user" || m.role === "agent") &&
-						(!m.logType || m.logType === "text"),
-				)
-				.slice(-20);
+				const parsedModel = input.modelId ? parseModelId(input.modelId) : null;
+				const resolvedAgentType =
+					parsedModel?.agentType || input.agentType || conv.agentType;
 
-			handoverPreviousName =
-				currentTemplate?.name || conv.agentType || "unknown";
+				if (!resolvedAgentType) {
+					return {
+						success: false,
+						message: "Model or agent type is required.",
+					};
+				}
 
-			if (recent.length > 0) {
-				const historyText = recent
-					.map((m) => `${m.role === "user" ? "User" : "Agent"}: ${m.content}`)
-					.join("\n\n");
+				const nextTemplate = getAgentTemplate(resolvedAgentType);
+				if (!nextTemplate) {
+					return {
+						success: false,
+						message: `Agent type not found: ${resolvedAgentType}`,
+					};
+				}
 
-				// Get metadata BEFORE resetSession clears it
-				const metadata = ctx.agentManager.getSessionMetadata(input.sessionId);
+				const currentTemplate = conv.agentType
+					? getAgentTemplate(conv.agentType)
+					: undefined;
+				const resolvedModel =
+					parsedModel?.model || input.agentModel || conv.agentModel;
+				const resolvedProvider = parsedModel?.providerId || conv.agentProvider;
+				const resolvedReasoning = resolveReasoning(
+					nextTemplate.agent.type,
+					resolvedModel,
+					input.reasoning ?? conv.agentReasoning,
+				);
 
-				try {
-					// Generate summary using the injected handoverService from context
-					if (cwd && ctx.handoverService) {
-						handoverSummary = await ctx.handoverService.generateAgentSummary({
-							agentType: conv.agentType || "gemini",
-							context: historyText,
-							cwd,
-							metadata,
-							timeoutMs: HANDOVER_SUMMARY_TIMEOUT_MS,
-						});
-						if (handoverSummary) {
-							console.info(
-								"[ConversationsRouter] Handover summary generated (primary).",
-							);
+				const project = ctx.store.getProject(conv.projectId);
+				const cwd = project?.rootPath || nextTemplate.agent.cwd;
+
+				const previousCliName =
+					currentTemplate?.name || conv.agentType || "unknown";
+				const previousModel = conv.agentModel || "default";
+				const previousLabel = `${previousCliName} - ${previousModel}`;
+
+				const nextCliName = nextTemplate.name;
+				const nextModel = resolvedModel || "default";
+				const nextLabel = `${nextCliName} - ${nextModel}`;
+
+				const agentChanged = conv.agentType !== resolvedAgentType;
+				const modelChanged = conv.agentModel !== resolvedModel;
+				const providerChanged = conv.agentProvider !== resolvedProvider;
+				const reasoningChanged = conv.agentReasoning !== resolvedReasoning;
+				const modeChanged = input.mode && input.mode !== conv.agentMode;
+				const agentOrModelChanged =
+					agentChanged || modelChanged || modeChanged || providerChanged;
+				if (!agentOrModelChanged && !reasoningChanged) {
+					return { success: true, message: "Agent settings unchanged." };
+				}
+				const systemMessage = agentOrModelChanged
+					? `Switched agent from ${previousLabel} to ${nextLabel}.`
+					: `Updated reasoning for ${nextLabel} to ${formatReasoningLabel(resolvedReasoning)}.`;
+
+				if (modeChanged) {
+					ctx.store.updateConversation(input.sessionId, {
+						agentMode: input.mode,
+					});
+				}
+
+				ctx.store.updateConversation(input.sessionId, {
+					agentType: resolvedAgentType,
+					agentModel: resolvedModel,
+					agentReasoning: resolvedReasoning,
+					agentProvider: resolvedProvider,
+				});
+
+				ctx.store.addMessage(input.sessionId, {
+					id: generateUUID(),
+					role: "system",
+					content: systemMessage,
+					timestamp: Date.now(),
+					logType: "system",
+				});
+
+				// Prepare context handover data BEFORE resetting the session
+				let handoverSummary: string | null = null;
+				let handoverPreviousName = "";
+				const pastMessages = ctx.store.getMessages(input.sessionId);
+				const recent = pastMessages
+					.filter(
+						(m) =>
+							(m.role === "user" || m.role === "agent") &&
+							(!m.logType || m.logType === "text"),
+					)
+					.slice(-20);
+
+				handoverPreviousName =
+					currentTemplate?.name || conv.agentType || "unknown";
+
+				if (recent.length > 0) {
+					const historyText = recent
+						.map((m) => `${m.role === "user" ? "User" : "Agent"}: ${m.content}`)
+						.join("\n\n");
+
+					// Get metadata BEFORE resetSession clears it
+					const metadata = ctx.agentManager.getSessionMetadata(input.sessionId);
+
+					try {
+						// Generate summary using the injected handoverService from context
+						if (cwd && ctx.handoverService) {
+							handoverSummary = await ctx.handoverService.generateAgentSummary({
+								agentType: conv.agentType || "gemini",
+								context: historyText,
+								cwd,
+								metadata,
+								timeoutMs: HANDOVER_SUMMARY_TIMEOUT_MS,
+							});
+							if (handoverSummary) {
+								console.info(
+									"[ConversationsRouter] Handover summary generated (primary).",
+								);
+							}
 						}
+					} catch (error) {
+						console.error(
+							`[ConversationsRouter] Failed to generate summary: ${error}`,
+						);
 					}
-				} catch (error) {
-					console.error(
-						`[ConversationsRouter] Failed to generate summary: ${error}`,
+				}
+
+				if (!handoverSummary) {
+					handoverSummary = buildFallbackSummary(recent);
+					console.warn(
+						"[ConversationsRouter] Using history fallback summary for handover.",
 					);
 				}
-			}
 
-			if (!handoverSummary) {
-				handoverSummary = buildFallbackSummary(recent);
-				console.warn(
-					"[ConversationsRouter] Using history fallback summary for handover.",
+				// NOW reset the session after we've captured the metadata
+				const resolvedMode = input.mode ?? conv.agentMode ?? "regular";
+
+				const modePrompt = getModePrompt(resolvedMode);
+				// Use rulesResolver from RouterContext (Milestone 4 migration)
+				const projectRules = ctx.rulesResolver
+					? await ctx.rulesResolver.resolveProjectRules(conv.projectId)
+					: "";
+				const rulesContent = modePrompt
+					? `${modePrompt}\n\n${projectRules}`
+					: projectRules;
+
+				ctx.agentManager.resetSession(
+					input.sessionId,
+					nextTemplate.agent.command,
+					{
+						...nextTemplate.agent,
+						model: resolvedModel,
+						reasoning: resolvedReasoning,
+						mode: resolvedMode,
+						cwd,
+						rulesContent,
+						provider: resolvedProvider,
+					},
 				);
-			}
 
-			// NOW reset the session after we've captured the metadata
-			const resolvedMode = input.mode ?? conv.agentMode ?? "regular";
+				// Store handover context to prepend to next user message (if we have one)
+				if (handoverSummary) {
+					const handoverContext = buildHandoverContext(
+						handoverPreviousName,
+						handoverSummary,
+					);
+					ctx.agentManager.setPendingHandover(input.sessionId, handoverContext);
+				}
 
-			const modePrompt = getModePrompt(resolvedMode);
-			// Use rulesResolver from RouterContext (Milestone 4 migration)
-			const projectRules = ctx.rulesResolver
-				? await ctx.rulesResolver.resolveProjectRules(conv.projectId)
-				: "";
-			const rulesContent = modePrompt
-				? `${modePrompt}\n\n${projectRules}`
-				: projectRules;
-
-			ctx.agentManager.resetSession(
-				input.sessionId,
-				nextTemplate.agent.command,
-				{
-					...nextTemplate.agent,
-					model: resolvedModel,
-					reasoning: resolvedReasoning,
-					mode: resolvedMode,
-					cwd,
-					rulesContent,
-					provider: resolvedProvider,
-				},
-			);
-
-			// Store handover context to prepend to next user message (if we have one)
-			if (handoverSummary) {
-				const handoverContext = buildHandoverContext(
-					handoverPreviousName,
-					handoverSummary,
-				);
-				ctx.agentManager.setPendingHandover(input.sessionId, handoverContext);
-			}
-
-			return { success: true, message: systemMessage };
-		}),
-
-	toggleConversationMcpTool: os
-		.input(
-			z.object({
-				sessionId: z.string(),
-				serverName: z.string(),
-				toolName: z.string(),
-				enabled: z.boolean(),
+				return { success: true, message: systemMessage };
 			}),
-		)
-		.output(z.object({ success: z.boolean() }))
-		.handler(async ({ input }) => {
-			const conv = ctx.store.getConversation(input.sessionId);
-			if (!conv) return { success: false };
 
-			const currentDisabled = new Set(conv.disabledMcpTools || []);
-			const key = `${input.serverName}-${input.toolName}`;
+		toggleConversationMcpTool: os
+			.input(
+				z.object({
+					sessionId: z.string(),
+					serverName: z.string(),
+					toolName: z.string(),
+					enabled: z.boolean(),
+				}),
+			)
+			.output(z.object({ success: z.boolean() }))
+			.handler(async ({ input }) => {
+				const conv = ctx.store.getConversation(input.sessionId);
+				if (!conv) return { success: false };
 
-			if (input.enabled) {
-				currentDisabled.delete(key);
-			} else {
-				currentDisabled.add(key);
-			}
+				const currentDisabled = new Set(conv.disabledMcpTools || []);
+				const key = `${input.serverName}-${input.toolName}`;
 
-			ctx.store.updateConversation(input.sessionId, {
-				disabledMcpTools: Array.from(currentDisabled),
-			});
-			return { success: true };
-		}),
+				if (input.enabled) {
+					currentDisabled.delete(key);
+				} else {
+					currentDisabled.add(key);
+				}
+
+				ctx.store.updateConversation(input.sessionId, {
+					disabledMcpTools: Array.from(currentDisabled),
+				});
+				return { success: true };
+			}),
 	};
 }

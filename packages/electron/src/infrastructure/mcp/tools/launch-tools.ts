@@ -1,15 +1,15 @@
-import {
-	type AgentConfigJson,
-	AgentConfigSchema,
-	getStoreOrThrow,
-} from "@agent-manager/shared";
+import { type AgentConfigJson, AgentConfigSchema } from "@agent-manager/shared";
 import { z } from "zod";
 import { getAgentManager } from "../../../application/sessions/agent-manager";
 import { devServerManager } from "../../dev-server/dev-server-manager";
 import { getSessionContext, getSessionProjectId } from "../mcp-session-context";
-import type { ToolRegistrar, ToolResult } from "./types";
+import type { McpContext, ToolRegistrar, ToolResult } from "./types";
 
-export function registerLaunchTools(registerTool: ToolRegistrar) {
+export function registerLaunchTools(
+	registerTool: ToolRegistrar,
+	ctx: McpContext,
+) {
+	const { store } = ctx;
 	registerTool(
 		"launch_project",
 		{
@@ -82,7 +82,7 @@ Use this when implementation is complete and you want to start the development s
 					cwd: worktreeCwd,
 					conversationId: context?.sessionId,
 				});
-				const project = getStoreOrThrow().getProject(projectId);
+				const project = store.getProject(projectId);
 
 				const portsSummary = Object.entries(processInfo.ports)
 					.map(([envVar, port]) => `  ${envVar}=${port}`)
@@ -157,7 +157,6 @@ Analyze the project structure (package.json, etc.) and call this tool with the a
 				};
 			}
 
-			const store = getStoreOrThrow();
 			const project = store.getProject(projectId);
 
 			if (!project) {
@@ -271,7 +270,6 @@ You can now use 'launch_project' to start this application.`,
 
 			const lines: string[] = [];
 			for (const info of processes) {
-				const store = getStoreOrThrow();
 				const project = store.getProject(info.projectId);
 				lines.push(`Project: ${project?.name ?? info.projectId}
   PID: ${info.pid}

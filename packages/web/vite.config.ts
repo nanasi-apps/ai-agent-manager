@@ -33,9 +33,16 @@ export default defineConfig(({ command }) => ({
 	server: {
 		port: Number(process.env.WEB_PORT) || 5173,
 	},
+	optimizeDeps: {
+		exclude: ["@agent-manager/shared"],
+	},
 	resolve: {
 		alias: {
 			"@": path.resolve(import.meta.dirname, "./src"),
+			"@agent-manager/shared": path.resolve(
+				import.meta.dirname,
+				"../shared/src/client.ts",
+			),
 		},
 	},
 	esbuild: {
@@ -98,4 +105,5 @@ export default defineConfig(({ command }) => ({
 		target: "esnext",
 		reportCompressedSize: true,
 	},
+
 }));

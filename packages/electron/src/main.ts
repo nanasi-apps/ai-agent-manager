@@ -16,17 +16,18 @@ import { app, BrowserWindow, shell } from "electron";
 import { setupElectronOrpc } from "./adapters/orpc";
 // Import bootstrap first (sets up all dependencies)
 import { bootstrap, getStore } from "./app/bootstrap";
-
-// Main process modules
-import { setupAgentLogs } from "./infrastructure/logging/agent-logs";
 import { setupAgentState } from "./application/services/agent-state";
-import { setupBranchNameChannels } from "./services/branch-name-channels";
+import {
+	initializeWindowTheme,
+	setupGlobalThemeHandlers,
+} from "./infrastructure/desktop/theme";
 import { devServerManager } from "./infrastructure/dev-server/dev-server-manager";
 import { setupIpc } from "./infrastructure/ipc/ipc";
-import { initializeWindowTheme, setupGlobalThemeHandlers } from "./infrastructure/desktop/theme";
-
+// Main process modules
+import { setupAgentLogs } from "./infrastructure/logging/agent-logs";
 // Infrastructure
 import { startMcpServer } from "./infrastructure/mcp/mcp-server.js";
+import { setupBranchNameChannels } from "./services/branch-name-channels";
 import { webServerManager } from "./services/web-server-manager";
 import { fixProcessPath } from "./utils/path-enhancer";
 
@@ -93,6 +94,7 @@ app.whenReady().then(async () => {
 	setupAgentState();
 
 	// Start ORPC handlers using the new adapter (passes router explicitly)
+	// This sets up MessagePort communication for Electron renderer process
 	logger.info("Setting up ORPC Electron handlers...");
 	setupElectronOrpc(router as AppRouter);
 
@@ -129,7 +131,7 @@ app.whenReady().then(async () => {
 
 	// Start internal MCP server
 	logger.info("Starting internal MCP server...");
-	startMcpServer(Number(process.env.MCP_PORT) || 3001)
+	startMcpServer(Number(process.env.MCP_PORT) || 3001, store)
 		.then(() => {
 			logger.info("Internal MCP server started on port {port}", {
 				port: process.env.MCP_PORT || 3001,

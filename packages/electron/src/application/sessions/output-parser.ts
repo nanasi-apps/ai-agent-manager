@@ -1,12 +1,12 @@
 import {
 	type AgentType,
 	type ErrorEvent,
+	generateUUID,
 	type LogEvent,
 	type SessionEvent,
 	type ThinkingEvent,
 	type ToolCallEvent,
 	type ToolResultEvent,
-	generateUUID,
 } from "@agent-manager/shared";
 import { SESSION_INVALID_PATTERNS } from "../../infrastructure/agent-drivers/process-utils";
 
@@ -41,7 +41,7 @@ export class AgentOutputParser {
 		"propose_implementation_plan",
 	]);
 
-	constructor(private readonly sessionId: string) { }
+	constructor(private readonly sessionId: string) {}
 
 	private createBaseEvent(): {
 		id: string;
@@ -203,7 +203,10 @@ export class AgentOutputParser {
 		return result;
 	}
 
-	private processGeminiJson(json: Record<string, unknown>, result: ParseResult) {
+	private processGeminiJson(
+		json: Record<string, unknown>,
+		result: ParseResult,
+	) {
 		const type = json.type as string | undefined;
 
 		switch (type) {
@@ -320,7 +323,10 @@ export class AgentOutputParser {
 		}
 	}
 
-	private processClaudeJson(json: Record<string, unknown>, result: ParseResult) {
+	private processClaudeJson(
+		json: Record<string, unknown>,
+		result: ParseResult,
+	) {
 		const type = json.type as string | undefined;
 
 		switch (type) {
@@ -343,7 +349,10 @@ export class AgentOutputParser {
 									),
 								);
 
-								const planContent = this.getPlanContent(block.name, block.input);
+								const planContent = this.getPlanContent(
+									block.name,
+									block.input,
+								);
 								if (planContent) {
 									result.events.push(
 										this.createLogEvent(planContent, "plan", json),
@@ -378,11 +387,7 @@ export class AgentOutputParser {
 					// I'll emit as LogEvent with type="text" for now, or "tool_call" payload type?
 					// AgentLogPayload has "tool_call".
 					result.events.push(
-						this.createLogEvent(
-							String(delta.partial_json || ""),
-							"text",
-							json,
-						),
+						this.createLogEvent(String(delta.partial_json || ""), "text", json),
 					);
 				}
 				break;
@@ -423,7 +428,10 @@ export class AgentOutputParser {
 			case "error": {
 				const error = json.error as Record<string, unknown> | undefined;
 				result.events.push(
-					this.createErrorEvent(String(error?.message || "Unknown error"), json),
+					this.createErrorEvent(
+						String(error?.message || "Unknown error"),
+						json,
+					),
 				);
 				break;
 			}
@@ -504,10 +512,7 @@ export class AgentOutputParser {
 						itemType === "function_call"
 					) {
 						const toolName = String(
-							item.name ||
-							item.tool_name ||
-							item.toolName ||
-							"unknown",
+							item.name || item.tool_name || item.toolName || "unknown",
 						);
 						const rawArgs =
 							item.arguments ?? item.input ?? item.parameters ?? item.args;
@@ -578,12 +583,7 @@ export class AgentOutputParser {
 								item.output ?? item.result ?? item.content ?? item.response;
 							// Emit as ToolResult
 							result.events.push(
-								this.createToolResultEvent(
-									"unknown",
-									output,
-									true,
-									undefined,
-								),
+								this.createToolResultEvent("unknown", output, true, undefined),
 							);
 							break;
 						}
@@ -624,7 +624,11 @@ export class AgentOutputParser {
 			default:
 				if (json.type === "message" || json.text) {
 					result.events.push(
-						this.createLogEvent(String(json.text || json.message), "text", json),
+						this.createLogEvent(
+							String(json.text || json.message),
+							"text",
+							json,
+						),
 					);
 				}
 		}

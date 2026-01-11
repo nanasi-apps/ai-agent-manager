@@ -1,5 +1,9 @@
 import { EventEmitter } from "node:events";
-import type { AgentConfig, LogEvent, SessionEvent } from "@agent-manager/shared";
+import type {
+	AgentConfig,
+	LogEvent,
+	SessionEvent,
+} from "@agent-manager/shared";
 import { generateUUID, getLogger } from "@agent-manager/shared";
 import { store } from "../../infrastructure/store/file-store";
 import type { IAgentManager, WorktreeResumeRequest } from "./agent-manager";
@@ -152,10 +156,10 @@ export class OneShotAgentManager extends EventEmitter implements IAgentManager {
 
 	getSessionMetadata(sessionId: string):
 		| {
-			geminiSessionId?: string;
-			codexSessionId?: string;
-			codexThreadId?: string;
-		}
+				geminiSessionId?: string;
+				codexSessionId?: string;
+				codexThreadId?: string;
+		  }
 		| undefined {
 		const session = this.sessions.get(sessionId);
 		if (!session) return undefined;

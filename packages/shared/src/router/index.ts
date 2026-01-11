@@ -1,3 +1,15 @@
+/**
+ * @deprecated Internal - Legacy DI functions for backward compatibility.
+ * Do not use in new code.
+ */
+
+import type {
+	IAgentManager,
+	IGtrConfigService,
+	INativeDialog,
+	IWebServerService,
+	IWebServerStatus,
+} from "../services/dependency-container";
 import {
 	getAgentManagerOrThrow,
 	getDevServerServiceOrThrow,
@@ -7,43 +19,11 @@ import {
 	getStoreOrThrow,
 	getWebServerServiceOrThrow,
 	getWorktreeManagerOrThrow,
-	setAgentManager,
-	setDevServerService,
-	setGtrConfigService,
-	setHandoverService,
-	setNativeDialog,
-	setStore,
-	setWebServerService,
-	setWorktreeManager,
-} from "../services/dependency-container";
-import type {
-	IAgentManager,
-	IGtrConfigService,
-	INativeDialog,
-	IWebServerService,
-	IWebServerStatus,
 } from "../services/dependency-container";
 import { createRouter, type RouterContext } from "./createRouter";
 import { createMcpRouter } from "./mcp";
 
-// Re-export services for external use
-export {
-	getAgentManagerOrThrow,
-	getGtrConfigServiceOrThrow,
-	getHandoverServiceOrThrow,
-	getNativeDialog,
-	getStoreOrThrow,
-	getWebServerServiceOrThrow,
-	getWorktreeManagerOrThrow,
-	setAgentManager,
-	setDevServerService,
-	setGtrConfigService,
-	setHandoverService,
-	setNativeDialog,
-	setStore,
-	setWebServerService,
-	setWorktreeManager,
-};
+// Type exports only - no deprecated function exports
 export type {
 	IAgentManager,
 	IGtrConfigService,
@@ -65,6 +45,10 @@ export type { AppRouterFromFactory, RouterContext } from "./createRouter";
 // This is the preferred way to create routers going forward
 export { createRouter, getRouterContext } from "./createRouter";
 
+/**
+ * Creates a legacy router context using global DI.
+ * @deprecated Internal use only - for backward compatibility with appRouter.
+ */
 function createLegacyRouterContext(): RouterContext {
 	return {
 		get agentManager() {
@@ -100,6 +84,9 @@ function createLegacyRouterContext(): RouterContext {
 
 const legacyCtx = createLegacyRouterContext();
 
+/**
+ * @deprecated Internal - Legacy MCP router using global DI.
+ */
 export const mcpRouter = createMcpRouter(legacyCtx);
 export { getSessionMcpServersLogic, listMcpToolsLogic } from "./mcp";
 

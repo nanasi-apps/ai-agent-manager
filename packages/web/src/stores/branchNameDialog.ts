@@ -1,5 +1,6 @@
-import type { BranchNameRequest } from "@agent-manager/shared";
+import { type BranchNameRequest } from "@agent-manager/shared";
 import { defineStore } from "pinia";
+import { orpc } from "@/services/orpc";
 import { computed, ref } from "vue";
 
 type GenerationState = "idle" | "generating" | "regenerating" | "ready";
@@ -20,9 +21,8 @@ export const useBranchNameDialogStore = defineStore("branchNameDialog", () => {
 			: null,
 	);
 
-	const hasElectron = computed(
-		() => typeof window !== "undefined" && !!window.electronAPI,
-	);
+	// Check minimal Electron flag
+
 
 	const isGenerating = computed(
 		() =>
@@ -87,9 +87,9 @@ export const useBranchNameDialogStore = defineStore("branchNameDialog", () => {
 	}
 
 	async function syncPending() {
-		if (!hasElectron.value) return;
 		try {
-			const pending = await window.electronAPI?.listBranchNameRequests();
+			// Dynamic import
+			const pending = await orpc.electron.branchName.list();
 			if (pending) {
 				for (const req of pending) {
 					upsertRequest(req);
@@ -104,14 +104,14 @@ export const useBranchNameDialogStore = defineStore("branchNameDialog", () => {
 	}
 
 	async function submit() {
-		if (!hasElectron.value || !activeRequest.value) return;
+		if (!activeRequest.value) return;
 		errorMessage.value = null;
 		isSubmitting.value = true;
 		try {
-			const result = await window.electronAPI?.submitBranchName(
-				activeRequest.value.id,
-				inputValue.value.trim(),
-			);
+			const result = await orpc.electron.branchName.submit({
+				requestId: activeRequest.value.id,
+				branchName: inputValue.value.trim(),
+			});
 			if (!result?.success) {
 				throw new Error(result?.error || "Failed to submit branch name");
 			}
@@ -127,14 +127,14 @@ export const useBranchNameDialogStore = defineStore("branchNameDialog", () => {
 	}
 
 	async function generateSuggestion() {
-		if (!hasElectron.value || !activeRequest.value) return;
+		if (!activeRequest.value) return;
 		errorMessage.value = null;
 		generationState.value =
 			generationState.value === "idle" ? "generating" : "regenerating";
 		try {
-			const result = await window.electronAPI?.generateBranchName(
-				activeRequest.value.id,
-			);
+			const result = await orpc.electron.branchName.generate({
+				requestId: activeRequest.value.id,
+			});
 			if (!result?.success || !result.suggestion) {
 				throw new Error(result?.error || "Failed to generate branch name");
 			}
@@ -161,26 +161,39 @@ export const useBranchNameDialogStore = defineStore("branchNameDialog", () => {
 		}
 	}
 
-	function setupListeners() {
-		if (!hasElectron.value || listenersReady.value) return;
+	async function setupListeners() {
+		if (listenersReady.value) return;
 		listenersReady.value = true;
 
-		void syncPending();
+		try {
+			// Sync existing pending requests
+			await syncPending();
 
-		window.electronAPI?.onBranchNameRequest((req) => {
-			upsertRequest(req);
-			open(req.id);
-		});
+			// Subscribe to events
+			const iterator = await orpc.electron.branchName.subscribe();
 
-		window.electronAPI?.onBranchNameOpen(({ requestId }) => {
-			if (requestId) {
-				open(requestId);
-			}
-		});
-
-		window.electronAPI?.onBranchNameResolved((payload) => {
-			markResolved(payload);
-		});
+			// Process events in background
+			(async () => {
+				try {
+					for await (const event of iterator) {
+						if (event.type === "request") {
+							upsertRequest(event.payload);
+							open(event.payload.id);
+						} else if (event.type === "open") {
+							if (event.payload.requestId) {
+								open(event.payload.requestId);
+							}
+						} else if (event.type === "resolved") {
+							markResolved(event.payload);
+						}
+					}
+				} catch (err) {
+					console.error("Branch name event subscription error:", err);
+				}
+			})();
+		} catch (err) {
+			console.error("Failed to setup branch name listeners:", err);
+		}
 	}
 
 	return {
@@ -189,7 +202,6 @@ export const useBranchNameDialogStore = defineStore("branchNameDialog", () => {
 		canSubmit,
 		errorMessage,
 		generationState,
-		hasElectron,
 		inputValue,
 		isGenerating,
 		isOpen,

@@ -4,85 +4,85 @@ import type { RouterContext } from "./createRouter";
 
 export function createRulesRouter(ctx: RouterContext) {
 	return {
-	listGlobalRules: os
-		.output(
-			z.array(
+		listGlobalRules: os
+			.output(
+				z.array(
+					z.object({
+						id: z.string(),
+						name: z.string(),
+						content: z.string().optional(),
+					}),
+				),
+			)
+			.handler(async () => {
+				if (!ctx.rulesService) return [];
+				return ctx.rulesService.listGlobalRules();
+			}),
+
+		getGlobalRule: os
+			.input(z.object({ id: z.string() }))
+			.output(
+				z
+					.object({
+						id: z.string(),
+						name: z.string(),
+						content: z.string(),
+					})
+					.nullable(),
+			)
+			.handler(async ({ input }) => {
+				if (!ctx.rulesService) return null;
+				const rule = await ctx.rulesService.getGlobalRule(input.id);
+				if (!rule) return null;
+				return {
+					id: rule.id,
+					name: rule.name,
+					content: rule.content || "",
+				};
+			}),
+
+		createGlobalRule: os
+			.input(
+				z.object({
+					name: z.string().min(1),
+					content: z.string().default(""),
+				}),
+			)
+			.output(
 				z.object({
 					id: z.string(),
-					name: z.string(),
-					content: z.string().optional(),
+					success: z.boolean(),
 				}),
-			),
-		)
-		.handler(async () => {
-			if (!ctx.rulesService) return [];
-			return ctx.rulesService.listGlobalRules();
-		}),
+			)
+			.handler(async ({ input }) => {
+				if (!ctx.rulesService) return { id: "", success: false };
+				return ctx.rulesService.createGlobalRule(input.name, input.content);
+			}),
 
-	getGlobalRule: os
-		.input(z.object({ id: z.string() }))
-		.output(
-			z
-				.object({
+		updateGlobalRule: os
+			.input(
+				z.object({
 					id: z.string(),
-					name: z.string(),
 					content: z.string(),
-				})
-				.nullable(),
-		)
-		.handler(async ({ input }) => {
-			if (!ctx.rulesService) return null;
-			const rule = await ctx.rulesService.getGlobalRule(input.id);
-			if (!rule) return null;
-			return {
-				id: rule.id,
-				name: rule.name,
-				content: rule.content || "",
-			};
-		}),
-
-	createGlobalRule: os
-		.input(
-			z.object({
-				name: z.string().min(1),
-				content: z.string().default(""),
+				}),
+			)
+			.output(z.object({ success: z.boolean() }))
+			.handler(async ({ input }) => {
+				if (!ctx.rulesService) return { success: false };
+				const success = await ctx.rulesService.updateGlobalRule(
+					input.id,
+					input.content,
+				);
+				return { success };
 			}),
-		)
-		.output(
-			z.object({
-				id: z.string(),
-				success: z.boolean(),
-			}),
-		)
-		.handler(async ({ input }) => {
-			if (!ctx.rulesService) return { id: "", success: false };
-			return ctx.rulesService.createGlobalRule(input.name, input.content);
-		}),
 
-	updateGlobalRule: os
-		.input(
-			z.object({
-				id: z.string(),
-				content: z.string(),
+		deleteGlobalRule: os
+			.input(z.object({ id: z.string() }))
+			.output(z.object({ success: z.boolean() }))
+			.handler(async ({ input }) => {
+				if (!ctx.rulesService) return { success: false };
+				const success = await ctx.rulesService.deleteGlobalRule(input.id);
+				return { success };
 			}),
-		)
-		.output(z.object({ success: z.boolean() }))
-		.handler(async ({ input }) => {
-			if (!ctx.rulesService) return { success: false };
-			const success = await ctx.rulesService.updateGlobalRule(
-				input.id,
-				input.content,
-			);
-			return { success };
-		}),
-
-	deleteGlobalRule: os
-		.input(z.object({ id: z.string() }))
-		.output(z.object({ success: z.boolean() }))
-		.handler(async ({ input }) => {
-			if (!ctx.rulesService) return { success: false };
-			const success = await ctx.rulesService.deleteGlobalRule(input.id);
-			return { success };
-		}),
 	};
 }

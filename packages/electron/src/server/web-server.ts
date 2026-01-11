@@ -27,9 +27,10 @@ export function startWebServer(
 
 	// In production (bundled), __dirname is 'dist'. renderer is at 'dist/renderer'.
 	// In dev, serve the web package build output.
-	// Note: __dirname defaults to the directory of the entry point (dist/main.js)
+	// In dev, serve the web package build output.
+	// Note: __dirname is '.../dist/server', so we need to go up 3 levels to reach 'packages'
 	const staticRoot = isDev
-		? path.resolve(__dirname, "../../web/dist")
+		? path.resolve(__dirname, "../../../web/dist")
 		: path.resolve(__dirname, "renderer");
 
 	console.log(`[WebServer] Static Root: ${staticRoot}`);

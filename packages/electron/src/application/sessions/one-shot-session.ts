@@ -2,22 +2,16 @@ import { type ChildProcess, spawn } from "node:child_process";
 import { EventEmitter } from "node:events";
 import {
 	type AgentConfig,
+	generateUUID,
+	getLogger,
 	type LogEvent,
 	type SessionEvent,
 	type SessionLifecycleEvent,
 	type StateChangeEvent,
-	generateUUID,
-	getLogger,
-	getStoreOrThrow,
 } from "@agent-manager/shared";
 import { createActor, type SnapshotFrom } from "xstate";
-import type { WorktreeResumeRequest } from "./agent-manager";
-import { isAgentType } from "./agent-type-utils";
 import { DriverResolver } from "../../infrastructure/agent-drivers/driver-resolver";
 import type { AgentDriverContext } from "../../infrastructure/agent-drivers/interface";
-import { EnvBuilder } from "./env-builder";
-import { type AgentContext, agentMachine } from "./machines/agent-machine";
-import { AgentOutputParser, type ParseResult } from "./output-parser";
 import {
 	isGeminiApiError,
 	isQuotaError,
@@ -26,6 +20,12 @@ import {
 	killProcessGroup,
 	parseQuotaResetTime,
 } from "../../infrastructure/agent-drivers/process-utils";
+import { store } from "../../infrastructure/store/file-store";
+import type { WorktreeResumeRequest } from "./agent-manager";
+import { isAgentType } from "./agent-type-utils";
+import { EnvBuilder } from "./env-builder";
+import { type AgentContext, agentMachine } from "./machines/agent-machine";
+import { AgentOutputParser, type ParseResult } from "./output-parser";
 import type { AgentStateChangePayload, SessionState } from "./types";
 import {
 	buildInstructions,
@@ -768,7 +768,6 @@ export class OneShotSession extends EventEmitter {
 		let projectId: string | undefined;
 		let isAutoConfigured = false;
 		try {
-			const store = getStoreOrThrow();
 			const conversation = store.getConversation(this.sessionId);
 			if (conversation?.projectId) {
 				projectId = conversation.projectId;

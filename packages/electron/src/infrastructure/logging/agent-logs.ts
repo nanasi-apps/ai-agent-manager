@@ -1,9 +1,7 @@
-import * as crypto from "node:crypto";
+import type { SessionEvent } from "@agent-manager/shared";
 import { BrowserWindow } from "electron";
 import { unifiedAgentManager } from "../../application/sessions";
 import { store } from "../store/file-store";
-
-import type { SessionEvent } from "@agent-manager/shared";
 
 export function setupAgentLogs() {
 	// Agent Log Setup - forward logs to renderer
@@ -27,7 +25,8 @@ export function setupAgentLogs() {
 				break;
 			case "tool-result": {
 				const res = event.payload.result;
-				const text = typeof res === "string" ? res : JSON.stringify(res, null, 2);
+				const text =
+					typeof res === "string" ? res : JSON.stringify(res, null, 2);
 				content = `[Result]\n${text}\n`;
 				logType = "tool_result";
 				break;
@@ -67,18 +66,8 @@ export function setupAgentLogs() {
 		}
 
 		BrowserWindow.getAllWindows().forEach((win) => {
-			// 1. Emit typed event (New)
+			// Emit typed event (replaces legacy agent-log)
 			win.webContents.send("agent-event", event);
-
-			// 2. Emit legacy log event (Compatibility)
-			if (content) {
-				win.webContents.send("agent-log", {
-					sessionId: event.sessionId,
-					data: content,
-					type: logType,
-					raw,
-				});
-			}
 		});
 	});
 }

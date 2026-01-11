@@ -3,8 +3,8 @@ import type {
 	AgentMode,
 	ReasoningLevel,
 } from "@agent-manager/shared";
-import { store } from "../store";
 import { detectAgentType } from "../../application/sessions/agent-type-utils";
+import { store } from "../store";
 import type {
 	AgentDriver,
 	AgentDriverCommand,

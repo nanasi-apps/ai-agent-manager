@@ -1,5 +1,4 @@
 import * as fs from "node:fs/promises";
-import { getStoreOrThrow } from "@agent-manager/shared";
 import { z } from "zod";
 import { getAgentManager } from "../../../application/sessions/agent-manager";
 import {
@@ -7,8 +6,8 @@ import {
 	buildWorktreeCreateResultMessage,
 } from "../../../application/sessions/context-builder";
 import { splitCommand } from "../../../infrastructure/agent-drivers/interface";
-import { worktreeManager } from "../../worktree/worktree-manager";
 import { branchNamePromptService } from "../../../services/branch-name-service";
+import { worktreeManager } from "../../worktree/worktree-manager";
 import { getSessionContext } from "../mcp-session-context";
 import {
 	execFileAsync,
@@ -16,9 +15,13 @@ import {
 	getCurrentBranch,
 	runGtr,
 } from "../utils";
-import type { ToolRegistrar } from "./types";
+import type { McpContext, ToolRegistrar } from "./types";
 
-export function registerWorktreeTools(registerTool: ToolRegistrar) {
+export function registerWorktreeTools(
+	registerTool: ToolRegistrar,
+	ctx: McpContext,
+) {
+	const { store } = ctx;
 	registerTool(
 		"worktree_create",
 		{
@@ -39,12 +42,13 @@ export function registerWorktreeTools(registerTool: ToolRegistrar) {
 			},
 		},
 		async (rawArgs) => {
-			const { repoPath, branch, resume, resumeMessage } = rawArgs as unknown as {
-				repoPath: string;
-				branch: string;
-				resume?: boolean;
-				resumeMessage?: string;
-			};
+			const { repoPath, branch, resume, resumeMessage } =
+				rawArgs as unknown as {
+					repoPath: string;
+					branch: string;
+					resume?: boolean;
+					resumeMessage?: string;
+				};
 			const context = getSessionContext();
 			const sessionId = context?.sessionId;
 
@@ -173,7 +177,7 @@ export function registerWorktreeTools(registerTool: ToolRegistrar) {
 								resumeError = "Failed to schedule worktree resume.";
 							} else {
 								try {
-									getStoreOrThrow().updateConversation(sessionId, {
+									store.updateConversation(sessionId, {
 										cwd: worktreePath,
 									});
 								} catch (e) {
@@ -391,12 +395,12 @@ export function registerWorktreeTools(registerTool: ToolRegistrar) {
 					args && args.length > 0
 						? [command, ...args]
 						: (() => {
-							const parsed = splitCommand(command);
-							if (!parsed.command) {
-								throw new Error("Command must be a non-empty string.");
-							}
-							return [parsed.command, ...parsed.args];
-						})();
+								const parsed = splitCommand(command);
+								if (!parsed.command) {
+									throw new Error("Command must be a non-empty string.");
+								}
+								return [parsed.command, ...parsed.args];
+							})();
 				const result = await runGtr(repoPath, ["run", branch, ...commandParts]);
 				return {
 					content: [{ type: "text", text: result }],

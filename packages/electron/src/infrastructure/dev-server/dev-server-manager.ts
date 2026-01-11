@@ -1,11 +1,8 @@
 import { spawn } from "node:child_process";
-import {
-	type AutoConfig,
-	getLogger,
-	getStoreOrThrow,
-} from "@agent-manager/shared";
+import { type AutoConfig, getLogger } from "@agent-manager/shared";
 import { shell } from "electron";
 import { allocatePorts } from "../mcp/utils/port-utils";
+import { store } from "../store/file-store";
 
 const logger = getLogger(["electron", "dev-server-manager"]);
 
@@ -133,7 +130,6 @@ class DevServerManager {
 		}
 
 		try {
-			const store = getStoreOrThrow();
 			const project = store.getProject(projectId);
 
 			if (!project) throw new Error(`Project ${projectId} not found`);
@@ -348,7 +344,7 @@ class DevServerManager {
 				error,
 			});
 			// Cleanup on error
-			await this.stopProject(projectId, conversationId).catch(() => { });
+			await this.stopProject(projectId, conversationId).catch(() => {});
 			throw error;
 		}
 	}

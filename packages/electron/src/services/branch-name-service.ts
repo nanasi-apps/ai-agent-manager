@@ -1,4 +1,10 @@
 import { randomUUID } from "node:crypto";
+import { EventEmitter } from "node:events";
+import type {
+	BranchNameEvent,
+	BranchNameOperationResult,
+	IBranchNameService,
+} from "@agent-manager/shared";
 import { type BranchNameRequest, getLogger } from "@agent-manager/shared";
 import { BrowserWindow, Notification } from "electron";
 import { store } from "../infrastructure/store/file-store";
@@ -78,8 +84,9 @@ function bringWindowToFront() {
 	}
 }
 
-export class BranchNamePromptService {
+export class BranchNamePromptService implements IBranchNameService {
 	private pending = new Map<string, PendingEntry>();
+	private emitter = new EventEmitter();
 
 	async promptForBranchName(options: {
 		repoPath: string;
@@ -104,35 +111,47 @@ export class BranchNamePromptService {
 			this.pending.set(request.id, { request, resolve, reject });
 		});
 
-		this.broadcast("branch-name:request", request);
+		this.broadcastEvent({ type: "request", payload: request });
 		this.notify(request);
 
 		return promise;
 	}
 
-	submitBranchName(requestId: string, branchName: string): BranchNameRequest {
-		const entry = this.pending.get(requestId);
-		if (!entry) {
-			throw new Error("Branch name request not found");
+	submitBranchName(
+		requestId: string,
+		branchName: string,
+	): BranchNameOperationResult {
+		try {
+			const entry = this.pending.get(requestId);
+			if (!entry) {
+				throw new Error("Branch name request not found");
+			}
+
+			const trimmed = branchName.trim();
+			if (!trimmed) {
+				throw new Error("Branch name cannot be empty");
+			}
+
+			this.pending.delete(requestId);
+			entry.resolve(trimmed);
+
+			const resolved: BranchNameRequest = {
+				...entry.request,
+				status: "resolved",
+			};
+
+			this.broadcastEvent({
+				type: "resolved",
+				payload: {
+					requestId,
+					branchName: trimmed,
+				},
+			});
+
+			return { success: true, request: resolved };
+		} catch (error: any) {
+			return { success: false, error: error?.message || String(error) };
 		}
-
-		const trimmed = branchName.trim();
-		if (!trimmed) {
-			throw new Error("Branch name cannot be empty");
-		}
-
-		this.pending.delete(requestId);
-		entry.resolve(trimmed);
-
-		const resolved: BranchNameRequest = {
-			...entry.request,
-			status: "resolved",
-		};
-		this.broadcast("branch-name:resolved", {
-			requestId,
-			branchName: trimmed,
-		});
-		return resolved;
 	}
 
 	cancel(requestId: string, reason?: string) {
@@ -140,35 +159,53 @@ export class BranchNamePromptService {
 		if (!entry) return;
 		this.pending.delete(requestId);
 		entry.reject(new Error(reason || "Branch name request cancelled"));
-		this.broadcast("branch-name:resolved", { requestId, cancelled: true });
+
+		this.broadcastEvent({
+			type: "resolved",
+			payload: { requestId, cancelled: true },
+		});
 	}
 
 	listPending(): BranchNameRequest[] {
 		return Array.from(this.pending.values()).map((entry) => entry.request);
 	}
 
-	async generateSuggestion(requestId: string): Promise<string> {
-		const entry = this.pending.get(requestId);
-		if (!entry) {
-			throw new Error("Branch name request not found");
+	async generateSuggestion(
+		requestId: string,
+	): Promise<BranchNameOperationResult> {
+		try {
+			const entry = this.pending.get(requestId);
+			if (!entry) {
+				throw new Error("Branch name request not found");
+			}
+
+			const context =
+				entry.request.summary ||
+				entry.request.suggestedBranch ||
+				entry.request.repoPath;
+
+			const prefix = choosePrefix(entry.request.summary);
+			const slug = slugify(
+				context ?? "branch",
+				entry.request.suggestedBranch || "branch",
+			);
+			const suggestion = `${prefix}/${slug}`;
+			logger.info("Generated branch suggestion for {requestId}: {suggestion}", {
+				requestId,
+				suggestion,
+			});
+			return { success: true, suggestion };
+		} catch (error: any) {
+			return { success: false, error: error?.message || String(error) };
 		}
+	}
 
-		const context =
-			entry.request.summary ||
-			entry.request.suggestedBranch ||
-			entry.request.repoPath;
-
-		const prefix = choosePrefix(entry.request.summary);
-		const slug = slugify(
-			context ?? "branch",
-			entry.request.suggestedBranch || "branch",
-		);
-		const suggestion = `${prefix}/${slug}`;
-		logger.info("Generated branch suggestion for {requestId}: {suggestion}", {
-			requestId,
-			suggestion,
-		});
-		return suggestion;
+	subscribe(callback: (event: BranchNameEvent) => void): () => void {
+		const handler = (event: BranchNameEvent) => callback(event);
+		this.emitter.on("event", handler);
+		return () => {
+			this.emitter.off("event", handler);
+		};
 	}
 
 	private buildSummary(options: {
@@ -216,15 +253,34 @@ export class BranchNamePromptService {
 
 		notification.on("click", () => {
 			bringWindowToFront();
-			this.broadcast("branch-name:open", {
-				requestId: request.id,
+			this.broadcastEvent({
+				type: "open",
+				payload: { requestId: request.id },
 			});
 		});
 
 		notification.show();
 	}
 
-	private broadcast(channel: string, payload: unknown) {
+	private broadcastEvent(event: BranchNameEvent) {
+		// 1. Emit to local listeners (oRPC)
+		this.emitter.emit("event", event);
+
+		// 2. Broadcast to legacy IPC listeners (until fully removed)
+		// We map the event types back to legacy channel names
+		const channelMap: Record<string, string> = {
+			request: "branch-name:request",
+			open: "branch-name:open",
+			resolved: "branch-name:resolved",
+		};
+
+		const channel = channelMap[event.type];
+		if (channel) {
+			this.broadcastLegacy(channel, event.payload);
+		}
+	}
+
+	private broadcastLegacy(channel: string, payload: unknown) {
 		BrowserWindow.getAllWindows().forEach((win) => {
 			try {
 				win.webContents.send(channel, payload);

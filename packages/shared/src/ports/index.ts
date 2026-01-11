@@ -17,7 +17,9 @@
  * function createRouter(ctx: { agentManager: IAgentManager }) { ... }
  */
 
+export * from "./agent-event-service";
 export * from "./agent-manager";
+export * from "./branch-name-service";
 export * from "./dev-server-service";
 export * from "./gtr-config-service";
 export * from "./handover-service";
@@ -27,5 +29,6 @@ export * from "./rules-resolver";
 export * from "./rules-service";
 export * from "./session-builder";
 export * from "./store";
+export * from "./theme-service";
 export * from "./web-server-service";
 export * from "./worktree-manager";

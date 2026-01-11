@@ -4,11 +4,10 @@ import type {
 	AgentStateValue,
 	ApprovalChannel,
 } from "@agent-manager/shared";
-import { BrowserWindow, Notification } from "electron";
+import { Notification } from "electron";
 import { unifiedAgentManager } from "../../application/sessions";
-import { notificationService } from "../../services/notification-service";
 import { store } from "../../infrastructure/store/file-store";
-import { publishAgentState } from "./agent-state-port";
+import { notificationService } from "../../services/notification-service";
 
 const lastStateBySession = new Map<string, AgentStateValue>();
 const approvalChannelSet = new Set<ApprovalChannel>([
@@ -152,12 +151,6 @@ export function setupAgentState() {
 				store.updateConversation(payload.sessionId, { cwd });
 			}
 
-			const ipcPayload: AgentStatePayload = {
-				sessionId: payload.sessionId,
-				value: payload.value,
-				context: payload.context,
-			};
-
 			const didComplete =
 				matchesState(previousValue, "processing") &&
 				matchesState(payload.value, "idle");
@@ -217,11 +210,7 @@ export function setupAgentState() {
 				sendCompletionNotification(payload.sessionId);
 			}
 
-			publishAgentState(ipcPayload);
-
-			BrowserWindow.getAllWindows().forEach((win) => {
-				win.webContents.send("agent:state-changed", ipcPayload);
-			});
+			// Legacy broadcasting removed (handled by oRPC subscription now)
 		},
 	);
 }

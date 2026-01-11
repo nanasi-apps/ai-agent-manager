@@ -21,31 +21,22 @@
  * });
  */
 
-import {
-	createRouter,
-	type RouterContext,
-	// Legacy setters - still needed during transition for handlers using global DI
-	setAgentManager,
-	setDevServerService,
-	setGtrConfigService,
-	setHandoverService,
-	setNativeDialog,
-	setStore,
-	setWebServerService,
-	setWorktreeManager,
-} from "@agent-manager/shared";
+import { createRouter, type RouterContext } from "@agent-manager/shared";
 import { dialog } from "electron";
 
+import { AgentEventServiceAdapter } from "../application/services/agent-event-service";
+import { ThemeServiceAdapter } from "../application/services/theme-service";
 import {
 	setAgentManager as setElectronAgentManager,
 	unifiedAgentManager,
 } from "../application/sessions";
 import { devServerManager } from "../infrastructure/dev-server/dev-server-manager";
+import { store } from "../infrastructure/store";
 import { worktreeManager } from "../infrastructure/worktree/worktree-manager";
+import { branchNamePromptService } from "../services/branch-name-service";
 import { GtrConfigService } from "../services/gtr-config-service";
 import * as handoverSummaryService from "../services/handover-summary-service";
 import { webServerManager } from "../services/web-server-manager";
-import { store } from "../infrastructure/store";
 
 /**
  * NativeDialog adapter for Electron
@@ -93,13 +84,14 @@ export interface BootstrapResult {
  * 1. Creates service instances
  * 2. Builds the RouterContext
  * 3. Creates the router via factory
- * 4. Sets up legacy global DI for transition period
  *
  * @returns The router and context for further setup
  */
 export function bootstrap(): BootstrapResult {
 	// Create service instances
 	const gtrConfigService = new GtrConfigService();
+	const themeService = new ThemeServiceAdapter();
+	const agentEventService = new AgentEventServiceAdapter();
 
 	// Import and create rules resolver (Milestone 4)
 	const {
@@ -130,21 +122,15 @@ export function bootstrap(): BootstrapResult {
 		rulesResolver: rulesService, // Compatible interface
 		modelFetcher: modelFetcher,
 		sessionBuilder: sessionBuilder,
+		themeService: themeService,
+		branchNameService: branchNamePromptService,
+		agentEventService: agentEventService,
 	};
 
-	// TRANSITION: Also set up legacy global DI
-	// TODO: Remove these once all handlers use ctx directly
-	setAgentManager(unifiedAgentManager);
+	// Set up the unified agent manager for internal electron usage
 	setElectronAgentManager(unifiedAgentManager);
-	setStore(store);
-	setWorktreeManager(worktreeManager);
-	setHandoverService(handoverSummaryService);
-	setGtrConfigService(gtrConfigService);
-	setDevServerService(devServerManager);
-	setWebServerService(webServerManager);
-	setNativeDialog(nativeDialogAdapter);
 
-	// Create router using the factory pattern (Milestone 4)
+	// Create router using the factory pattern
 	// createRouter(ctx) internally calls _setRouterContext(ctx),
 	// enabling handlers to use getRouterContext() for migration
 	const router = createRouter(ctx);

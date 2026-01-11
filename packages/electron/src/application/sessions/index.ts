@@ -19,7 +19,7 @@ export {
 	OneShotAgentManager,
 	oneShotAgentManager,
 } from "./oneshot-agent-manager";
-export type { ParseResult, ParsedLogMetadata } from "./output-parser";
+export type { ParsedLogMetadata, ParseResult } from "./output-parser";
 // Output parser
 export { AgentOutputParser } from "./output-parser";
 export {

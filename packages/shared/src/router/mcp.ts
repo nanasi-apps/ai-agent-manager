@@ -306,69 +306,71 @@ export async function listMcpToolsLogic(input: McpServerEntry): Promise<any[]> {
 
 export function createMcpRouter(ctx: RouterContext) {
 	return {
-	/**
-	 * List all configured MCP servers from global Gemini CLI and Claude CLI settings
-	 */
-	listMcpServers: os.output(z.array(mcpServerEntrySchema)).handler(async () => {
-		const [gemini, claudeDesktop, claudeCode] = await Promise.all([
-			readGeminiMcpServers(),
-			readClaudeDesktopMcpServers(),
-			readClaudeCodeMcpServers(),
-		]);
+		/**
+		 * List all configured MCP servers from global Gemini CLI and Claude CLI settings
+		 */
+		listMcpServers: os
+			.output(z.array(mcpServerEntrySchema))
+			.handler(async () => {
+				const [gemini, claudeDesktop, claudeCode] = await Promise.all([
+					readGeminiMcpServers(),
+					readClaudeDesktopMcpServers(),
+					readClaudeCodeMcpServers(),
+				]);
 
-		return [...gemini, ...claudeDesktop, ...claudeCode];
-	}),
-
-	/**
-	 * Get MCP servers grouped by source
-	 */
-	getMcpServersBySource: os
-		.output(
-			z.object({
-				gemini: z.array(mcpServerEntrySchema),
-				claudeDesktop: z.array(mcpServerEntrySchema),
-				claudeCode: z.array(mcpServerEntrySchema),
+				return [...gemini, ...claudeDesktop, ...claudeCode];
 			}),
-		)
-		.handler(async () => {
-			const [gemini, claudeDesktop, claudeCode] = await Promise.all([
-				readGeminiMcpServers(),
-				readClaudeDesktopMcpServers(),
-				readClaudeCodeMcpServers(),
-			]);
 
-			return {
-				gemini,
-				claudeDesktop,
-				claudeCode,
-			};
-		}),
+		/**
+		 * Get MCP servers grouped by source
+		 */
+		getMcpServersBySource: os
+			.output(
+				z.object({
+					gemini: z.array(mcpServerEntrySchema),
+					claudeDesktop: z.array(mcpServerEntrySchema),
+					claudeCode: z.array(mcpServerEntrySchema),
+				}),
+			)
+			.handler(async () => {
+				const [gemini, claudeDesktop, claudeCode] = await Promise.all([
+					readGeminiMcpServers(),
+					readClaudeDesktopMcpServers(),
+					readClaudeCodeMcpServers(),
+				]);
 
-	/**
-	 * Get MCP servers for a specific session
-	 * Includes both global servers and session-specific injected servers
-	 */
-	getSessionMcpServers: os
-		.input(z.object({ sessionId: z.string() }))
-		.output(
-			z.object({
-				sessionServers: z.array(mcpServerEntrySchema),
-				globalServers: z.array(mcpServerEntrySchema),
-				agentType: z.string().optional(),
+				return {
+					gemini,
+					claudeDesktop,
+					claudeCode,
+				};
 			}),
-		)
-		.handler(async ({ input }) => {
-			return getSessionMcpServersLogic(input.sessionId, ctx.agentManager);
-		}),
 
-	/**
-	 * List tools for a specific MCP server
-	 */
-	listMcpTools: os
-		.input(mcpServerEntrySchema)
-		.output(z.array(z.any()))
-		.handler(async ({ input }) => {
-			return listMcpToolsLogic(input);
-		}),
+		/**
+		 * Get MCP servers for a specific session
+		 * Includes both global servers and session-specific injected servers
+		 */
+		getSessionMcpServers: os
+			.input(z.object({ sessionId: z.string() }))
+			.output(
+				z.object({
+					sessionServers: z.array(mcpServerEntrySchema),
+					globalServers: z.array(mcpServerEntrySchema),
+					agentType: z.string().optional(),
+				}),
+			)
+			.handler(async ({ input }) => {
+				return getSessionMcpServersLogic(input.sessionId, ctx.agentManager);
+			}),
+
+		/**
+		 * List tools for a specific MCP server
+		 */
+		listMcpTools: os
+			.input(mcpServerEntrySchema)
+			.output(z.array(z.any()))
+			.handler(async ({ input }) => {
+				return listMcpToolsLogic(input);
+			}),
 	};
 }

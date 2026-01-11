@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { ref } from "vue";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -27,12 +27,9 @@ const projectsStore = useProjectsStore();
 const name = ref("");
 const rootPath = ref("");
 const isLoading = ref(false);
-const hasNativePicker = computed(() => {
-	return typeof window !== "undefined" && !!window.electronAPI;
-});
+
 
 const browseRootPath = async () => {
-	if (!hasNativePicker.value) return;
 	try {
 		const selected = await orpcQuery.selectDirectory.call();
 		if (selected) {
@@ -101,7 +98,7 @@ const handleCreate = async () => {
 						<Button
 							variant="secondary"
 							type="button"
-							:disabled="!hasNativePicker || isLoading"
+							:disabled="isLoading"
 							@click="browseRootPath"
 						>
 							Browse

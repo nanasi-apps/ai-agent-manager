@@ -1,13 +1,12 @@
 import { randomUUID } from "node:crypto";
-import {
-	type ApprovalChannel,
-	type Conversation,
-	getStoreOrThrow,
-	type IStore,
+import type {
+	ApprovalChannel,
+	Conversation,
+	IStore,
 } from "@agent-manager/shared";
 import { z } from "zod";
 import { getSessionContext } from "../mcp-session-context";
-import type { ToolRegistrar } from "./types";
+import type { McpContext, ToolRegistrar } from "./types";
 
 function generateFallbackUUID(): string {
 	return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
@@ -83,7 +82,12 @@ function findLatestPlanContent(
 	return null;
 }
 
-export function registerPlanTools(registerTool: ToolRegistrar) {
+export function registerPlanTools(
+	registerTool: ToolRegistrar,
+	ctx: McpContext,
+) {
+	const { store } = ctx;
+
 	registerTool(
 		"propose_implementation_plan",
 		{
@@ -114,7 +118,6 @@ export function registerPlanTools(registerTool: ToolRegistrar) {
 				};
 			}
 
-			const store = getStoreOrThrow();
 			const context = getSessionContext();
 			const { sessionId } = resolveSessionContext(
 				store,
@@ -176,7 +179,6 @@ export function registerPlanTools(registerTool: ToolRegistrar) {
 				};
 			}
 
-			const store = getStoreOrThrow();
 			const context = getSessionContext();
 			const { sessionId, conversation } = resolveSessionContext(
 				store,

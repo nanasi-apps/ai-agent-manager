@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { AgentLogPayload, AgentMode } from "@agent-manager/shared";
-import { getStoreOrThrow } from "@agent-manager/shared";
+import type { AgentLogPayload, AgentMode, IStore } from "@agent-manager/shared";
 import { StreamableHTTPTransport } from "@hono/mcp";
 import { serve } from "@hono/node-server";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -77,22 +76,30 @@ function generateId(): string {
 	}
 }
 
-function emitAgentLog(payload: AgentLogPayload, persist: boolean = true) {
-	if (persist) {
-		const store = getStoreOrThrow();
-		const role = payload.type === "system" ? "system" : "agent";
-		store.addMessage(payload.sessionId, {
-			id: generateId(),
-			role,
-			content: payload.data,
-			timestamp: Date.now(),
-			logType: payload.type,
-		});
-	}
+/**
+ * Creates an emitAgentLog function that uses the provided store.
+ * This removes the dependency on getStoreOrThrow.
+ */
+function createEmitAgentLog(store: IStore) {
+	return function emitAgentLog(
+		payload: AgentLogPayload,
+		persist: boolean = true,
+	) {
+		if (persist) {
+			const role = payload.type === "system" ? "system" : "agent";
+			store.addMessage(payload.sessionId, {
+				id: generateId(),
+				role,
+				content: payload.data,
+				timestamp: Date.now(),
+				logType: payload.type,
+			});
+		}
 
-	BrowserWindow.getAllWindows().forEach((win) => {
-		win.webContents.send("agent-log", payload);
-	});
+		BrowserWindow.getAllWindows().forEach((win) => {
+			win.webContents.send("agent-log", payload);
+		});
+	};
 }
 
 function formatToolCall(name: string, args: unknown): string {
@@ -113,22 +120,36 @@ function extractPlanContent(args: unknown): string | null {
 	return planContent.trim() ? planContent : null;
 }
 
-function hasPlanContent(sessionId: string, planContent: string): boolean {
-	const messages = getStoreOrThrow().getMessages(sessionId);
-	for (let i = messages.length - 1; i >= 0; i--) {
-		const msg = messages[i];
-		if (msg?.logType === "plan" && msg.content?.trim()) {
-			return msg.content.trim() === planContent.trim();
+function createHasPlanContent(store: IStore) {
+	return function hasPlanContent(
+		sessionId: string,
+		planContent: string,
+	): boolean {
+		const messages = store.getMessages(sessionId);
+		for (let i = messages.length - 1; i >= 0; i--) {
+			const msg = messages[i];
+			if (msg?.logType === "plan" && msg.content?.trim()) {
+				return msg.content.trim() === planContent.trim();
+			}
 		}
-	}
-	return false;
+		return false;
+	};
 }
 
-export async function startMcpServer(port: number = 3001) {
+/**
+ * Start the MCP server.
+ * @param port - Port to listen on
+ * @param store - Store instance for persistence
+ */
+export async function startMcpServer(port: number = 3001, store: IStore) {
 	const server = new McpServer({
 		name: "agent-manager",
 		version: "1.0.0",
 	});
+
+	// Create helper functions with store injected
+	const emitAgentLog = createEmitAgentLog(store);
+	const hasPlanContent = createHasPlanContent(store);
 
 	// Create a tool registrar that wraps handlers with security checks
 	const registerTool: ToolRegistrar = (name, schema, handler) => {
@@ -140,7 +161,7 @@ export async function startMcpServer(port: number = 3001) {
 				const sessionId = context?.sessionId;
 
 				if (context?.sessionId) {
-					const conv = getStoreOrThrow().getConversation(context.sessionId);
+					const conv = store.getConversation(context.sessionId);
 
 					// Check if tool is disabled by user
 					if (isToolDisabledForSession(name, conv?.disabledMcpTools)) {
@@ -218,12 +239,15 @@ export async function startMcpServer(port: number = 3001) {
 		);
 	};
 
+	// Create context for tool registration
+	const mcpCtx = { store };
+
 	// Register all tools from modular files
 	registerFsTools(registerTool);
 	registerGitTools(registerTool);
-	registerLaunchTools(registerTool);
-	registerPlanTools(registerTool);
-	registerWorktreeTools(registerTool);
+	registerLaunchTools(registerTool, mcpCtx);
+	registerPlanTools(registerTool, mcpCtx);
+	registerWorktreeTools(registerTool, mcpCtx);
 	registerSearchTools(registerTool);
 
 	const app = new Hono();
@@ -270,7 +294,7 @@ export async function startMcpServer(port: number = 3001) {
 						isToolsListResult(result) &&
 						result.tools
 					) {
-						const conv = getStoreOrThrow().getConversation(context.sessionId);
+						const conv = store.getConversation(context.sessionId);
 
 						// Filter out disabled tools
 						if (conv?.disabledMcpTools) {
@@ -303,7 +327,7 @@ export async function startMcpServer(port: number = 3001) {
 		const isSuperuser = c.req.query("superuser") === "true";
 
 		// Validate session exists
-		const conv = getStoreOrThrow().getConversation(sessionId);
+		const conv = store.getConversation(sessionId);
 		if (!conv) {
 			console.warn(`[McpServer] Invalid session ID: ${sessionId}`);
 			return c.json({ error: "Invalid session ID" }, 401);

@@ -69,10 +69,10 @@ export class UnifiedAgentManager extends EventEmitter implements IAgentManager {
 
 	getSessionMetadata(sessionId: string):
 		| {
-			geminiSessionId?: string;
-			codexSessionId?: string;
-			codexThreadId?: string;
-		}
+				geminiSessionId?: string;
+				codexSessionId?: string;
+				codexThreadId?: string;
+		  }
 		| undefined {
 		return oneShotAgentManager.getSessionMetadata?.(sessionId);
 	}

@@ -31,7 +31,9 @@ import { os } from "@orpc/server";
 import { z } from "zod";
 
 // Import port interfaces (these define the "what", not "how")
+import type { IAgentEventService } from "../ports/agent-event-service";
 import type { IAgentManager } from "../ports/agent-manager";
+import type { IBranchNameService } from "../ports/branch-name-service";
 import type { IDevServerService } from "../ports/dev-server-service";
 import type { IGtrConfigService } from "../ports/gtr-config-service";
 import type { IHandoverService } from "../ports/handover-service";
@@ -41,6 +43,7 @@ import type { IRulesResolver } from "../ports/rules-resolver";
 import type { IRulesService } from "../ports/rules-service";
 import type { ISessionBuilder } from "../ports/session-builder";
 import type { IStore } from "../ports/store";
+import type { IThemeService } from "../ports/theme-service";
 import type { IWebServerService } from "../ports/web-server-service";
 import type { IWorktreeManager } from "../ports/worktree-manager";
 import { createAgentsRouter } from "./agents";
@@ -49,6 +52,7 @@ import { createAppSettingsRouter } from "./app-settings";
 import { createApprovalsRouter } from "./approvals";
 import { createConversationsRouter } from "./conversations";
 import { createDevServerRouter } from "./dev-server";
+import { createElectronApiRouter } from "./electron-api";
 import { createLocksRouter } from "./locks";
 import { createMcpRouter } from "./mcp";
 import { createModelsRouter } from "./models";
@@ -104,6 +108,17 @@ export interface RouterContext {
 
 	/** Session configuration builder (optional during migration) */
 	sessionBuilder?: ISessionBuilder;
+
+	// ---- Electron-specific services (for oRPC MessagePort) ----
+
+	/** Theme management (optional - null in web context) */
+	themeService?: IThemeService;
+
+	/** Branch name prompting (optional - null in web context) */
+	branchNameService?: IBranchNameService;
+
+	/** Agent event streaming (optional - null in web context) */
+	agentEventService?: IAgentEventService;
 }
 
 /**
@@ -123,6 +138,7 @@ export function createRouter(ctx: RouterContext) {
 	const approvalsRouter = createApprovalsRouter(ctx);
 	const conversationsRouter = createConversationsRouter(ctx);
 	const devServerRouter = createDevServerRouter(ctx);
+	const electronApiRouter = createElectronApiRouter(ctx);
 	const locksRouter = createLocksRouter(ctx);
 	const mcpRouter = createMcpRouter(ctx);
 	const modelsRouter = createModelsRouter(ctx);
@@ -163,6 +179,8 @@ export function createRouter(ctx: RouterContext) {
 		...approvalsRouter,
 		...devServerRouter,
 		...webServerRouter,
+		// Electron-specific API (theme, branchName, agent events)
+		...electronApiRouter,
 	});
 }
 

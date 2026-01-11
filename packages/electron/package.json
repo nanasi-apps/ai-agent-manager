@@ -5,7 +5,7 @@
 	"main": "dist/main.js",
 	"scripts": {
 		"dev": "NODE_ENV=development npm run copy:templates && NODE_ENV=development concurrently -k \"tsc -w\" \"NODE_ENV=development npm run start:electron\"",
-		"start:electron": "wait-on dist/main.js tcp:${WEB_PORT:-5173} && ELECTRON_DISABLE_SECURITY_WARNINGS=true nodemon --watch dist --watch ../shared/dist --ext js,cjs,mjs --ignore dist/renderer/** --ignore dist/**/*.map --ignore dist/**/.DS_Store --delay 200 --exec electron .",
+		"start:electron": "wait-on dist/main.js tcp:${WEB_PORT:-5173} && ELECTRON_DISABLE_SECURITY_WARNINGS=true nodemon --watch dist/main.js --watch dist/preload.js --watch dist/app --watch dist/application --watch dist/infrastructure --watch dist/services --watch dist/adapters --watch dist/utils --watch dist/server --watch ../shared/dist --ext js --delay 200 --exec 'electron .'",
 		"prebuild": "rm -rf dist",
 		"build": "node esbuild.config.mjs && npm run copy:templates && npm run copy:web && electron-builder --mac --win --linux",
 		"copy:templates": "cp -r src/application/sessions/templates dist/",

@@ -1,3 +1,5 @@
+import type { IStore } from "@agent-manager/shared";
+
 export type TextContent = {
 	type: "text";
 	text: string;
@@ -25,3 +27,11 @@ export type ToolRegistrar = (
 	schema: ToolInputSchema,
 	handler: ToolHandler,
 ) => void;
+
+/**
+ * Context passed to MCP tool registration functions.
+ * Contains all dependencies needed by tools.
+ */
+export interface McpContext {
+	store: IStore;
+}
