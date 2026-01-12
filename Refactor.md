@@ -93,15 +93,15 @@ src/
 - [x] One-shot session emits typed events via `emit("session-event", event)`
 - [x] Emit `StateChangeEvent` from xstate state subscription
 - [x] Emit `SessionLifecycleEvent` at key points (started/stopped/reset)
-- [ ] Update UI to properly consume all typed event types (currently only LogEvent)
-- [ ] Add typed event handling for ToolCallEvent, ToolResultEvent, ThinkingEvent in UI
+- [x] Update UI to properly consume all typed event types (currently only LogEvent)
+- [x] Add typed event handling for ToolCallEvent, ToolResultEvent, ThinkingEvent in UI
 
 ---
 
 ## Current Status
 
-**Date**: 2026-01-08 07:00
-**Phase**: Milestone 6 - Unify Session Runtime with typed events (IN PROGRESS)
+**Date**: 2026-01-11 21:30
+**Phase**: Milestone 6 - Unify Session Runtime with typed events (COMPLETE)
 
 ### Milestone 5 Complete ✅
 
@@ -136,11 +136,17 @@ Layer separation in electron is complete:
    - `emitEvent()` emits any `SessionEvent`
    - Managers and logging subscribe to typed events
 
-4. ⏳ **UI Event Handling (Needs Work)**
-   - Currently UI subscribes via `onAgentLog` and `onAgentStateChanged`
-   - Legacy `AgentLogPayload` pattern still used in `ConversationView.vue`
-   - Need to transition to consuming full `SessionEvent` types
-   - Deleted `session-builder.ts` and `rules-resolver.ts` from shared
+3. ✅ **OneShotSession Emits Typed Events**
+   - Uses `emit("session-event", event)` for all session events
+   - `emitLog()` creates `LogEvent` objects
+   - `emitEvent()` emits any `SessionEvent`
+   - Managers and logging subscribe to typed events
+
+4. ✅ **UI Event Handling (Complete)**
+   - `ConversationView.vue` subscribes to `orpc.electron.agent.subscribeEvents`
+   - `conversation.ts` store handles specific event types (`addToolCall`, `addThinking`, etc.)
+   - `ChatMessageList.vue` renders structured data from `toolCall`/`toolResult` properties
+   - Regex parsing removed from store, kept in UI only as fallback for legacy logs
 
 ### Handler Migration Progress (Milestone 4) ✅ COMPLETE
 

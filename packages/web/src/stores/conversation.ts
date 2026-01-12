@@ -25,6 +25,21 @@ export interface Message {
 	content: string;
 	timestamp: number;
 	logType?: LogType;
+	// Structured data for typed events
+	toolCall?: {
+		name: string;
+		args: Record<string, unknown>;
+	};
+	toolResult?: {
+		name: string;
+		result: unknown;
+		success: boolean;
+		error?: string;
+	};
+	error?: {
+		message: string;
+		code?: string;
+	};
 }
 
 export type { ModelTemplate, McpServerEntry };
@@ -200,22 +215,19 @@ export const useConversationStore = defineStore("conversation", () => {
 
 	// Message helpers
 	const getLogSummary = (msg: Message) => {
-		const content = msg.content || "";
 		const type = msg.logType;
 
 		if (type === "tool_call") {
-			const toolMatch = content.match(/\[Tool: ([^\]]+)\]/);
-			if (toolMatch) return toolMatch[1];
-			const execMatch = content.match(/\[Executing: ([^\]]+)\]/);
-			if (execMatch) return execMatch[1];
+			if (msg.toolCall) {
+				return `Tool: ${msg.toolCall.name}`;
+			}
 			return "Tool Call";
 		}
 
 		if (type === "tool_result") {
-			const resultMatch = content.match(/\[Result: ([^\]]+)\]/);
-			if (resultMatch) return `Result (${resultMatch[1]})`;
-			if (content.includes("[Output]")) return "Output";
-			if (content.includes("[File ")) return "File Change";
+			if (msg.toolResult) {
+				return `Result: ${msg.toolResult.name}`;
+			}
 			return "Tool Result";
 		}
 
@@ -224,58 +236,14 @@ export const useConversationStore = defineStore("conversation", () => {
 		if (type === "plan") return "Implementation Plan";
 
 		if (type === "system") {
-			const modelMatch = content.match(/\[Using model: ([^\]]+)\]/);
-			if (modelMatch) return `Model: ${modelMatch[1]}`;
 			return "System";
 		}
 
 		return type?.replace("_", " ") || "Log";
 	};
 
-	const getCleanContent = (content: string, logType?: LogType) => {
-		if (!logType || logType === "text") return content.trim();
-
-		let clean = content;
-		const prefixes = [
-			/^\s*\[Tool: [^\]]+\]\s*/,
-			/^\s*\[Executing: [^\]]+\]\s*/,
-			/^\s*\[Result(: [^\]]+)?\]\s*/,
-			/^\s*\[Thinking\]\s*/,
-			/^\s*\[Error\]\s*/,
-			/^\s*\[System\]\s*/,
-			/^\s*\[Using model: [^\]]+\]\s*/,
-			/^\s*\[Output\]\s*/,
-			/^\s*\[File [^:]+: [^\]]+\]\s*/,
-			/^\s*\[Exit code: [^\]]+\]\s*/,
-			/^\s*\[Session started\]\s*/,
-		];
-
-		for (const p of prefixes) {
-			clean = clean.replace(p, "");
-		}
-
-		return clean.trim();
-	};
-
-	const sanitizeLogContent = (content: string, logType?: LogType) => {
-		const clean = getCleanContent(content, logType);
-
-		if (!clean) return "_No content_";
-
-		if (logType === "tool_call") {
-			return `\`\`\`json\n${clean}\n\`\`\``;
-		}
-
-		if (logType === "tool_result") {
-			if (clean.startsWith("```")) return clean;
-			return `\`\`\`\n${clean}\n\`\`\``;
-		}
-
-		return clean;
-	};
-
 	const hasContent = (msg: Message) => {
-		return getCleanContent(msg.content, msg.logType).length > 0;
+		return msg.content && msg.content.trim().length > 0;
 	};
 
 	const isAlwaysOpen = (msg: Message) => {
@@ -630,20 +598,6 @@ export const useConversationStore = defineStore("conversation", () => {
 		const content = payload.data;
 		if (!content.trim()) return;
 
-		// Detect worktree-related changes and refresh branch info
-		if (
-			content.includes("Scheduled resume in worktree") ||
-			content.includes("Worktree created") ||
-			content.includes("Worktree resume scheduled") ||
-			content.includes("Resume scheduled") ||
-			content.includes("[Agent Manager] Scheduled resume") ||
-			content.includes("Switching to worktree")
-		) {
-			setTimeout(() => {
-				loadBranchInfo(sessionId.value, projectId.value ?? undefined);
-			}, 500);
-		}
-
 		const incomingType = payload.type || "text";
 		const incomingRole = incomingType === "system" ? "system" : "agent";
 
@@ -653,12 +607,19 @@ export const useConversationStore = defineStore("conversation", () => {
 		if (lastMsg) {
 			const lastType = lastMsg.logType || "text";
 
-			if (lastMsg.role === incomingRole) {
-				if (incomingType === "text" && lastType === "text") {
-					lastMsg.content += content;
-					merged = true;
-				} else if (incomingType !== "text" && incomingType === lastType) {
-					lastMsg.content += content;
+			// Only merge text logs
+			if (
+				lastMsg.role === incomingRole &&
+				incomingType === "text" &&
+				lastType === "text"
+			) {
+				lastMsg.content += content;
+				merged = true;
+			} else if (incomingType !== "text" && incomingType === lastType) {
+				// Don't merge non-text logs usually, unless it is specifically implemented
+				// For system logs we might merge
+				if (incomingType === "system") {
+					lastMsg.content += `\n${content}`;
 					merged = true;
 				}
 			}
@@ -678,6 +639,87 @@ export const useConversationStore = defineStore("conversation", () => {
 				isMcpSheetOpen.value = false;
 			}
 		}
+	};
+
+	const addToolCall = (payload: {
+		toolName: string;
+		arguments: Record<string, unknown>;
+	}) => {
+		messages.value.push({
+			id: crypto.randomUUID(),
+			role: "agent",
+			content: JSON.stringify(payload.arguments, null, 2),
+			timestamp: Date.now(),
+			logType: "tool_call",
+			toolCall: {
+				name: payload.toolName,
+				args: payload.arguments,
+			},
+		});
+	};
+
+	const addToolResult = (payload: {
+		toolName: string;
+		result: unknown;
+		success: boolean;
+		error?: string;
+	}) => {
+		let content = "";
+		if (typeof payload.result === "string") {
+			content = payload.result;
+		} else {
+			content = JSON.stringify(payload.result, null, 2);
+		}
+
+		messages.value.push({
+			id: crypto.randomUUID(),
+			role: "agent",
+			content: content,
+			timestamp: Date.now(),
+			logType: "tool_result",
+			toolResult: {
+				name: payload.toolName,
+				result: payload.result,
+				success: payload.success,
+				error: payload.error,
+			},
+		});
+	};
+
+	const addThinking = (payload: { content: string }) => {
+		// Thinking events might come in chunks in the future, currently treated as discrete
+		// Or if we want streaming thinking, we might need merge logic similar to text logs
+		const lastMsg = messages.value[messages.value.length - 1];
+		if (lastMsg && lastMsg.logType === "thinking") {
+			lastMsg.content += payload.content;
+			return;
+		}
+
+		messages.value.push({
+			id: crypto.randomUUID(),
+			role: "agent",
+			content: payload.content,
+			timestamp: Date.now(),
+			logType: "thinking",
+		});
+	};
+
+	const addError = (payload: {
+		message: string;
+		code?: string;
+		details?: unknown;
+	}) => {
+		messages.value.push({
+			id: crypto.randomUUID(),
+			role: "system",
+			content: payload.message,
+			timestamp: Date.now(),
+			logType: "error",
+			error: {
+				message: payload.message,
+				code: payload.code,
+			},
+		});
 	};
 
 	const sendMessage = async (scrollToBottom: () => void) => {
@@ -1199,8 +1241,6 @@ export const useConversationStore = defineStore("conversation", () => {
 		formatModeLabel,
 		formatTime,
 		getLogSummary,
-		getCleanContent,
-		sanitizeLogContent,
 		hasContent,
 		isAlwaysOpen,
 		toggleMessage,
@@ -1226,6 +1266,10 @@ export const useConversationStore = defineStore("conversation", () => {
 		// Setup
 		setupWatchers,
 		appendAgentLog,
+		addToolCall,
+		addToolResult,
+		addThinking,
+		addError,
 		initSession,
 		$reset,
 

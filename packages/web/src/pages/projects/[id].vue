@@ -9,6 +9,15 @@ import {
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import ConversionCard from "@/components/ConversionCard.vue";
+import {
+	Dialog,
+	DialogClose,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import {
 	Tooltip,
@@ -36,6 +45,8 @@ const project = ref<{ id: string; name: string; rootPath?: string } | null>(
 );
 const conversations = ref<any[]>([]);
 const isLoading = ref(true);
+const deleteTargetId = ref<string | null>(null);
+const showDeleteConfirm = ref(false);
 
 const loadData = async () => {
 	const id = projectId.value;
@@ -63,6 +74,32 @@ const loadData = async () => {
 
 const openConversation = (id: string) => {
 	router.push(`/conversions/${id}`);
+};
+
+const requestDelete = (id: string) => {
+	deleteTargetId.value = id;
+	showDeleteConfirm.value = true;
+};
+
+const confirmDelete = async () => {
+	if (!deleteTargetId.value) return;
+	try {
+		await orpcQuery.deleteConversation.call({ sessionId: deleteTargetId.value });
+		// Remove locally for immediate feedback
+		conversations.value = conversations.value.filter(
+			(c) => c.id !== deleteTargetId.value,
+		);
+	} catch (e) {
+		console.error("Failed to delete conversation:", e);
+	} finally {
+		showDeleteConfirm.value = false;
+		deleteTargetId.value = null;
+	}
+};
+
+const cancelDelete = () => {
+	showDeleteConfirm.value = false;
+	deleteTargetId.value = null;
 };
 
 const goSettings = (id?: string) => {
@@ -145,11 +182,13 @@ watch(projectId, loadData, { immediate: true });
 						<ConversionCard
 							v-for="conv in conversations"
 							:key="conv.id"
+							:id="conv.id"
 							:title="conv.title"
 							:project-name="project?.name"
 							:updated-at="conv.updatedAt"
 							:is-running="conv.isProcessing"
-							@click="openConversation(conv.id)"
+							@open="openConversation"
+							@delete="requestDelete"
 						/>
 					</div>
 
@@ -166,5 +205,36 @@ watch(projectId, loadData, { immediate: true });
 				</div>
 			</div>
 		</Transition>
+
+		<Dialog v-model:open="showDeleteConfirm">
+			<DialogContent>
+				<DialogHeader>
+					<DialogTitle>Delete Conversation</DialogTitle>
+					<DialogDescription>
+						Are you sure you want to delete this conversation? This action cannot be
+						undone.
+					</DialogDescription>
+				</DialogHeader>
+				<DialogFooter>
+					<DialogClose as-child>
+						<button
+							class="px-3 py-2 rounded-md bg-muted text-muted-foreground hover:bg-muted/80"
+							@click="cancelDelete"
+						>
+							Cancel
+						</button>
+					</DialogClose>
+					<button
+						class="px-3 py-2 rounded-md bg-destructive text-destructive-foreground hover:bg-destructive/90"
+						@click="confirmDelete"
+					>
+						Delete
+					</button>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
 	</div>
 </template>
+
+<style scoped>
+</style>

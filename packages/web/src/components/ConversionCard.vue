@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ExternalLink, Loader2, MessageSquare } from "lucide-vue-next";
+import { ExternalLink, Loader2, MessageSquare, Trash2 } from "lucide-vue-next";
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,6 +11,7 @@ const props = defineProps<{
 	projectName?: string;
 	updatedAt: number;
 	isRunning?: boolean;
+	id: string;
 }>();
 
 const formattedTime = computed(() => {
@@ -25,11 +26,26 @@ const formattedTime = computed(() => {
 		return t("time.ago", { time: `${Math.floor(diff / 3600000)}h` });
 	return date.toLocaleDateString();
 });
+
+const emit = defineEmits<{
+	(e: "open", id: string): void;
+	(e: "delete", id: string): void;
+}>();
+
+const handleDelete = (event: Event) => {
+	event.stopPropagation();
+	emit("delete", props.id);
+};
+
+const handleOpen = () => {
+	emit("open", props.id);
+};
 </script>
 
 <template>
 	<Card
 		class="cursor-pointer transition-all hover:shadow-md hover:border-primary/50 group bg-card/50 hover:bg-card"
+		@click="handleOpen"
 	>
 		<CardContent class="p-2 flex items-center justify-between">
 			<div class="flex items-center gap-3 min-w-0">
@@ -66,11 +82,20 @@ const formattedTime = computed(() => {
 					</div>
 				</div>
 			</div>
-			<div
-				class="opacity-0 group-hover:opacity-100 transition-opacity -translate-x-2 group-hover:translate-x-0 duration-200"
-			>
-				<ExternalLink class="size-4 text-muted-foreground"/>
-			</div>
+				<div class="flex items-center gap-2" @click.stop>
+					<button
+						title="Delete conversation"
+						@click="handleDelete"
+						class="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md p-1"
+					>
+						<Trash2 class="size-4"/>
+					</button>
+					<div class="opacity-0 group-hover:opacity-100 transition-opacity -translate-x-2 group-hover:translate-x-0 duration-200">
+						<button title="Open conversation" @click.stop="handleOpen">
+							<ExternalLink class="size-4 text-muted-foreground"/>
+						</button>
+					</div>
+				</div>
 		</CardContent>
 	</Card>
 </template>

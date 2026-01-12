@@ -49,11 +49,10 @@ export class CodexDriver implements AgentDriver {
 
 		// Plan/Ask mode: restrict to read-only sandbox to disable file writes and command execution
 		// This is Codex's equivalent of Gemini's tools.exclude feature
-		const modeArgs = buildModeArgs(config.mode);
-
 		const customApiArgs = buildCustomApiArgs(config);
 
 		if (context.messageCount === 0) {
+			const modeArgs = buildModeArgs(config.mode, "exec");
 			// First message: start fresh
 			// Usage: codex exec [OPTIONS] [PROMPT]
 			// -m/--model is available for exec
@@ -70,6 +69,7 @@ export class CodexDriver implements AgentDriver {
 				escapedMessage,
 			];
 		} else if (context.codexSessionId || context.codexThreadId) {
+			const modeArgs = buildModeArgs(config.mode, "resume");
 			// Resume existing session or thread
 			// Usage: codex exec resume [OPTIONS] [SESSION_ID] [PROMPT]
 			// Note: -m/--model is NOT available for resume subcommand, must use -c model="..."
@@ -89,6 +89,7 @@ export class CodexDriver implements AgentDriver {
 				escapedMessage,
 			];
 		} else {
+			const modeArgs = buildModeArgs(config.mode, "exec");
 			// No session ID but not first message:
 			// Start fresh rather than using unreliable sessionId as resume target
 			console.warn(
@@ -140,10 +141,16 @@ function mapReasoningLevel(level: ReasoningLevel): string {
  * Build mode-specific arguments for Codex CLI
  * Plan/Ask modes use read-only sandbox to restrict file writes and command execution
  */
-function buildModeArgs(mode?: AgentMode): string[] {
+function buildModeArgs(
+	mode?: AgentMode,
+	target: "exec" | "resume" = "exec",
+): string[] {
 	if (mode === "plan" || mode === "ask") {
 		// Use read-only sandbox to disable file writes and command execution
 		// This is the closest equivalent to Gemini's tools.exclude feature
+		if (target === "resume") {
+			return ["-c", 'sandbox="read-only"'];
+		}
 		return ["--sandbox", "read-only"];
 	}
 	return [];

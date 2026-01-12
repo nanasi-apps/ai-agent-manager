@@ -8,7 +8,7 @@
 		"start:electron": "wait-on dist/main.js tcp:${WEB_PORT:-5173} && ELECTRON_DISABLE_SECURITY_WARNINGS=true nodemon --watch dist/main.js --watch dist/preload.js --watch dist/app --watch dist/application --watch dist/infrastructure --watch dist/services --watch dist/adapters --watch dist/utils --watch dist/server --watch ../shared/dist --ext js --delay 200 --exec 'electron .'",
 		"prebuild": "rm -rf dist",
 		"build": "node esbuild.config.mjs && npm run copy:templates && npm run copy:web && electron-builder --mac --win --linux",
-		"copy:templates": "cp -r src/application/sessions/templates dist/",
+		"copy:templates": "mkdir -p dist/application/sessions && cp -r src/application/sessions/templates dist/application/sessions/",
 		"copy:web": "mkdir -p dist/renderer && cp -r ../web/dist/* dist/renderer/",
 		"typecheck": "tsc --noEmit"
 	},

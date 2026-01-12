@@ -611,5 +611,27 @@ export function createConversationsRouter(ctx: RouterContext) {
 				});
 				return { success: true };
 			}),
+
+		// Delete a conversation by sessionId
+		deleteConversation: os
+			.input(
+				z.object({
+					sessionId: z.string(),
+				}),
+			)
+			.output(z.object({ success: z.boolean() }))
+			.handler(async ({ input }) => {
+				// Stop any running agent session for this conversation
+				try {
+					ctx.agentManager.stopSession(input.sessionId);
+				} catch (_) {
+					// Ignore if not running
+				}
+
+				// Delete the conversation from store
+				ctx.store.deleteConversation(input.sessionId);
+
+				return { success: true };
+			}),
 	};
 }

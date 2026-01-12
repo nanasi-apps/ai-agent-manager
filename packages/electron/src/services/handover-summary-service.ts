@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { shellEscape } from "../infrastructure/agent-drivers/interface";
 
 /**
  * Prompt for generating handover summaries
@@ -45,7 +46,7 @@ export function generateAgentSummary(
 		const resolvedTimeoutMs = timeoutMs ?? DEFAULT_SUMMARY_TIMEOUT_MS;
 		let command = "";
 		let args: string[] = [];
-		const prompt = HANDOVER_SUMMARY_PROMPT;
+		const prompt = shellEscape(HANDOVER_SUMMARY_PROMPT);
 
 		// Determine command based on agent type
 		if (agentType === "codex" && metadata?.codexSessionId) {

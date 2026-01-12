@@ -34,7 +34,6 @@ onMounted(() => {
 
 		<!-- Loading State -->
 		<Transition name="fade" mode="out-in">
-			<!-- Loading State -->
 			<div
 				v-if="projectsStore.isLoading && !projectsStore.isLoaded"
 				class="flex items-center justify-center py-20"
@@ -56,11 +55,12 @@ onMounted(() => {
 						<ConversionCard
 							v-for="conv in projectsStore.recentConversations"
 							:key="conv.id"
+							:id="conv.id"
 							:title="conv.title"
 							:project-name="projectsStore.getProjectName(conv.projectId)"
 							:updated-at="conv.updatedAt"
 							:is-running="conv.isProcessing"
-							@click="openConversation(conv.id)"
+							@open="openConversation"
 						/>
 					</div>
 				</section>

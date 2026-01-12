@@ -64,75 +64,38 @@ const getAgentLabel = () => {
 };
 
 const getLogSummary = (msg: Message) => {
-	const content = msg.content || "";
-	const type = msg.logType;
+	if (msg.toolCall) return "Tool Call";
+	if (msg.toolResult) return "Tool Result";
+	if (msg.logType === "thinking") return "Thinking";
+	if (msg.logType === "error") return "Error";
+	if (msg.logType === "system") return "System";
 
-	if (type === "system") {
-		const modelMatch = content.match(/\[Using model: ([^\]]+)\]/);
-		if (modelMatch) return `Model: ${modelMatch[1]}`;
-		return "System";
-	}
-
-	return type;
+	return msg.logType || "Log";
 };
 
 const getCodexLogLabel = (msg: Message) => {
-	const content = msg.content || "";
-
 	if (msg.logType === "thinking") {
 		return `${t("chat.thinking")}...`;
 	}
 
-	if (msg.logType === "tool_call") {
-		const toolMatch = content.match(/\[Tool: ([^\]]+)\]/);
-		if (toolMatch) return `${t("chat.toolCall")}: ${toolMatch[1]}`;
-		const execMatch = content.match(/\[Executing: ([^\]]+)\]/);
-		if (execMatch) return `${t("chat.toolCall")}: ${execMatch[1]}`;
-		return t("chat.toolCall");
+	if (msg.toolCall) {
+		return `${t("chat.toolCall")}: ${msg.toolCall.name}`;
 	}
 
-	if (msg.logType === "tool_result") {
-		const resultMatch = content.match(/\[Result: ([^\]]+)\]/);
-		if (resultMatch) return `${t("chat.toolResult")}: ${resultMatch[1]}`;
-		if (content.includes("[Output]")) return t("chat.output");
-		if (content.includes("[File ")) return t("chat.fileChange");
-		return t("chat.toolResult");
+	if (msg.toolResult) {
+		return `${t("chat.toolResult")}: ${msg.toolResult.name}`;
 	}
 
 	return getLogSummary(msg);
 };
 
-const getCleanContent = (content: string, logType?: LogType) => {
-	if (!logType || logType === "text") return content.trim();
-
-	let clean = content;
-	const prefixes = [
-		/^\s*\[Tool: [^\]]+\]\s*/,
-		/^\s*\[Executing: [^\]]+\]\s*/,
-		/^\s*\[Result(: [^\]]+)?\]\s*/,
-		/^\s*\[Thinking\]\s*/,
-		/^\s*\[Error\]\s*/,
-		/^\s*\[System\]\s*/,
-		/^\s*\[Using model: [^\]]+\]\s*/,
-		/^\s*\[Output\]\s*/,
-		/^\s*\[File [^:]+: [^\]]+\]\s*/,
-		/^\s*\[Exit code: [^\]]+\]\s*/,
-		/^\s*\[Session started\]\s*/,
-	];
-
-	for (const p of prefixes) {
-		clean = clean.replace(p, "");
-	}
-
-	return clean.trim();
-};
-
 const sanitizeLogContent = (content: string, logType?: LogType) => {
-	const clean = getCleanContent(content, logType);
+	const clean = content.trim();
 
 	if (!clean) return "No content";
 
 	if (logType === "tool_call") {
+		if (clean.startsWith("```")) return clean;
 		return `\`\`\`json\n${clean}\n\`\`\``;
 	}
 
@@ -145,7 +108,7 @@ const sanitizeLogContent = (content: string, logType?: LogType) => {
 };
 
 const hasContent = (msg: Message) => {
-	return getCleanContent(msg.content, msg.logType).length > 0;
+	return msg.content.trim().length > 0;
 };
 
 const isAlwaysOpen = (msg: Message) => {

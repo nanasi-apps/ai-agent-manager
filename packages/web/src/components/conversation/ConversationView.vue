@@ -200,10 +200,16 @@ onMounted(async () => {
 				break;
 
 			case "tool-call":
+				conversation.addToolCall(event.payload);
+				break;
 			case "tool-result":
+				conversation.addToolResult(event.payload);
+				break;
 			case "thinking":
+				conversation.addThinking(event.payload);
+				break;
 			case "error":
-				// Handled via log events or other mechanisms
+				conversation.addError(event.payload);
 				break;
 		}
 	};
